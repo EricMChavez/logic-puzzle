@@ -1,6 +1,7 @@
 import type { NodeState } from '../../shared/types/index.ts';
 import { NODE_CONFIG, COLORS, NODE_TYPE_LABELS } from '../../shared/constants/index.ts';
 import { getNodePortPosition } from './port-positions.ts';
+import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 
 /** Draw all nodes on the canvas. */
 export function renderNodes(
@@ -8,6 +9,8 @@ export function renderNodes(
   nodes: ReadonlyMap<string, NodeState>,
 ): void {
   for (const node of nodes.values()) {
+    // Virtual CP nodes are drawn as connection point circles, not node boxes
+    if (isConnectionPointNode(node.id)) continue;
     drawNodeBody(ctx, node);
     drawNodePorts(ctx, node);
   }

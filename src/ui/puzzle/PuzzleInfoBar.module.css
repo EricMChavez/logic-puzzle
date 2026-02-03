@@ -1,0 +1,37 @@
+.bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(26, 26, 46, 0.9);
+  border: 1px solid #4a4a6a;
+  border-radius: 6px;
+  padding: 6px 16px;
+  z-index: 10;
+  user-select: none;
+}
+
+.title {
+  color: #e8a838;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.description {
+  color: #9090b0;
+  font-size: 12px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.testCase {
+  color: #7090b0;
+  font-size: 11px;
+  border-left: 1px solid #3a3a5a;
+  padding-left: 12px;
+}

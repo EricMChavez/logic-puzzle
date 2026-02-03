@@ -58,6 +58,7 @@ export const COLORS = {
   CONNECTION_POINT_STROKE: '#f0c868',
   CONNECTION_POINT_LABEL: '#e8a838',
   GRID_LINE: '#1e1e38',
+  TARGET_WAVEFORM: '#50c878',
 } as const;
 
 /** Display labels for node types */

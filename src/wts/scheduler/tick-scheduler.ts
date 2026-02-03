@@ -142,6 +142,11 @@ function evaluateNode(node: NodeState, runtime: NodeRuntimeState): void {
       }
       break;
     }
+    case 'connection-input':
+    case 'connection-output':
+      // Virtual CP nodes — no-op. Input CPs are driven by the simulation
+      // controller as source nodes; output CPs just receive signals.
+      break;
   }
 }
 

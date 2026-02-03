@@ -2,6 +2,7 @@ import type { Vec2 } from '../../shared/types/index.ts';
 import { CONNECTION_POINT_CONFIG, COLORS } from '../../shared/constants/index.ts';
 import { getConnectionPointPosition } from './port-positions.ts';
 import { getWaveformBuffers } from '../../simulation/simulation-controller.ts';
+import { useGameStore } from '../../store/index.ts';
 
 /** Waveform display dimensions */
 const WAVEFORM_WIDTH = 80;
@@ -34,6 +35,7 @@ export function renderWaveforms(
   }
 
   // Output waveforms (right side, waveform to the left of the CP)
+  const { activePuzzle } = useGameStore.getState();
   for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
     const cpPos = getConnectionPointPosition('output', i, canvasWidth, canvasHeight);
     const buf = buffers.get(`output:${i}`);
@@ -44,6 +46,14 @@ export function renderWaveforms(
       y: cpPos.y - WAVEFORM_HEIGHT / 2,
     };
     drawWaveform(ctx, origin, buf.toArray());
+
+    // Draw target waveform overlay in puzzle mode
+    if (activePuzzle) {
+      const targetBuf = buffers.get(`target:${i}`);
+      if (targetBuf) {
+        drawTargetWaveform(ctx, origin, targetBuf.toArray());
+      }
+    }
   }
 }
 
@@ -100,4 +110,41 @@ function drawWaveform(
     }
   }
   ctx.stroke();
+}
+
+/**
+ * Draw a target waveform as a dashed green overlay on top of an existing waveform box.
+ * Uses the same coordinate mapping as drawWaveform.
+ */
+function drawTargetWaveform(
+  ctx: CanvasRenderingContext2D,
+  origin: Vec2,
+  values: number[],
+): void {
+  if (values.length < 2) return;
+
+  const { x, y } = origin;
+  const centerY = y + WAVEFORM_HEIGHT / 2;
+  const stepX = WAVEFORM_WIDTH / (values.length - 1);
+
+  ctx.strokeStyle = COLORS.TARGET_WAVEFORM;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.7;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+
+  for (let i = 0; i < values.length; i++) {
+    const px = x + i * stepX;
+    const normalized = values[i] / 100;
+    const py = centerY - normalized * (WAVEFORM_HEIGHT / 2 - 2);
+
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
 }

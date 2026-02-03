@@ -40,7 +40,7 @@ export function startRenderLoop(canvas: HTMLCanvasElement): () => void {
     renderWaveforms(ctx!, logicalWidth, logicalHeight);
 
     if (activeBoard) {
-      renderWires(ctx!, activeBoard.wires, activeBoard.nodes);
+      renderWires(ctx!, activeBoard.wires, activeBoard.nodes, logicalWidth, logicalHeight);
       renderNodes(ctx!, activeBoard.nodes);
 
       if (selectedNodeId) {

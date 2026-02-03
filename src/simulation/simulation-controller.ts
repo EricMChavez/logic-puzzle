@@ -12,6 +12,8 @@ import type { MixMode } from '../engine/nodes/mix.ts';
 import { evaluateInvert } from '../engine/nodes/invert.ts';
 import { evaluateThreshold } from '../engine/nodes/threshold.ts';
 import { evaluateDelay } from '../engine/nodes/delay.ts';
+import { generateWaveformValue } from '../puzzle/waveform-generators.ts';
+import { cpInputId, cpOutputId, isConnectionInputNode, getConnectionPointIndex } from '../puzzle/connection-point-nodes.ts';
 
 /** Waveform history length (number of ticks to display) */
 const WAVEFORM_CAPACITY = 64;
@@ -72,6 +74,17 @@ export function startSimulation(): void {
   }
   for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
     waveformBuffers.set(`output:${i}`, new WaveformBuffer(WAVEFORM_CAPACITY));
+  }
+
+  // Create target waveform buffers when a puzzle is active
+  const { activePuzzle, activeTestCaseIndex } = store;
+  if (activePuzzle) {
+    const testCase = activePuzzle.testCases[activeTestCaseIndex];
+    if (testCase) {
+      for (let i = 0; i < testCase.expectedOutputs.length; i++) {
+        waveformBuffers.set(`target:${i}`, new WaveformBuffer(WAVEFORM_CAPACITY));
+      }
+    }
   }
 
   // Initial evaluation: apply constants, evaluate all nodes, emit outputs
@@ -149,7 +162,7 @@ function initialEvaluation(
     const runtime = schedulerState.nodeStates.get(nodeId);
     if (!node || !runtime) continue;
 
-    evaluateNodeForInit(node, runtime);
+    evaluateNodeForInit(node, runtime, 0);
 
     // Emit outputs onto outgoing wires
     for (const wire of mutableWires) {
@@ -169,7 +182,7 @@ function initialEvaluation(
 }
 
 /** Evaluate a node for initial seeding. Mirrors tick-scheduler's evaluateNode. */
-function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outputs: number[]; delayState?: import('../engine/nodes/delay.ts').DelayState }): void {
+function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outputs: number[]; delayState?: import('../engine/nodes/delay.ts').DelayState }, currentTick?: number): void {
   switch (node.type) {
     case 'multiply': {
       runtime.outputs[0] = evaluateMultiply(runtime.inputs[0] ?? 0, runtime.inputs[1] ?? 0);
@@ -195,6 +208,23 @@ function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outpu
       }
       break;
     }
+    case 'connection-input': {
+      // In puzzle mode, generate waveform value for this input CP
+      const store = useGameStore.getState();
+      const { activePuzzle, activeTestCaseIndex } = store;
+      if (activePuzzle) {
+        const testCase = activePuzzle.testCases[activeTestCaseIndex];
+        const cpIndex = getConnectionPointIndex(node.id);
+        if (testCase && cpIndex >= 0 && cpIndex < testCase.inputs.length) {
+          const tick = currentTick ?? 0;
+          runtime.outputs[0] = generateWaveformValue(tick, testCase.inputs[cpIndex]);
+        }
+      }
+      break;
+    }
+    case 'connection-output':
+      // Output CPs just receive signals — no evaluation needed
+      break;
   }
 }
 
@@ -238,12 +268,13 @@ function tick(): void {
   }
 
   // Continuously emit from source nodes (nodes with no incoming wires)
+  const currentTick = clock.getTick();
   for (const nodeId of sourceNodeIds) {
     const node = boardNodes.get(nodeId);
     const runtime = schedulerState.nodeStates.get(nodeId);
     if (!node || !runtime) continue;
 
-    evaluateNodeForInit(node, runtime);
+    evaluateNodeForInit(node, runtime, currentTick);
     for (const wire of wires) {
       if (wire.from.nodeId === nodeId) {
         const value = runtime.outputs[wire.from.portIndex] ?? 0;
@@ -264,11 +295,38 @@ function tick(): void {
 
 /** Record current node output values into waveform buffers. */
 function recordWaveforms(): void {
-  if (!schedulerState) return;
+  if (!schedulerState || !clock) return;
 
-  // In sandbox mode, connection points aren't mapped to nodes yet.
-  // Push 0 as placeholder. The puzzle system will provide real mappings.
-  for (const [, buf] of waveformBuffers) {
-    buf.push(0);
+  // Record input CP waveform values (from their output port)
+  for (let i = 0; i < CONNECTION_POINT_CONFIG.INPUT_COUNT; i++) {
+    const buf = waveformBuffers.get(`input:${i}`);
+    if (!buf) continue;
+    const nodeId = cpInputId(i);
+    const runtime = schedulerState.nodeStates.get(nodeId);
+    buf.push(runtime ? runtime.outputs[0] ?? 0 : 0);
+  }
+
+  // Record output CP waveform values (from their input port)
+  for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
+    const buf = waveformBuffers.get(`output:${i}`);
+    if (!buf) continue;
+    const nodeId = cpOutputId(i);
+    const runtime = schedulerState.nodeStates.get(nodeId);
+    buf.push(runtime ? runtime.inputs[0] ?? 0 : 0);
+  }
+
+  // Record target waveform values when in puzzle mode
+  const store = useGameStore.getState();
+  const { activePuzzle, activeTestCaseIndex } = store;
+  if (activePuzzle) {
+    const testCase = activePuzzle.testCases[activeTestCaseIndex];
+    if (testCase) {
+      const currentTick = clock.getTick();
+      for (let i = 0; i < testCase.expectedOutputs.length; i++) {
+        const buf = waveformBuffers.get(`target:${i}`);
+        if (!buf) continue;
+        buf.push(generateWaveformValue(currentTick, testCase.expectedOutputs[i]));
+      }
+    }
   }
 }

@@ -1,6 +1,7 @@
 import type { NodeState, Wire, Vec2 } from '../../shared/types/index.ts';
 import { COLORS } from '../../shared/constants/index.ts';
-import { getNodePortPosition } from './port-positions.ts';
+import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
+import { isConnectionPointNode, isConnectionInputNode, getConnectionPointIndex } from '../../puzzle/connection-point-nodes.ts';
 
 /** Compute bezier control points for a wire between two positions. */
 function getWireBezierCP(from: Vec2, to: Vec2): { cp1: Vec2; cp2: Vec2 } {
@@ -28,19 +29,42 @@ function cubicBezier(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: number): Vec2 {
   };
 }
 
+/**
+ * Resolve the canvas position of a port on a wire endpoint.
+ * For virtual CP nodes, uses getConnectionPointPosition.
+ * For normal nodes, uses getNodePortPosition.
+ */
+function resolvePortPosition(
+  nodeId: string,
+  side: 'input' | 'output',
+  portIndex: number,
+  nodes: ReadonlyMap<string, NodeState>,
+  canvasWidth: number,
+  canvasHeight: number,
+): Vec2 | null {
+  if (isConnectionPointNode(nodeId)) {
+    const cpIndex = getConnectionPointIndex(nodeId);
+    const cpSide = isConnectionInputNode(nodeId) ? 'input' : 'output';
+    return getConnectionPointPosition(cpSide, cpIndex, canvasWidth, canvasHeight);
+  }
+  const node = nodes.get(nodeId);
+  if (!node) return null;
+  return getNodePortPosition(node, side, portIndex);
+}
+
 /** Draw all wires on the canvas. */
 export function renderWires(
   ctx: CanvasRenderingContext2D,
   wires: ReadonlyArray<Wire>,
   nodes: ReadonlyMap<string, NodeState>,
+  canvasWidth: number,
+  canvasHeight: number,
 ): void {
   for (const wire of wires) {
-    const fromNode = nodes.get(wire.from.nodeId);
-    const toNode = nodes.get(wire.to.nodeId);
-    if (!fromNode || !toNode) continue;
+    const from = resolvePortPosition(wire.from.nodeId, 'output', wire.from.portIndex, nodes, canvasWidth, canvasHeight);
+    const to = resolvePortPosition(wire.to.nodeId, 'input', wire.to.portIndex, nodes, canvasWidth, canvasHeight);
+    if (!from || !to) continue;
 
-    const from = getNodePortPosition(fromNode, 'output', wire.from.portIndex);
-    const to = getNodePortPosition(toNode, 'input', wire.to.portIndex);
     drawWire(ctx, from, to);
     drawWireSignals(ctx, from, to, wire);
   }

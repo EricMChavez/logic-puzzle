@@ -1,6 +1,7 @@
 import type { NodeId, NodeState, PortRef, Vec2 } from '../../shared/types/index.ts';
 import { NODE_CONFIG, CONNECTION_POINT_CONFIG } from '../../shared/constants/index.ts';
 import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
+import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 
 export type HitResult =
   | { type: 'port'; portRef: PortRef; position: Vec2 }
@@ -28,8 +29,9 @@ export function hitTest(
   canvasWidth: number,
   canvasHeight: number,
 ): HitResult {
-  // 1. Check node ports (highest priority)
+  // 1. Check node ports (highest priority — skip virtual CP nodes)
   for (const node of nodes.values()) {
+    if (isConnectionPointNode(node.id)) continue;
     for (let i = 0; i < node.outputCount; i++) {
       const pos = getNodePortPosition(node, 'output', i);
       if (dist(x, y, pos.x, pos.y) <= PORT_HIT_RADIUS) {

@@ -6,6 +6,7 @@ import { generateId } from '../../shared/generate-id.ts';
 import { FUNDAMENTAL_NODES } from '../../palette/fundamental/index.ts';
 import { NODE_CONFIG } from '../../shared/constants/index.ts';
 import type { PortRef } from '../../shared/types/index.ts';
+import { cpInputId, cpOutputId } from '../../puzzle/connection-point-nodes.ts';
 
 function getCanvasLogicalSize(canvas: HTMLCanvasElement) {
   const parent = canvas.parentElement;
@@ -29,6 +30,27 @@ function canCompleteWire(from: PortRef, to: PortRef): boolean {
 function orderWire(from: PortRef, to: PortRef): { output: PortRef; input: PortRef } {
   if (from.side === 'output') return { output: from, input: to };
   return { output: to, input: from };
+}
+
+/**
+ * Convert a connection-point hit into a PortRef referencing its virtual node.
+ * Input CPs expose their output port (side: 'output'), output CPs expose their input port (side: 'input').
+ * Returns null if the virtual node doesn't exist on the board.
+ */
+function connectionPointToPortRef(
+  cpSide: 'input' | 'output',
+  index: number,
+  nodes: ReadonlyMap<string, import('../../shared/types/index.ts').NodeState>,
+): PortRef | null {
+  const nodeId = cpSide === 'input' ? cpInputId(index) : cpOutputId(index);
+  if (!nodes.has(nodeId)) return null;
+  // Input CPs emit signals → their wireable port is the output side
+  // Output CPs receive signals → their wireable port is the input side
+  return {
+    nodeId,
+    portIndex: 0,
+    side: cpSide === 'input' ? 'output' : 'input',
+  };
 }
 
 export function GameboardCanvas() {
@@ -126,10 +148,37 @@ export function GameboardCanvas() {
     if (state.interactionMode.type === 'drawing-wire') {
       const fromPort = state.interactionMode.fromPort;
 
+      // Complete wire to a node port
       if (hit.type === 'port') {
         if (canCompleteWire(fromPort, hit.portRef)) {
           const { output, input } = orderWire(fromPort, hit.portRef);
           // Check for duplicate wire
+          const duplicate = state.activeBoard.wires.some(
+            (w) =>
+              w.from.nodeId === output.nodeId &&
+              w.from.portIndex === output.portIndex &&
+              w.to.nodeId === input.nodeId &&
+              w.to.portIndex === input.portIndex,
+          );
+          if (!duplicate) {
+            state.addWire({
+              id: generateId(),
+              from: { ...output, side: 'output' },
+              to: { ...input, side: 'input' },
+              wtsDelay: 16,
+              signals: [],
+            });
+          }
+        }
+        state.cancelWireDraw();
+        return;
+      }
+
+      // Complete wire to a connection point
+      if (hit.type === 'connection-point') {
+        const cpPortRef = connectionPointToPortRef(hit.side, hit.index, state.activeBoard.nodes);
+        if (cpPortRef && canCompleteWire(fromPort, cpPortRef)) {
+          const { output, input } = orderWire(fromPort, cpPortRef);
           const duplicate = state.activeBoard.wires.some(
             (w) =>
               w.from.nodeId === output.nodeId &&
@@ -159,6 +208,15 @@ export function GameboardCanvas() {
     // --- Idle mode ---
     if (hit.type === 'port') {
       state.startWireDraw(hit.portRef, hit.position);
+      return;
+    }
+
+    // Start wire from connection point
+    if (hit.type === 'connection-point') {
+      const cpPortRef = connectionPointToPortRef(hit.side, hit.index, state.activeBoard.nodes);
+      if (cpPortRef) {
+        state.startWireDraw(cpPortRef, hit.position);
+      }
       return;
     }
 
