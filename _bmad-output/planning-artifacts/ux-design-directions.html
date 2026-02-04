@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logic Puzzle - Design Direction Showcase</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+
+  .header {
+    text-align: center;
+    padding: 40px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .header h1 { font-size: 28px; font-weight: 600; letter-spacing: 2px; margin-bottom: 8px; }
+  .header p { font-size: 14px; opacity: 0.6; max-width: 600px; margin: 0 auto; }
+
+  .controls {
+    display: flex; justify-content: center; gap: 12px; padding: 24px;
+    position: sticky; top: 0; background: #0a0a0f; z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .controls button {
+    padding: 8px 20px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #e0e0e0; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 13px; transition: all 0.2s;
+  }
+  .controls button:hover { background: rgba(255,255,255,0.1); }
+  .controls button.active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+
+  .variations { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  .variation {
+    margin-bottom: 60px; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; overflow: hidden;
+  }
+  .variation-header {
+    padding: 24px 32px; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .variation-header h2 { font-size: 20px; font-weight: 600; }
+  .variation-header .tag {
+    font-size: 11px; padding: 4px 12px; border-radius: 20px;
+    background: rgba(255,255,255,0.08); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .variation-desc { padding: 16px 32px; font-size: 13px; opacity: 0.6; border-bottom: 1px solid rgba(255,255,255,0.04); }
+
+  .theme-pair { display: grid; grid-template-columns: 1fr 1fr; }
+  .theme-panel { padding: 32px; }
+  .theme-label {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.5;
+    margin-bottom: 20px; font-weight: 500;
+  }
+
+  /* Gameboard simulation */
+  .gameboard {
+    border-radius: 12px; padding: 24px; display: flex; gap: 16px;
+    align-items: stretch; min-height: 320px; position: relative;
+  }
+  .meter-zone {
+    display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+    width: 80px; flex-shrink: 0;
+  }
+  .meter {
+    border-radius: 8px; padding: 8px; display: flex; gap: 4px;
+    align-items: stretch; height: 90px; position: relative;
+  }
+  .meter-waveform {
+    width: 28px; border-radius: 4px; position: relative; overflow: hidden;
+  }
+  .meter-waveform-fill {
+    position: absolute; left: 0; right: 0;
+  }
+  .meter-bar-area {
+    width: 12px; position: relative; border-radius: 3px;
+  }
+  .meter-bar-fill {
+    position: absolute; left: 0; right: 0; border-radius: 3px;
+  }
+  .meter-needle-area {
+    width: 20px; position: relative;
+  }
+  .meter-needle {
+    position: absolute; left: 2px; width: 16px; height: 2px;
+    border-radius: 1px; transform-origin: left center;
+  }
+  .meter-centerline {
+    position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+    opacity: 0.3;
+  }
+
+  .grid-area {
+    flex: 1; border-radius: 8px; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .grid-lines {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(var(--grid-color) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .node-sim {
+    position: relative; z-index: 1; border-radius: 10px; padding: 16px 24px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    min-width: 140px;
+  }
+  .node-label { font-size: 13px; font-weight: 500; }
+  .node-ports {
+    display: flex; gap: 6px;
+  }
+  .node-port {
+    width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid;
+  }
+
+  .wire-sim {
+    position: absolute; z-index: 0;
+  }
+  .wire-sim svg { width: 100%; height: 100%; }
+
+  /* Color swatches */
+  .swatches {
+    display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap;
+  }
+  .swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .swatch-color {
+    width: 40px; height: 40px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.2);
+  }
+  .swatch-label {
+    font-size: 9px; font-family: 'JetBrains Mono', monospace; opacity: 0.5;
+  }
+
+  /* Typography sample */
+  .type-sample { margin-top: 16px; }
+  .type-sample .label-font { font-family: 'Inter', sans-serif; font-size: 14px; margin-bottom: 4px; }
+  .type-sample .mono-font { font-family: 'JetBrains Mono', monospace; font-size: 13px; opacity: 0.8; }
+
+  /* Comparison mode */
+  .comparison-mode .variation { display: none; }
+  .comparison-mode .variation.visible { display: block; }
+
+  @media (max-width: 900px) {
+    .theme-pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>DESIGN DIRECTIONS</h1>
+  <p>Signal Processing Puzzle Game -- Visual treatment exploration across 4 palettes, each shown in dark and light themes.</p>
+</div>
+
+<div class="controls">
+  <button class="active" onclick="showAll(this)">Show All</button>
+  <button onclick="showOnly(0, this)">Ember & Frost</button>
+  <button onclick="showOnly(1, this)">Midnight Circuit</button>
+  <button onclick="showOnly(2, this)">Studio Monitor</button>
+  <button onclick="showOnly(3, this)">Signal Forge</button>
+</div>
+
+<div class="variations" id="variations">
+
+  <!-- VARIATION 1: Ember & Frost -->
+  <div class="variation visible">
+    <div class="variation-header">
+      <h2>1. Ember & Frost</h2>
+      <span class="tag">Warm Amber + Cool Teal</span>
+    </div>
+    <div class="variation-desc">Classic DAW warmth. Amber positive signals glow against deep charcoal; teal negatives provide cool contrast. Moderate depth with soft shadows. Inspired by Quanta's warm orange accents. Light theme uses warm ivory base with deeper amber/teal for contrast.</div>
+    <div class="theme-pair">
+      <!-- Dark -->
+      <div class="theme-panel" style="background: #0d0d14;">
+        <div class="theme-label">Dark Theme</div>
+        <div class="gameboard" style="background: #1a1a2e; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05);">
+              <div class="meter-waveform" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-waveform-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to bottom, rgba(246,166,35,0.8), rgba(246,166,35,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-bar-fill" style="top: 20%; bottom: 50%; background: linear-gradient(to top, rgba(246,166,35,0.4), rgba(246,166,35,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-needle" style="background: #f6a623; top: 25%; box-shadow: 0 0 6px rgba(246,166,35,0.5);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05);">
+              <div class="meter-waveform" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to top, rgba(45,212,191,0.8), rgba(45,212,191,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 25%; background: linear-gradient(to bottom, rgba(45,212,191,0.4), rgba(45,212,191,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-needle" style="background: #2dd4bf; top: 70%; box-shadow: 0 0 6px rgba(45,212,191,0.5);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05); opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.4;">unused</span>
+            </div>
+          </div>
+          <div class="grid-area" style="background: #161628; --grid-color: rgba(255,255,255,0.04);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #252545 0%, #1e1e3a 100%); box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.06);">
+              <div class="node-label" style="color: #ccc;">Mix</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #888;">Add</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #f6a623; background: rgba(246,166,35,0.2);"></div>
+                <div class="node-port" style="border-color: #2dd4bf; background: rgba(45,212,191,0.2);"></div>
+                <div class="node-port" style="border-color: #555; background: rgba(85,85,85,0.2);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-needle" style="background: #f6a623; top: 30%; box-shadow: 0 0 6px rgba(246,166,35,0.5);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-bar-fill" style="top: 22%; bottom: 50%; background: linear-gradient(to top, rgba(246,166,35,0.4), rgba(246,166,35,0.9));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #0f0f22;">
+                <div class="meter-centerline" style="background: #555;"></div>
+                <div class="meter-waveform-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to bottom, rgba(246,166,35,0.7), rgba(246,166,35,0.2)); border-radius: 2px;"></div>
+                <!-- target line -->
+                <div style="position: absolute; top: 25%; left: 4px; right: 4px; height: 1.5px; background: rgba(255,255,255,0.7); border-radius: 1px;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05); opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.4;">unused</span>
+            </div>
+            <div class="meter" style="background: #13132a; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05); opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.4;">unused</span>
+            </div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #1a1a2e;"></div><div class="swatch-label">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #252545;"></div><div class="swatch-label">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #f6a623;"></div><div class="swatch-label">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #2dd4bf;"></div><div class="swatch-label">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #13132a;"></div><div class="swatch-label">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #e04040;"></div><div class="swatch-label">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #ccc;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #f6a623;">+72 &nbsp; <span style="color: #2dd4bf;">-45</span> &nbsp; <span style="color: #888;">0</span></div>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="theme-panel" style="background: #f0ede8;">
+        <div class="theme-label" style="color: #333;">Light Theme</div>
+        <div class="gameboard" style="background: #e8e5df; box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6);">
+              <div class="meter-waveform" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-waveform-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to bottom, rgba(218,140,20,0.8), rgba(218,140,20,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-bar-fill" style="top: 20%; bottom: 50%; background: linear-gradient(to top, rgba(218,140,20,0.4), rgba(218,140,20,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-needle" style="background: #da8c14; top: 25%; box-shadow: 0 1px 4px rgba(218,140,20,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6);">
+              <div class="meter-waveform" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to top, rgba(20,170,155,0.8), rgba(20,170,155,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 25%; background: linear-gradient(to bottom, rgba(20,170,155,0.4), rgba(20,170,155,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-needle" style="background: #14aa9b; top: 70%; box-shadow: 0 1px 4px rgba(20,170,155,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6); opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; color: #999;">unused</span>
+            </div>
+          </div>
+          <div class="grid-area" style="background: #e0ddd6; --grid-color: rgba(0,0,0,0.06);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #f5f2ed 0%, #eae7e1 100%); box-shadow: 0 3px 12px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.08);">
+              <div class="node-label" style="color: #444;">Mix</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #888;">Add</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #da8c14; background: rgba(218,140,20,0.15);"></div>
+                <div class="node-port" style="border-color: #14aa9b; background: rgba(20,170,155,0.15);"></div>
+                <div class="node-port" style="border-color: #aaa; background: rgba(170,170,170,0.15);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-needle" style="background: #da8c14; top: 30%; box-shadow: 0 1px 4px rgba(218,140,20,0.4);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-bar-fill" style="top: 22%; bottom: 50%; background: linear-gradient(to top, rgba(218,140,20,0.4), rgba(218,140,20,0.9));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #d0ccc5;">
+                <div class="meter-centerline" style="background: #aaa;"></div>
+                <div class="meter-waveform-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to bottom, rgba(218,140,20,0.7), rgba(218,140,20,0.2)); border-radius: 2px;"></div>
+                <div style="position: absolute; top: 25%; left: 4px; right: 4px; height: 1.5px; background: rgba(60,60,60,0.6); border-radius: 1px;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1); opacity: 0.3; height: 90px;"></div>
+            <div class="meter" style="background: #ddd9d2; box-shadow: 0 2px 8px rgba(0,0,0,0.1); opacity: 0.3; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #e8e5df;"></div><div class="swatch-label" style="color:#666;">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #f5f2ed;"></div><div class="swatch-label" style="color:#666;">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #da8c14;"></div><div class="swatch-label" style="color:#666;">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #14aa9b;"></div><div class="swatch-label" style="color:#666;">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #ddd9d2;"></div><div class="swatch-label" style="color:#666;">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #c04030;"></div><div class="swatch-label" style="color:#666;">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #444;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #da8c14;">+72 &nbsp; <span style="color: #14aa9b;">-45</span> &nbsp; <span style="color: #999;">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VARIATION 2: Midnight Circuit -->
+  <div class="variation visible">
+    <div class="variation-header">
+      <h2>2. Midnight Circuit</h2>
+      <span class="tag">Vivid Orange + Electric Cyan</span>
+    </div>
+    <div class="variation-desc">Higher saturation, more energy. Vivid orange positive and electric cyan negative pop against a blue-tinted dark background. Stronger glow effects on needles and waveforms. Inspired by DS Sitar's teal-on-dark aesthetic. Light theme uses cool blue-gray base.</div>
+    <div class="theme-pair">
+      <!-- Dark -->
+      <div class="theme-panel" style="background: #080c14;">
+        <div class="theme-label">Dark Theme</div>
+        <div class="gameboard" style="background: #101828; box-shadow: inset 0 1px 0 rgba(100,160,255,0.04);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #0c1420; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 0 rgba(100,180,255,0.06);">
+              <div class="meter-waveform" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-waveform-fill" style="top: 10%; bottom: 50%; background: linear-gradient(to bottom, rgba(255,140,30,0.9), rgba(255,140,30,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-bar-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to top, rgba(255,140,30,0.4), rgba(255,140,30,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-needle" style="background: #ff8c1e; top: 20%; box-shadow: 0 0 10px rgba(255,140,30,0.6);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c1420; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 0 rgba(100,180,255,0.06);">
+              <div class="meter-waveform" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 15%; background: linear-gradient(to top, rgba(0,220,240,0.9), rgba(0,220,240,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to bottom, rgba(0,220,240,0.4), rgba(0,220,240,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-needle" style="background: #00dcf0; top: 75%; box-shadow: 0 0 10px rgba(0,220,240,0.6);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c1420; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6); opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.3;">unused</span>
+            </div>
+          </div>
+          <div class="grid-area" style="background: #0e1624; --grid-color: rgba(100,180,255,0.05);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #1a2840 0%, #142030 100%); box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(100,180,255,0.1); border: 1px solid rgba(100,180,255,0.08);">
+              <div class="node-label" style="color: #b8c8d8;">Threshold</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #ff8c1e;">+25</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #ff8c1e; background: rgba(255,140,30,0.2);"></div>
+                <div class="node-port" style="border-color: #555; background: rgba(85,85,85,0.2);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #0c1420; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 1px 0 rgba(100,180,255,0.06);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-needle" style="background: #ff8c1e; top: 15%; box-shadow: 0 0 10px rgba(255,140,30,0.6);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-bar-fill" style="top: 10%; bottom: 50%; background: linear-gradient(to top, rgba(255,140,30,0.4), rgba(255,140,30,1));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #080e18;">
+                <div class="meter-centerline" style="background: #3a4a5a;"></div>
+                <div class="meter-waveform-fill" style="top: 8%; bottom: 50%; background: linear-gradient(to bottom, rgba(255,140,30,0.8), rgba(255,140,30,0.2)); border-radius: 2px;"></div>
+                <div style="position: absolute; top: 12%; left: 4px; right: 4px; height: 1.5px; background: rgba(255,255,255,0.8); border-radius: 1px;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c1420; opacity: 0.3; height: 90px;"></div>
+            <div class="meter" style="background: #0c1420; opacity: 0.3; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #101828;"></div><div class="swatch-label">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #1a2840;"></div><div class="swatch-label">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #ff8c1e;"></div><div class="swatch-label">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #00dcf0;"></div><div class="swatch-label">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #0c1420;"></div><div class="swatch-label">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #e83838;"></div><div class="swatch-label">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #b8c8d8;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #ff8c1e;">+72 &nbsp; <span style="color: #00dcf0;">-45</span> &nbsp; <span style="color: #6a7a8a;">0</span></div>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="theme-panel" style="background: #e8ecf2;">
+        <div class="theme-label" style="color: #333;">Light Theme</div>
+        <div class="gameboard" style="background: #dfe4ec; box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #d4dae4; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.7);">
+              <div class="meter-waveform" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-waveform-fill" style="top: 10%; bottom: 50%; background: linear-gradient(to bottom, rgba(220,110,10,0.8), rgba(220,110,10,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-bar-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to top, rgba(220,110,10,0.4), rgba(220,110,10,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-needle" style="background: #dc6e0a; top: 20%; box-shadow: 0 1px 4px rgba(220,110,10,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #d4dae4; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.7);">
+              <div class="meter-waveform" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 15%; background: linear-gradient(to top, rgba(0,160,175,0.8), rgba(0,160,175,0.3)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to bottom, rgba(0,160,175,0.4), rgba(0,160,175,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-needle" style="background: #00a0af; top: 75%; box-shadow: 0 1px 4px rgba(0,160,175,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #d4dae4; box-shadow: 0 2px 8px rgba(0,0,0,0.1); opacity: 0.3; height: 90px;"></div>
+          </div>
+          <div class="grid-area" style="background: #d8dde6; --grid-color: rgba(0,0,0,0.06);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #f0f2f6 0%, #e6e9f0 100%); box-shadow: 0 3px 12px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.06);">
+              <div class="node-label" style="color: #3a4050;">Threshold</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #dc6e0a;">+25</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #dc6e0a; background: rgba(220,110,10,0.12);"></div>
+                <div class="node-port" style="border-color: #aaa; background: rgba(170,170,170,0.12);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #d4dae4; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.7);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-needle" style="background: #dc6e0a; top: 15%;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-bar-fill" style="top: 10%; bottom: 50%; background: linear-gradient(to top, rgba(220,110,10,0.4), rgba(220,110,10,0.9));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #c8d0dc;">
+                <div class="meter-centerline" style="background: #a0a8b4;"></div>
+                <div class="meter-waveform-fill" style="top: 8%; bottom: 50%; background: linear-gradient(to bottom, rgba(220,110,10,0.7), rgba(220,110,10,0.2));"></div>
+                <div style="position: absolute; top: 12%; left: 4px; right: 4px; height: 1.5px; background: rgba(40,40,40,0.5);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #d4dae4; opacity: 0.3; height: 90px;"></div>
+            <div class="meter" style="background: #d4dae4; opacity: 0.3; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #dfe4ec;"></div><div class="swatch-label" style="color:#666;">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #f0f2f6;"></div><div class="swatch-label" style="color:#666;">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #dc6e0a;"></div><div class="swatch-label" style="color:#666;">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #00a0af;"></div><div class="swatch-label" style="color:#666;">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #d4dae4;"></div><div class="swatch-label" style="color:#666;">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #c03030;"></div><div class="swatch-label" style="color:#666;">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #3a4050;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #dc6e0a;">+72 &nbsp; <span style="color: #00a0af;">-45</span> &nbsp; <span style="color: #999;">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VARIATION 3: Studio Monitor (Revised) -->
+  <div class="variation visible">
+    <div class="variation-header">
+      <h2>3. Studio Monitor</h2>
+      <span class="tag">Vivid Amber + Bright Teal</span>
+    </div>
+    <div class="variation-desc">Professional with punch. Deep layered depth from near-black background through elevated nodes. Vivid amber positive and bright teal negative with polarity gradients that intensify at peaks. Distinct red needle cuts through both polarities. Inspired by LANDR's clarity with more signal energy. Light theme uses warm gray with strong elevation shadows.</div>
+    <div class="theme-pair">
+      <!-- Dark -->
+      <div class="theme-panel" style="background: #050508;">
+        <div class="theme-label">Dark Theme</div>
+        <div class="gameboard" style="background: #16161e; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 40px rgba(0,0,0,0.6);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04);">
+              <div class="meter-waveform" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-waveform-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to bottom, rgba(245,175,40,1), rgba(245,175,40,0.7) 30%, rgba(245,175,40,0.15)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-bar-fill" style="top: 20%; bottom: 50%; background: linear-gradient(to top, rgba(245,175,40,0.2), rgba(245,175,40,0.6) 40%, rgba(245,175,40,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-needle" style="background: #E03838; top: 25%; box-shadow: 0 0 8px rgba(224,56,56,0.6);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04);">
+              <div class="meter-waveform" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 18%; background: linear-gradient(to top, rgba(30,210,195,1), rgba(30,210,195,0.7) 30%, rgba(30,210,195,0.15)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 22%; background: linear-gradient(to bottom, rgba(30,210,195,0.2), rgba(30,210,195,0.6) 40%, rgba(30,210,195,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-needle" style="background: #E03838; top: 72%; box-shadow: 0 0 8px rgba(224,56,56,0.6);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7); opacity: 0.25; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.3;">unused</span>
+            </div>
+          </div>
+          <div class="grid-area" style="background: #111118; --grid-color: rgba(255,255,255,0.035);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #262630 0%, #1c1c26 100%); box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.06);">
+              <div class="node-label" style="color: #bbb;">Delay</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #777;">1/4</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #F5AF28; background: rgba(245,175,40,0.2); box-shadow: 0 0 4px rgba(245,175,40,0.3);"></div>
+                <div class="node-port" style="border-color: #555; background: rgba(85,85,85,0.15);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-needle" style="background: #E03838; top: 28%; box-shadow: 0 0 8px rgba(224,56,56,0.6);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-bar-fill" style="top: 22%; bottom: 50%; background: linear-gradient(to top, rgba(245,175,40,0.2), rgba(245,175,40,0.6) 40%, rgba(245,175,40,1));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #08080e;">
+                <div class="meter-centerline" style="background: #2a2a35;"></div>
+                <div class="meter-waveform-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to bottom, rgba(245,175,40,1), rgba(245,175,40,0.6) 35%, rgba(245,175,40,0.1));"></div>
+                <div style="position: absolute; top: 26%; left: 4px; right: 4px; height: 1.5px; background: rgba(255,255,255,0.6); border-radius: 1px;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7); opacity: 0.25; height: 90px;"></div>
+            <div class="meter" style="background: #0c0c12; box-shadow: inset 0 3px 8px rgba(0,0,0,0.7); opacity: 0.25; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #16161e;"></div><div class="swatch-label">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #262630;"></div><div class="swatch-label">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #F5AF28;"></div><div class="swatch-label">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #1ED2C3;"></div><div class="swatch-label">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #0c0c12;"></div><div class="swatch-label">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #E03838;"></div><div class="swatch-label">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #bbb;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #F5AF28;">+72 &nbsp; <span style="color: #1ED2C3;">-45</span> &nbsp; <span style="color: #555;">0</span></div>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="theme-panel" style="background: #f0efec;">
+        <div class="theme-label" style="color: #333;">Light Theme</div>
+        <div class="gameboard" style="background: #e0ded8; box-shadow: inset 0 2px 6px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.15), inset 0 0 2px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.4);">
+              <div class="meter-waveform" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-waveform-fill" style="top: 15%; bottom: 50%; background: linear-gradient(to bottom, rgba(210,150,15,1), rgba(210,150,15,0.65) 30%, rgba(210,150,15,0.12)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-bar-fill" style="top: 20%; bottom: 50%; background: linear-gradient(to top, rgba(210,150,15,0.15), rgba(210,150,15,0.6) 40%, rgba(210,150,15,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-needle" style="background: #CC3030; top: 25%; box-shadow: 0 1px 4px rgba(204,48,48,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.15), inset 0 0 2px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.4);">
+              <div class="meter-waveform" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 18%; background: linear-gradient(to top, rgba(15,175,160,1), rgba(15,175,160,0.65) 30%, rgba(15,175,160,0.12)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 22%; background: linear-gradient(to bottom, rgba(15,175,160,0.15), rgba(15,175,160,0.6) 40%, rgba(15,175,160,1));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-needle" style="background: #CC3030; top: 72%; box-shadow: 0 1px 4px rgba(204,48,48,0.4);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.12); opacity: 0.25; height: 90px;"></div>
+          </div>
+          <div class="grid-area" style="background: #d8d6d0; --grid-color: rgba(0,0,0,0.06);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #f5f4f0 0%, #eae8e3 100%); box-shadow: 0 4px 16px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.08);">
+              <div class="node-label" style="color: #444;">Delay</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #888;">1/4</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #D29610; background: rgba(210,150,15,0.15); box-shadow: 0 0 3px rgba(210,150,15,0.2);"></div>
+                <div class="node-port" style="border-color: #bbb; background: rgba(187,187,187,0.12);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.15), inset 0 0 2px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.4);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-needle" style="background: #CC3030; top: 28%; box-shadow: 0 1px 4px rgba(204,48,48,0.4);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-bar-fill" style="top: 22%; bottom: 50%; background: linear-gradient(to top, rgba(210,150,15,0.15), rgba(210,150,15,0.6) 40%, rgba(210,150,15,1));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #c2c0ba;">
+                <div class="meter-centerline" style="background: #a8a6a0;"></div>
+                <div class="meter-waveform-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to bottom, rgba(210,150,15,1), rgba(210,150,15,0.6) 35%, rgba(210,150,15,0.1));"></div>
+                <div style="position: absolute; top: 26%; left: 4px; right: 4px; height: 1.5px; background: rgba(50,50,50,0.45); border-radius: 1px;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.12); opacity: 0.25; height: 90px;"></div>
+            <div class="meter" style="background: #cccac4; box-shadow: inset 0 2px 6px rgba(0,0,0,0.12); opacity: 0.25; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #e0ded8;"></div><div class="swatch-label" style="color:#666;">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #f5f4f0;"></div><div class="swatch-label" style="color:#666;">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #D29610;"></div><div class="swatch-label" style="color:#666;">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #0FAFA0;"></div><div class="swatch-label" style="color:#666;">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #cccac4;"></div><div class="swatch-label" style="color:#666;">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #CC3030;"></div><div class="swatch-label" style="color:#666;">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #444;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #D29610;">+72 &nbsp; <span style="color: #0FAFA0;">-45</span> &nbsp; <span style="color: #aaa;">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VARIATION 4: Signal Forge -->
+  <div class="variation visible">
+    <div class="variation-header">
+      <h2>4. Signal Forge</h2>
+      <span class="tag">Hot Coral + Deep Azure</span>
+    </div>
+    <div class="variation-desc">Bold and energetic. Hot coral-orange positive signals and deep azure negative for maximum polarity contrast. Warm dark background with a hint of brown. Rich metallic depth. Light theme uses warm cream base. Most visually dramatic option.</div>
+    <div class="theme-pair">
+      <!-- Dark -->
+      <div class="theme-panel" style="background: #0e0a08;">
+        <div class="theme-label">Dark Theme</div>
+        <div class="gameboard" style="background: #1c1814; box-shadow: inset 0 1px 0 rgba(255,200,150,0.04);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #161210; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,200,150,0.05);">
+              <div class="meter-waveform" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-waveform-fill" style="top: 12%; bottom: 50%; background: linear-gradient(to bottom, rgba(255,110,70,0.85), rgba(255,110,70,0.25)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-bar-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to top, rgba(255,110,70,0.35), rgba(255,110,70,0.95));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-needle" style="background: #ff6e46; top: 22%; box-shadow: 0 0 8px rgba(255,110,70,0.5);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #161210; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,200,150,0.05);">
+              <div class="meter-waveform" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 18%; background: linear-gradient(to top, rgba(50,120,210,0.85), rgba(50,120,210,0.25)); border-radius: 2px;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 22%; background: linear-gradient(to bottom, rgba(50,120,210,0.35), rgba(50,120,210,0.95));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-needle" style="background: #3278d2; top: 72%; box-shadow: 0 0 8px rgba(50,120,210,0.5);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #161210; opacity: 0.3; height: 90px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 10px; opacity: 0.3;">unused</span>
+            </div>
+          </div>
+          <div class="grid-area" style="background: #181410; --grid-color: rgba(255,200,150,0.04);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #2a2420 0%, #221c18 100%); box-shadow: 0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,200,150,0.08); border: 1px solid rgba(255,200,150,0.06);">
+              <div class="node-label" style="color: #c8b8a8;">Invert</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a7a6a;">-A</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #ff6e46; background: rgba(255,110,70,0.2);"></div>
+                <div class="node-port" style="border-color: #3278d2; background: rgba(50,120,210,0.2);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #161210; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,200,150,0.05);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-needle" style="background: #3278d2; top: 65%; box-shadow: 0 0 8px rgba(50,120,210,0.5);"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 25%; background: linear-gradient(to bottom, rgba(50,120,210,0.35), rgba(50,120,210,0.9));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #110e0c;">
+                <div class="meter-centerline" style="background: #4a3e34;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to top, rgba(50,120,210,0.7), rgba(50,120,210,0.2));"></div>
+                <div style="position: absolute; top: 60%; left: 4px; right: 4px; height: 1.5px; background: rgba(255,255,255,0.6);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #161210; opacity: 0.3; height: 90px;"></div>
+            <div class="meter" style="background: #161210; opacity: 0.3; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #1c1814;"></div><div class="swatch-label">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #2a2420;"></div><div class="swatch-label">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #ff6e46;"></div><div class="swatch-label">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #3278d2;"></div><div class="swatch-label">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #161210;"></div><div class="swatch-label">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #dd3535;"></div><div class="swatch-label">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #c8b8a8;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #ff6e46;">+72 &nbsp; <span style="color: #3278d2;">-45</span> &nbsp; <span style="color: #6a5a4a;">0</span></div>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="theme-panel" style="background: #f0ebe4;">
+        <div class="theme-label" style="color: #333;">Light Theme</div>
+        <div class="gameboard" style="background: #e8e2da; box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);">
+          <div class="meter-zone">
+            <div class="meter" style="background: #dfd8cf; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.5);">
+              <div class="meter-waveform" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-waveform-fill" style="top: 12%; bottom: 50%; background: linear-gradient(to bottom, rgba(210,80,40,0.75), rgba(210,80,40,0.25));"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-bar-fill" style="top: 18%; bottom: 50%; background: linear-gradient(to top, rgba(210,80,40,0.35), rgba(210,80,40,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-needle" style="background: #d25028; top: 22%;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #dfd8cf; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.5);">
+              <div class="meter-waveform" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 18%; background: linear-gradient(to top, rgba(35,90,170,0.75), rgba(35,90,170,0.25));"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 22%; background: linear-gradient(to bottom, rgba(35,90,170,0.35), rgba(35,90,170,0.9));"></div>
+              </div>
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-needle" style="background: #235aaa; top: 72%;"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #dfd8cf; opacity: 0.3; height: 90px;"></div>
+          </div>
+          <div class="grid-area" style="background: #e2dbd2; --grid-color: rgba(0,0,0,0.05);">
+            <div class="grid-lines"></div>
+            <div class="node-sim" style="background: linear-gradient(180deg, #f4efe8 0%, #eae4dc 100%); box-shadow: 0 3px 12px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.06);">
+              <div class="node-label" style="color: #504030;">Invert</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #998878;">-A</div>
+              <div class="node-ports">
+                <div class="node-port" style="border-color: #d25028; background: rgba(210,80,40,0.12);"></div>
+                <div class="node-port" style="border-color: #235aaa; background: rgba(35,90,170,0.12);"></div>
+              </div>
+            </div>
+          </div>
+          <div class="meter-zone">
+            <div class="meter" style="background: #dfd8cf; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.5);">
+              <div class="meter-needle-area">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-needle" style="background: #235aaa; top: 65%;"></div>
+              </div>
+              <div class="meter-bar-area" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-bar-fill" style="top: 50%; bottom: 25%; background: linear-gradient(to bottom, rgba(35,90,170,0.35), rgba(35,90,170,0.85));"></div>
+              </div>
+              <div class="meter-waveform" style="background: #d5cec4;">
+                <div class="meter-centerline" style="background: #b8b0a4;"></div>
+                <div class="meter-waveform-fill" style="top: 50%; bottom: 20%; background: linear-gradient(to top, rgba(35,90,170,0.65), rgba(35,90,170,0.15));"></div>
+                <div style="position: absolute; top: 60%; left: 4px; right: 4px; height: 1px; background: rgba(50,50,50,0.45);"></div>
+              </div>
+            </div>
+            <div class="meter" style="background: #dfd8cf; opacity: 0.3; height: 90px;"></div>
+            <div class="meter" style="background: #dfd8cf; opacity: 0.3; height: 90px;"></div>
+          </div>
+        </div>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background: #e8e2da;"></div><div class="swatch-label" style="color:#666;">Surface</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #f4efe8;"></div><div class="swatch-label" style="color:#666;">Node</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #d25028;"></div><div class="swatch-label" style="color:#666;">+Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #235aaa;"></div><div class="swatch-label" style="color:#666;">-Signal</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #dfd8cf;"></div><div class="swatch-label" style="color:#666;">Meter</div></div>
+          <div class="swatch"><div class="swatch-color" style="background: #c03025;"></div><div class="swatch-label" style="color:#666;">Needle</div></div>
+        </div>
+        <div class="type-sample">
+          <div class="label-font" style="color: #504030;">Mix &middot; Delay &middot; Threshold</div>
+          <div class="mono-font" style="color: #d25028;">+72 &nbsp; <span style="color: #235aaa;">-45</span> &nbsp; <span style="color: #aaa;">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showAll(btn) {
+  document.querySelectorAll('.variation').forEach(v => v.classList.add('visible'));
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('variations').classList.remove('comparison-mode');
+}
+function showOnly(idx, btn) {
+  document.getElementById('variations').classList.add('comparison-mode');
+  document.querySelectorAll('.variation').forEach((v, i) => {
+    v.classList.toggle('visible', i === idx);
+  });
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+</script>
+
+</body>
+</html>

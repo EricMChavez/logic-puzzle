@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Explorations - Refined</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a10;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #fff; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 32px; }
+  h2 { font-size: 18px; margin: 36px 0 8px; color: #F5AF28; }
+  h3 { font-size: 14px; margin: 20px 0 8px; color: #aaa; }
+  p, .desc { font-size: 13px; color: #999; margin-bottom: 12px; max-width: 700px; line-height: 1.5; }
+  .section { margin-bottom: 48px; }
+  .refined-card {
+    background: #12121a;
+    border: 2px solid #F5AF28;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    max-width: 700px;
+  }
+  .refined-card h4 {
+    font-size: 15px;
+    color: #F5AF28;
+    margin-bottom: 4px;
+  }
+  .refined-card .desc {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .demo-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .demo-card {
+    background: #12121a;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .demo-card h4 {
+    font-size: 13px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .demo-card .desc {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 10px;
+    line-height: 1.4;
+  }
+  canvas { display: block; border-radius: 4px; cursor: pointer; }
+  .hint { font-size: 11px; color: #555; margin-top: 6px; text-align: center; }
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #888;
+  }
+  .legend-swatch {
+    width: 24px;
+    height: 4px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Refined Architecture Explorations</h1>
+<p class="subtitle">Lid animation and wire rendering -- refined per your feedback.</p>
+
+<!-- ============ LID ANIMATION ============ -->
+<div class="section">
+  <h2>Lid-Open Animation: Vertical Clamshell</h2>
+  <p>Split+Hinge Hybrid with vertical split. The node splits down the vertical center -- left half hinges left, right half hinges right. Like opening double doors or a book.</p>
+
+  <div class="refined-card">
+    <h4>Vertical Clamshell (Selected Direction)</h4>
+    <div class="desc">
+      Vertical split down the center. Left half rotates outward (Y-scale simulates hinge on left edge), right half mirrors. Interior is revealed from center outward. Reverse plays on zoom-out. Click to replay.
+    </div>
+    <canvas id="lid-refined" width="400" height="280"></canvas>
+    <div class="hint">Click to replay</div>
+  </div>
+
+  <h3>Comparison: Horizontal vs Vertical Clamshell</h3>
+  <div class="demo-row">
+    <div class="demo-card">
+      <h4>Original (Horizontal Split)</h4>
+      <div class="desc">Top hinges up, bottom hinges down.</div>
+      <canvas id="lid-horiz" width="280" height="200"></canvas>
+      <div class="hint">Click to replay</div>
+    </div>
+    <div class="demo-card">
+      <h4>Vertical Split (Your Choice)</h4>
+      <div class="desc">Left hinges left, right hinges right.</div>
+      <canvas id="lid-vert-small" width="280" height="200"></canvas>
+      <div class="hint">Click to replay</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WIRE RENDERING ============ -->
+<div class="section">
+  <h2>Wire Rendering: Glow at Peaks</h2>
+  <p>Color+Glow with peak emphasis. Values -75 to +75 transition through polarity color gradient only (no glow). Beyond +/-75, glow kicks in and intensifies toward +/-100. This makes peaks dramatic while keeping mid-range signals clean and readable.</p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#3a3a4a"></div> ~0 (neutral)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#F5AF28"></div> +75 (full amber, no glow)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#F5AF28;box-shadow:0 0 6px #F5AF28"></div> +100 (amber + max glow)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#1ED2C3"></div> -75 (full teal, no glow)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#1ED2C3;box-shadow:0 0 6px #1ED2C3"></div> -100 (teal + max glow)</div>
+  </div>
+
+  <div class="refined-card">
+    <h4>Peak-Glow Wire (Selected Direction)</h4>
+    <div class="desc">
+      Sine wave signal flowing along a multi-segment wire (H → 45deg → H). Color ramps from neutral gray through polarity color across -75 to +75. Beyond +/-75, glow halo fades in and intensifies toward the extremes. Notice how the peaks "breathe" with light while the mid-range stays clean.
+    </div>
+    <canvas id="wire-refined" width="660" height="180"></canvas>
+  </div>
+
+  <h3>Signal Response Curve</h3>
+  <p>Visualizing how signal value maps to color intensity and glow amount:</p>
+  <canvas id="response-curve" width="660" height="120"></canvas>
+
+  <h3>Comparison: Different Signal Shapes</h3>
+  <div class="demo-row">
+    <div class="demo-card">
+      <h4>Sine Wave (smooth peaks)</h4>
+      <div class="desc">Gradual ramp into and out of the glow zone.</div>
+      <canvas id="wire-sine" width="400" height="120"></canvas>
+    </div>
+    <div class="demo-card">
+      <h4>Square Wave (instant peaks)</h4>
+      <div class="desc">Hard transitions -- glow appears/disappears sharply.</div>
+      <canvas id="wire-square" width="400" height="120"></canvas>
+    </div>
+  </div>
+  <div class="demo-row">
+    <div class="demo-card">
+      <h4>Low Amplitude Sine (+/-40)</h4>
+      <div class="desc">Never leaves the color-only zone. No glow at all -- clean and subtle.</div>
+      <canvas id="wire-low" width="400" height="120"></canvas>
+    </div>
+    <div class="demo-card">
+      <h4>Clipped Signal (flat at +/-100)</h4>
+      <div class="desc">Sustained peak glow during flat sections. Dramatic.</div>
+      <canvas id="wire-clipped" width="400" height="120"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ SHARED ============
+const AMBER = '#F5AF28';
+const TEAL = '#1ED2C3';
+const BG = '#16161e';
+const NODE_TOP = '#262630';
+const NODE_BOT = '#1c1c26';
+const INTERIOR = '#0f1828';
+const WIRE_NEUTRAL = '#3a3a4a';
+
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ============ LID HELPERS ============
+function drawGrid(ctx, w, h) {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#1e1e2a';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y = 0; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+}
+
+function drawInterior(ctx, x, y, w, h, clipFn) {
+  ctx.save();
+  if (clipFn) clipFn(ctx);
+  ctx.fillStyle = INTERIOR;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#1a2a3a';
+  ctx.lineWidth = 0.5;
+  for (let gx = x; gx < x+w; gx += 10) { ctx.beginPath(); ctx.moveTo(gx,y); ctx.lineTo(gx,y+h); ctx.stroke(); }
+  for (let gy = y; gy < y+h; gy += 10) { ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x+w,gy); ctx.stroke(); }
+  // mini nodes inside
+  ctx.fillStyle = '#2a2a3a';
+  const r1 = {x: x+w*0.2, y: y+h*0.25, w: w*0.18, h: h*0.4};
+  const r2 = {x: x+w*0.55, y: y+h*0.2, w: w*0.18, h: h*0.5};
+  ctx.beginPath(); ctx.roundRect(r1.x, r1.y, r1.w, r1.h, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(r2.x, r2.y, r2.w, r2.h, 3); ctx.fill();
+  // wire between them
+  ctx.strokeStyle = AMBER;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = AMBER;
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(r1.x + r1.w, r1.y + r1.h*0.5);
+  ctx.lineTo(r2.x, r2.y + r2.h*0.4);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // second wire
+  ctx.strokeStyle = TEAL;
+  ctx.shadowColor = TEAL;
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.moveTo(r1.x + r1.w, r1.y + r1.h*0.75);
+  ctx.lineTo(r2.x, r2.y + r2.h*0.7);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawNodeBox(ctx, x, y, w, h) {
+  const grad = ctx.createLinearGradient(x, y, x, y+h);
+  grad.addColorStop(0, NODE_TOP);
+  grad.addColorStop(1, NODE_BOT);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#3a3a4a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#888';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Custom Node', x+w/2, y+h/2);
+}
+
+// ============ VERTICAL CLAMSHELL ANIMATION ============
+function createVerticalClamshell(canvasId, cw, ch, nx, ny, nw, nh) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  let anim = null;
+
+  function draw(t) {
+    const p = easeInOut(clamp01(t));
+    drawGrid(ctx, cw, ch);
+
+    const splitX = nx + nw/2;
+
+    // Interior revealed from center
+    if (p > 0) {
+      drawInterior(ctx, nx, ny, nw, nh, (c) => {
+        const revealW = nw * p * 0.5;
+        c.beginPath();
+        c.rect(splitX - revealW, ny, revealW * 2, nh);
+        c.clip();
+      });
+    }
+
+    // Left half: hinges left (scale X from right edge toward 0)
+    ctx.save();
+    const halfW = nw / 2;
+    const leftScaledW = halfW * (1 - p);
+    const leftShiftX = p * 12;
+    if (leftScaledW > 0.5) {
+      // The left half compresses toward its left edge (hinge on left side)
+      const leftX = nx - leftShiftX;
+      ctx.beginPath();
+      ctx.rect(leftX, ny - 2, leftScaledW + 1, nh + 4);
+      ctx.clip();
+      ctx.globalAlpha = 1 - p * 0.5;
+      // Draw the full node but only the left portion is visible
+      const grad = ctx.createLinearGradient(leftX, ny, leftX, ny + nh);
+      grad.addColorStop(0, NODE_TOP);
+      grad.addColorStop(1, NODE_BOT);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(leftX, ny, leftScaledW, nh, [4, 0, 0, 4]);
+      ctx.fill();
+      // Hinge shadow on the right edge (the closing edge)
+      const shadowGrad = ctx.createLinearGradient(leftX + leftScaledW - 6, ny, leftX + leftScaledW, ny);
+      shadowGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      shadowGrad.addColorStop(1, `rgba(0,0,0,${p * 0.6})`);
+      ctx.fillStyle = shadowGrad;
+      ctx.fillRect(leftX + leftScaledW - 6, ny, 6, nh);
+      // Highlight on hinge edge (left side)
+      ctx.strokeStyle = `rgba(255,255,255,${p * 0.08})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(leftX + 0.5, ny);
+      ctx.lineTo(leftX + 0.5, ny + nh);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // Right half: hinges right (scale X from left edge toward 0)
+    ctx.save();
+    const rightScaledW = halfW * (1 - p);
+    const rightX = splitX + (halfW * p) + leftShiftX;
+    if (rightScaledW > 0.5) {
+      ctx.beginPath();
+      ctx.rect(rightX - 1, ny - 2, rightScaledW + 2, nh + 4);
+      ctx.clip();
+      ctx.globalAlpha = 1 - p * 0.5;
+      const grad = ctx.createLinearGradient(rightX, ny, rightX, ny + nh);
+      grad.addColorStop(0, NODE_TOP);
+      grad.addColorStop(1, NODE_BOT);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(rightX, ny, rightScaledW, nh, [0, 4, 4, 0]);
+      ctx.fill();
+      // Hinge shadow on the left edge (the closing edge)
+      const shadowGrad = ctx.createLinearGradient(rightX, ny, rightX + 6, ny);
+      shadowGrad.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
+      shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = shadowGrad;
+      ctx.fillRect(rightX, ny, 6, nh);
+      // Highlight on hinge edge (right side)
+      ctx.strokeStyle = `rgba(255,255,255,${p * 0.08})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(rightX + rightScaledW - 0.5, ny);
+      ctx.lineTo(rightX + rightScaledW - 0.5, ny + nh);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function play() {
+    if (anim) cancelAnimationFrame(anim);
+    const start = performance.now();
+    const dur = 600;
+    function frame(now) {
+      const elapsed = (now - start) / dur;
+      draw(Math.min(elapsed, 1));
+      if (elapsed < 1.8) anim = requestAnimationFrame(frame);
+    }
+    anim = requestAnimationFrame(frame);
+  }
+
+  canvas.addEventListener('click', play);
+  draw(0);
+  return play;
+}
+
+// Large refined demo
+const playRefined = createVerticalClamshell('lid-refined', 400, 280, 120, 80, 160, 100);
+setTimeout(playRefined, 300);
+
+// Small comparison
+const playVertSmall = createVerticalClamshell('lid-vert-small', 280, 200, 75, 55, 130, 80);
+setTimeout(playVertSmall, 600);
+
+// Horizontal comparison
+(function() {
+  const canvas = document.getElementById('lid-horiz');
+  const ctx = canvas.getContext('2d');
+  const cw = 280, ch = 200;
+  const nx = 75, ny = 55, nw = 130, nh = 80;
+  let anim = null;
+
+  function draw(t) {
+    const p = easeInOut(clamp01(t));
+    drawGrid(ctx, cw, ch);
+    const splitY = ny + nh/2;
+
+    if (p > 0) {
+      drawInterior(ctx, nx, ny, nw, nh, (c) => {
+        const revealH = nh * p * 0.5;
+        c.beginPath();
+        c.rect(nx, splitY - revealH, nw, revealH * 2);
+        c.clip();
+      });
+    }
+
+    // Top half hinges up
+    ctx.save();
+    const topH = (nh/2) * (1 - p);
+    const topShift = p * 12;
+    if (topH > 0.5) {
+      ctx.beginPath();
+      ctx.rect(nx - 1, ny - topShift - 1, nw + 2, topH + 2);
+      ctx.clip();
+      ctx.globalAlpha = 1 - p*0.5;
+      const grad = ctx.createLinearGradient(nx, ny - topShift, nx, ny - topShift + topH);
+      grad.addColorStop(0, NODE_TOP);
+      grad.addColorStop(1, NODE_BOT);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(nx, ny - topShift, nw, topH, [4,4,0,0]);
+      ctx.fill();
+      ctx.fillStyle = `rgba(0,0,0,${p*0.5})`;
+      ctx.fillRect(nx, ny - topShift + topH - 3, nw, 3);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // Bottom half hinges down
+    ctx.save();
+    const botH = (nh/2) * (1 - p);
+    const botY = splitY + (nh/2)*p + topShift;
+    if (botH > 0.5) {
+      ctx.beginPath();
+      ctx.rect(nx - 1, botY - 1, nw + 2, botH + 2);
+      ctx.clip();
+      ctx.globalAlpha = 1 - p*0.5;
+      const grad = ctx.createLinearGradient(nx, botY, nx, botY + botH);
+      grad.addColorStop(0, NODE_TOP);
+      grad.addColorStop(1, NODE_BOT);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(nx, botY, nw, botH, [0,0,4,4]);
+      ctx.fill();
+      ctx.fillStyle = `rgba(0,0,0,${p*0.4})`;
+      ctx.fillRect(nx, botY, nw, 2);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function play() {
+    if (anim) cancelAnimationFrame(anim);
+    const start = performance.now();
+    const dur = 600;
+    function frame(now) {
+      const elapsed = (now - start) / dur;
+      draw(Math.min(elapsed, 1));
+      if (elapsed < 1.8) anim = requestAnimationFrame(frame);
+    }
+    anim = requestAnimationFrame(frame);
+  }
+  canvas.addEventListener('click', play);
+  draw(0);
+  setTimeout(play, 600);
+})();
+
+// ============ WIRE RENDERING HELPERS ============
+
+// Signal-to-visual mapping with peak glow
+// -75 to +75: color only (linear gradient from neutral to full polarity)
+// beyond +/-75: full polarity color + glow that ramps 0 to max from 75 to 100
+function getWireVisual(value) {
+  const absVal = Math.abs(value);
+  const GLOW_THRESHOLD = 75;
+
+  // Color: ramp from neutral to full polarity over 0-75, then stay at full beyond
+  const colorT = clamp01(absVal / GLOW_THRESHOLD); // 0 at 0, 1 at 75+
+
+  let r, g, b;
+  if (value >= 0) {
+    // neutral -> amber
+    r = Math.round(lerp(58, 245, colorT));
+    g = Math.round(lerp(58, 175, colorT));
+    b = Math.round(lerp(74, 40, colorT));
+  } else {
+    // neutral -> teal
+    r = Math.round(lerp(58, 30, colorT));
+    g = Math.round(lerp(58, 210, colorT));
+    b = Math.round(lerp(74, 195, colorT));
+  }
+
+  // Glow: only beyond threshold, ramps from 0 to 1 over 75-100
+  let glowIntensity = 0;
+  if (absVal > GLOW_THRESHOLD) {
+    glowIntensity = clamp01((absVal - GLOW_THRESHOLD) / (100 - GLOW_THRESHOLD));
+  }
+
+  const glowColor = value >= 0 ? AMBER : TEAL;
+
+  return {
+    color: `rgb(${r},${g},${b})`,
+    glowColor: glowColor,
+    glowBlur: glowIntensity * 12,
+    glowAlpha: glowIntensity,
+  };
+}
+
+function getWirePath(startX, startY, endX, endY, jogStart, jogAngle) {
+  // H -> 45deg jog -> H
+  const jogLen = jogAngle ? Math.abs(endY - startY) / Math.tan(Math.PI/4) : 0;
+  return [
+    {x: startX, y: startY},
+    {x: jogStart || (startX + (endX-startX)*0.3), y: startY},
+    {x: (jogStart || (startX + (endX-startX)*0.3)) + jogLen, y: endY},
+    {x: endX, y: endY},
+  ];
+}
+
+function getPointAlongPath(path, t) {
+  let totalLen = 0;
+  const segLens = [];
+  for (let i = 1; i < path.length; i++) {
+    const dx = path[i].x - path[i-1].x;
+    const dy = path[i].y - path[i-1].y;
+    segLens.push(Math.sqrt(dx*dx + dy*dy));
+    totalLen += segLens[segLens.length-1];
+  }
+  let target = t * totalLen;
+  for (let i = 0; i < segLens.length; i++) {
+    if (target <= segLens[i]) {
+      const segT = target / segLens[i];
+      return {
+        x: lerp(path[i].x, path[i+1].x, segT),
+        y: lerp(path[i].y, path[i+1].y, segT),
+      };
+    }
+    target -= segLens[i];
+  }
+  return path[path.length - 1];
+}
+
+function drawWireBg(ctx, w, h) {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#1e1e2a';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y = 0; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+}
+
+function drawPort(ctx, x, y) {
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#3a3a4a';
+  ctx.fill();
+  ctx.strokeStyle = '#5a5a6a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawPeakGlowWire(ctx, path, signalFn, phase) {
+  const steps = 120;
+
+  // Base wire (thin neutral)
+  ctx.strokeStyle = '#222230';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+  ctx.stroke();
+
+  // Glow pass (only segments with glow)
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    const p0 = getPointAlongPath(path, t0);
+    const p1 = getPointAlongPath(path, t1);
+    const signalT = (t0 + phase) % 1;
+    const value = signalFn(signalT);
+    const vis = getWireVisual(value);
+
+    if (vis.glowBlur > 0.5) {
+      ctx.save();
+      ctx.shadowColor = vis.glowColor;
+      ctx.shadowBlur = vis.glowBlur;
+      ctx.strokeStyle = vis.color;
+      ctx.globalAlpha = 0.5 + vis.glowAlpha * 0.5;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Color pass on top (always drawn)
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    const p0 = getPointAlongPath(path, t0);
+    const p1 = getPointAlongPath(path, t1);
+    const signalT = (t0 + phase) % 1;
+    const value = signalFn(signalT);
+    const vis = getWireVisual(value);
+
+    ctx.strokeStyle = vis.color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+}
+
+// ============ MAIN REFINED WIRE DEMO ============
+(function() {
+  const canvas = document.getElementById('wire-refined');
+  const ctx = canvas.getContext('2d');
+  const path = [
+    {x: 40, y: 100},
+    {x: 200, y: 100},
+    {x: 300, y: 60},
+    {x: 620, y: 60},
+  ];
+  let phase = 0;
+
+  function draw() {
+    drawWireBg(ctx, 660, 180);
+    drawPort(ctx, 40, 100);
+    drawPort(ctx, 620, 60);
+    drawPeakGlowWire(ctx, path, (t) => Math.sin(t * Math.PI * 2) * 100, phase);
+    phase += 0.004;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ RESPONSE CURVE VISUALIZATION ============
+(function() {
+  const canvas = document.getElementById('response-curve');
+  const ctx = canvas.getContext('2d');
+  const W = 660, H = 120;
+  const pad = 40;
+
+  function draw() {
+    ctx.fillStyle = '#0e0e16';
+    ctx.fillRect(0, 0, W, H);
+
+    // Axes
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, H - 20);
+    ctx.lineTo(W - pad, H - 20);
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = '#666';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const labels = ['-100', '-75', '-50', '-25', '0', '+25', '+50', '+75', '+100'];
+    labels.forEach((label, i) => {
+      const x = pad + (i / (labels.length - 1)) * (W - 2*pad);
+      ctx.fillText(label, x, H - 6);
+    });
+
+    // Threshold markers
+    ctx.strokeStyle = '#444';
+    ctx.setLineDash([3, 3]);
+    const x75neg = pad + (1/8) * (W - 2*pad);
+    const x75pos = pad + (7/8) * (W - 2*pad);
+    ctx.beginPath(); ctx.moveTo(x75neg, 10); ctx.lineTo(x75neg, H-20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x75pos, 10); ctx.lineTo(x75pos, H-20); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#555';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('glow zone', (pad + x75neg)/2, 20);
+    ctx.fillText('color only', W/2, 20);
+    ctx.fillText('glow zone', (W - pad + x75pos)/2, 20);
+
+    // Color intensity bar
+    const barY = 32;
+    const barH = 20;
+    for (let px = pad; px < W - pad; px++) {
+      const t = (px - pad) / (W - 2*pad);
+      const value = lerp(-100, 100, t);
+      const vis = getWireVisual(value);
+      ctx.fillStyle = vis.color;
+      ctx.fillRect(px, barY, 1, barH);
+    }
+    ctx.fillStyle = '#555';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('color:', pad - 4, barY + 14);
+
+    // Glow intensity curve
+    const glowY = 60;
+    const glowH = 30;
+    ctx.fillStyle = '#555';
+    ctx.textAlign = 'right';
+    ctx.fillText('glow:', pad - 4, glowY + 18);
+
+    ctx.beginPath();
+    ctx.moveTo(pad, glowY + glowH);
+    for (let px = pad; px < W - pad; px++) {
+      const t = (px - pad) / (W - 2*pad);
+      const value = lerp(-100, 100, t);
+      const vis = getWireVisual(value);
+      const gy = glowY + glowH - (vis.glowAlpha * glowH);
+      ctx.lineTo(px, gy);
+    }
+    ctx.lineTo(W - pad, glowY + glowH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(245, 175, 40, 0.15)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(245, 175, 40, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let px = pad; px < W - pad; px++) {
+      const t = (px - pad) / (W - 2*pad);
+      const value = lerp(-100, 100, t);
+      const vis = getWireVisual(value);
+      const gy = glowY + glowH - (vis.glowAlpha * glowH);
+      if (px === pad) ctx.moveTo(px, gy);
+      else ctx.lineTo(px, gy);
+    }
+    ctx.stroke();
+  }
+  draw();
+})();
+
+// ============ COMPARISON WIRES ============
+function createComparisonWire(canvasId, signalFn) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const path = [
+    {x: 20, y: 60},
+    {x: 130, y: 60},
+    {x: 180, y: 45},
+    {x: 380, y: 45},
+  ];
+  let phase = 0;
+
+  function draw() {
+    drawWireBg(ctx, 400, 120);
+    drawPort(ctx, 20, 60);
+    drawPort(ctx, 380, 45);
+    drawPeakGlowWire(ctx, path, signalFn, phase);
+    phase += 0.005;
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// Sine
+createComparisonWire('wire-sine', (t) => Math.sin(t * Math.PI * 2) * 100);
+
+// Square
+createComparisonWire('wire-square', (t) => t < 0.5 ? 90 : -90);
+
+// Low amplitude sine (never hits glow zone)
+createComparisonWire('wire-low', (t) => Math.sin(t * Math.PI * 2) * 40);
+
+// Clipped signal (sustained peaks)
+createComparisonWire('wire-clipped', (t) => {
+  const raw = Math.sin(t * Math.PI * 2) * 150;
+  return clamp(raw, -100, 100);
+});
+
+</script>
+</body>
+</html>
