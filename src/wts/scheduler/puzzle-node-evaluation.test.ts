@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
+import { createWire } from '../../shared/types/index.ts';
 import { createSchedulerState, advanceTick } from './tick-scheduler.ts';
 import { bakeGraph, reconstructFromMetadata } from '../../engine/baking/index.ts';
 import { topologicalSort } from '../../engine/graph/topological-sort.ts';
@@ -18,30 +19,27 @@ function makeNode(
   outputCount: number,
   params: Record<string, number | string> = {},
 ): NodeState {
-  return { id, type, position: { x: 0, y: 0 }, params, inputCount, outputCount };
+  return { id, type, position: { col: 0, row: 0 }, params, inputCount, outputCount };
 }
 
 function makeWire(
-  from: NodeId,
-  fromPort: number,
-  to: NodeId,
-  toPort: number,
-  wtsDelay = 16,
+  sourceId: NodeId,
+  sourcePort: number,
+  targetId: NodeId,
+  targetPort: number,
 ): Wire {
-  return {
-    id: `${from}:${fromPort}->${to}:${toPort}`,
-    from: { nodeId: from, portIndex: fromPort, side: 'output' },
-    to: { nodeId: to, portIndex: toPort, side: 'input' },
-    wtsDelay,
-    signals: [],
-  };
+  return createWire(
+    `${sourceId}:${sourcePort}->${targetId}:${targetPort}`,
+    { nodeId: sourceId, portIndex: sourcePort, side: 'output' },
+    { nodeId: targetId, portIndex: targetPort, side: 'input' },
+  );
 }
 
 function buildGraph(
   inputCount: number,
   outputCount: number,
   processingNodes: NodeState[],
-  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number; delay?: number }[],
+  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number }[],
 ) {
   const nodes = new Map<NodeId, NodeState>();
   for (let i = 0; i < inputCount; i++) {
@@ -56,7 +54,7 @@ function buildGraph(
     nodes.set(node.id, node);
   }
   const wires = wireSpecs.map((spec) =>
-    makeWire(spec.from, spec.fromPort, spec.to, spec.toPort, spec.delay ?? 16),
+    makeWire(spec.from, spec.fromPort, spec.to, spec.toPort),
   );
   return { nodes, wires };
 }
@@ -66,7 +64,7 @@ function bakePuzzleMetadata(
   inputCount: number,
   outputCount: number,
   processingNodes: NodeState[],
-  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number; delay?: number }[],
+  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number }[],
 ) {
   const { nodes, wires } = buildGraph(inputCount, outputCount, processingNodes, wireSpecs);
   const result = bakeGraph(nodes, wires);
@@ -89,7 +87,7 @@ function runSimulationWithPuzzleNode(
   if (!sortResult.ok) throw new Error('Cycle in test graph');
   const topoOrder = sortResult.value;
 
-  const simWires: Wire[] = wires.map((w) => ({ ...w, signals: [] }));
+  const simWires: Wire[] = wires.map((w) => ({ ...w, signalBuffer: [...w.signalBuffer] }));
   const state = createSchedulerState(nodes);
 
   // Attach baked closures to puzzle node runtime states
@@ -115,8 +113,8 @@ function runSimulationWithPuzzleNode(
       if (runtime) {
         runtime.outputs[0] = inputValues[i];
         for (const wire of simWires) {
-          if (wire.from.nodeId === cpId) {
-            wire.signals.push({ value: inputValues[i], ticksRemaining: wire.wtsDelay });
+          if (wire.source.nodeId === cpId) {
+            wire.signalBuffer[wire.writeHead] = inputValues[i];
           }
         }
       }
@@ -139,11 +137,11 @@ function runSimulationWithPuzzleNode(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe('puzzle node evaluation in simulation', () => {
-  it('puzzle node with baked Invert graph negates input', () => {
-    // Bake an Invert puzzle: CP_in → Invert → CP_out
+  it('puzzle node with baked Inverter graph negates input', () => {
+    // Bake an Inverter puzzle: CP_in → Inverter → CP_out
     const metadata = bakePuzzleMetadata(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -151,7 +149,7 @@ describe('puzzle node evaluation in simulation', () => {
     );
 
     // Build a gameboard graph: CP_in → PuzzleNode → CP_out
-    const puzzleNode = makeNode('pz1', 'puzzle:test-invert', 1, 1);
+    const puzzleNode = makeNode('pz1', 'puzzle:test-inverter', 1, 1);
     const { nodes, wires } = buildGraph(
       1, 1,
       [puzzleNode],
@@ -169,20 +167,20 @@ describe('puzzle node evaluation in simulation', () => {
     expect(output[0]).toBe(-60);
   });
 
-  it('puzzle node with baked Mix Add graph sums two inputs', () => {
-    // Bake a Mix(Add) puzzle: 2 CP_ins → Mix → CP_out
+  it('puzzle node with baked Merger graph sums two inputs', () => {
+    // Bake a Merger puzzle: 2 CP_ins → Merger → CP_out
     const metadata = bakePuzzleMetadata(
       2, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Add' })],
+      [makeNode('mrg1', 'merger', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
     // Build gameboard: CP_in0, CP_in1 → PuzzleNode(2 in, 1 out) → CP_out
-    const puzzleNode = makeNode('pz1', 'puzzle:test-mix', 2, 1);
+    const puzzleNode = makeNode('pz1', 'puzzle:test-merger', 2, 1);
     const { nodes, wires } = buildGraph(
       2, 1,
       [puzzleNode],
@@ -202,20 +200,20 @@ describe('puzzle node evaluation in simulation', () => {
   });
 
   it('puzzle node chained with fundamental node', () => {
-    // Bake an Invert puzzle
+    // Bake an Inverter puzzle
     const metadata = bakePuzzleMetadata(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    // Gameboard: CP_in → PuzzleInvert → FundamentalInvert → CP_out
+    // Gameboard: CP_in → PuzzleInvert → FundamentalInverter → CP_out
     // Double invert should produce the original value
-    const puzzleNode = makeNode('pz1', 'puzzle:test-invert', 1, 1);
-    const invertNode = makeNode('inv2', 'invert', 1, 1);
+    const puzzleNode = makeNode('pz1', 'puzzle:test-inverter', 1, 1);
+    const invertNode = makeNode('inv2', 'inverter', 1, 1);
     const { nodes, wires } = buildGraph(
       1, 1,
       [puzzleNode, invertNode],
@@ -254,45 +252,49 @@ describe('puzzle node evaluation in simulation', () => {
   });
 
   it('multiple puzzle nodes in same graph', () => {
-    // Bake Invert and Threshold puzzles
+    // Bake Inverter and Scaler puzzles
     const invertMeta = bakePuzzleMetadata(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const thresholdMeta = bakePuzzleMetadata(
-      1, 1,
-      [makeNode('thr', 'threshold', 1, 1, { threshold: 25 })],
+    // Scaler puzzle: CP_in0 signal, CP_in1 percentage → Scaler → CP_out
+    const scalerMeta = bakePuzzleMetadata(
+      2, 1,
+      [makeNode('scl', 'scaler', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'thr', toPort: 0 },
-        { from: 'thr', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'scl', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 1 },
+        { from: 'scl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    // Gameboard: CP_in → PuzzleInvert → PuzzleThreshold → CP_out
-    // Invert(50) = -50, Threshold(-50, 25) = -100 (since -50 < 25)
-    const pzInvert = makeNode('pzInv', 'puzzle:test-invert', 1, 1);
-    const pzThreshold = makeNode('pzThr', 'puzzle:test-threshold', 1, 1);
+    // Gameboard: CP_in → PuzzleInvert → PuzzleScaler(port0), Constant → PuzzleScaler(port1) → CP_out
+    // Invert(50) = -50, Scaler(-50, 100) = -50 * (1 + 100/100) = -50 * 2 = -100
+    const pzInvert = makeNode('pzInv', 'puzzle:test-inverter', 1, 1);
+    const pzScaler = makeNode('pzScl', 'puzzle:test-scaler', 2, 1);
+    const constNode = makeNode('const', 'constant', 0, 1, { value: 100 });
     const { nodes, wires } = buildGraph(
       1, 1,
-      [pzInvert, pzThreshold],
+      [pzInvert, pzScaler, constNode],
       [
         { from: cpInputId(0), fromPort: 0, to: 'pzInv', toPort: 0 },
-        { from: 'pzInv', fromPort: 0, to: 'pzThr', toPort: 0 },
-        { from: 'pzThr', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'pzInv', fromPort: 0, to: 'pzScl', toPort: 0 },
+        { from: 'const', fromPort: 0, to: 'pzScl', toPort: 1 },
+        { from: 'pzScl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
     const closures = new Map<string, (inputs: number[]) => number[]>();
     closures.set('pzInv', reconstructFromMetadata(invertMeta).evaluate);
-    closures.set('pzThr', reconstructFromMetadata(thresholdMeta).evaluate);
+    closures.set('pzScl', reconstructFromMetadata(scalerMeta).evaluate);
 
     const output = runSimulationWithPuzzleNode(nodes, wires, closures, [50], 100);
-    // Invert(50) = -50, Threshold(-50, 25) → -50 <= 25 → -100
+    // Invert(50) = -50, Scaler(-50, 100) = -50 * 2 = -100
     expect(output[0]).toBe(-100);
   });
 });

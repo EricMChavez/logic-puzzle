@@ -11,30 +11,30 @@ export const TUTORIAL_RECTIFIER: PuzzleDefinition = {
   allowedNodes: ['mix'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32',
+      name: 'Sine amp=100 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'rectified-sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'rectified-sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=80 period=32',
+      name: 'Triangle amp=80 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'rectified-triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'rectified-triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=60 period=16',
+      name: 'Square amp=60 period=256',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 30, period: 16, phase: 0, offset: 30 },
+        { shape: 'square', amplitude: 30, period: 256, phase: 0, offset: 30 },
       ],
     },
   ],
@@ -51,30 +51,30 @@ export const TUTORIAL_AMPLIFIER: PuzzleDefinition = {
   allowedNodes: ['mix'],
   testCases: [
     {
-      name: 'Sine amp=50 period=32',
+      name: 'Sine amp=50 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=40 period=32',
+      name: 'Triangle amp=40 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 40, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=50 period=16',
+      name: 'Square amp=50 period=256',
       inputs: [
-        { shape: 'square', amplitude: 50, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 100, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
@@ -91,30 +91,30 @@ export const TUTORIAL_DC_OFFSET: PuzzleDefinition = {
   allowedNodes: ['mix'],
   testCases: [
     {
-      name: 'Sine amp=50 period=32',
+      name: 'Sine amp=50 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 50, period: 32, phase: 0, offset: 50 },
+        { shape: 'sine', amplitude: 50, period: 256, phase: 0, offset: 50 },
       ],
     },
     {
-      name: 'Triangle amp=40 period=16',
+      name: 'Triangle amp=40 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 40, period: 16, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 40, period: 16, phase: 0, offset: 50 },
+        { shape: 'triangle', amplitude: 40, period: 256, phase: 0, offset: 50 },
       ],
     },
     {
-      name: 'Square amp=50 period=32',
+      name: 'Square amp=50 period=256',
       inputs: [
-        { shape: 'square', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 50, period: 32, phase: 0, offset: 50 },
+        { shape: 'square', amplitude: 50, period: 256, phase: 0, offset: 50 },
       ],
     },
   ],
@@ -131,30 +131,30 @@ export const TUTORIAL_CLIPPER: PuzzleDefinition = {
   allowedNodes: ['mix'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32 (clipped)',
+      name: 'Sine amp=100 period=256 (clipped)',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'clipped-sine', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'clipped-sine', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=30 period=32 (pass-through)',
+      name: 'Triangle amp=30 period=256 (pass-through)',
       inputs: [
-        { shape: 'triangle', amplitude: 30, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 30, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 30, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 30, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=80 period=16 (clipped)',
+      name: 'Square amp=80 period=256 (clipped)',
       inputs: [
-        { shape: 'square', amplitude: 80, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 50, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
@@ -173,28 +173,28 @@ export const TUTORIAL_SQUARE_GEN: PuzzleDefinition = {
     {
       name: 'Sine → square',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0.5, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 1, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Triangle → square',
       inputs: [
-        { shape: 'triangle', amplitude: 100, period: 32, phase: 0.5, offset: 0 },
+        { shape: 'triangle', amplitude: 100, period: 256, phase: 1, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 100, period: 32, phase: -8, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: -64, offset: 0 },
       ],
     },
     {
       name: 'Sawtooth → square',
       inputs: [
-        { shape: 'sawtooth', amplitude: 100, period: 32, phase: 0.5, offset: 0 },
+        { shape: 'sawtooth', amplitude: 100, period: 256, phase: 1, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 100, period: 32, phase: -16, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: -128, offset: 0 },
       ],
     },
   ],

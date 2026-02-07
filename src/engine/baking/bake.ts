@@ -1,14 +1,10 @@
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
+import { createWire, WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
 import type { Result } from '../../shared/result/index.ts';
 import { ok, err } from '../../shared/result/index.ts';
 import { topologicalSort } from '../graph/topological-sort.ts';
-import { evaluateMultiply } from '../nodes/multiply.ts';
-import { evaluateMix } from '../nodes/mix.ts';
-import type { MixMode } from '../nodes/mix.ts';
-import { evaluateInvert } from '../nodes/invert.ts';
-import { evaluateThreshold } from '../nodes/threshold.ts';
-import { evaluateDelay, createDelayState } from '../nodes/delay.ts';
-import type { DelayState } from '../nodes/delay.ts';
+import { getNodeDefinition } from '../nodes/registry.ts';
+import type { NodeRuntimeState } from '../nodes/framework.ts';
 import { analyzeDelays } from './delay-calculator.ts';
 import type { PortSource, OutputMapping } from './delay-calculator.ts';
 import {
@@ -37,7 +33,7 @@ interface InputSpec {
 interface NodeSpec {
   id: NodeId;
   type: string;
-  params: Record<string, number | string>;
+  params: Record<string, number | string | boolean>;
   inputSpecs: InputSpec[];
   outputCount: number;
 }
@@ -92,7 +88,7 @@ export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
     nodes.set(config.id, {
       id: config.id,
       type: config.type,
-      position: { x: 0, y: 0 },
+      position: { col: 0, row: 0 },
       params: { ...config.params },
       inputCount: config.inputCount,
       outputCount: config.outputCount,
@@ -114,13 +110,13 @@ export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
   }
 
   // Rebuild wires
-  const wires: Wire[] = metadata.edges.map((edge, i) => ({
-    id: `baked-wire-${i}`,
-    from: { nodeId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
-    to: { nodeId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
-    wtsDelay: edge.wtsDelay,
-    signals: [],
-  }));
+  const wires: Wire[] = metadata.edges.map((edge, i) =>
+    createWire(
+      `baked-wire-${i}`,
+      { nodeId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
+      { nodeId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
+    ),
+  );
 
   // Re-analyze and build closure
   const analysis = analyzeDelays(metadata.topoOrder, nodes, wires);
@@ -150,11 +146,11 @@ function buildMetadata(
   }
 
   const edges: BakedEdge[] = wires.map((wire) => ({
-    fromNodeId: wire.from.nodeId,
-    fromPort: wire.from.portIndex,
-    toNodeId: wire.to.nodeId,
-    toPort: wire.to.portIndex,
-    wtsDelay: wire.wtsDelay,
+    fromNodeId: wire.source.nodeId,
+    fromPort: wire.source.portIndex,
+    toNodeId: wire.target.nodeId,
+    toPort: wire.target.portIndex,
+    wtsDelay: WIRE_BUFFER_SIZE,
   }));
 
   return {
@@ -176,46 +172,26 @@ function readCircularBuffer(buf: CircularBuffer, offset: number): number {
 
 /**
  * Evaluate a single processing node given its input values.
- * Mirrors the switch in tick-scheduler.ts evaluateNode.
+ * Uses the node registry to look up and evaluate any fundamental node.
  */
 function evaluateNodePure(
   type: string,
   inputs: number[],
-  params: Record<string, number | string>,
-  delayState: DelayState | undefined,
+  params: Record<string, number | string | boolean>,
+  nodeState: NodeRuntimeState | undefined,
+  tickIndex: number,
 ): number[] {
-  switch (type) {
-    case 'multiply': {
-      const a = inputs[0] ?? 0;
-      const b = inputs[1] ?? 0;
-      return [evaluateMultiply(a, b)];
-    }
-    case 'mix': {
-      const a = inputs[0] ?? 0;
-      const b = inputs[1] ?? 0;
-      const mode = (params['mode'] as MixMode) ?? 'Add';
-      return [evaluateMix(a, b, mode)];
-    }
-    case 'invert': {
-      const a = inputs[0] ?? 0;
-      return [evaluateInvert(a)];
-    }
-    case 'threshold': {
-      const a = inputs[0] ?? 0;
-      const threshold =
-        typeof params['threshold'] === 'number' ? params['threshold'] : 0;
-      return [evaluateThreshold(a, threshold)];
-    }
-    case 'delay': {
-      const a = inputs[0] ?? 0;
-      if (delayState) {
-        return [evaluateDelay(a, delayState)];
-      }
-      return [0];
-    }
-    default:
-      return [];
+  const def = getNodeDefinition(type);
+  if (!def) {
+    return [];
   }
+
+  return def.evaluate({
+    inputs,
+    params: params as Record<string, number | string | boolean>,
+    state: nodeState,
+    tickIndex,
+  });
 }
 
 /**
@@ -252,7 +228,7 @@ function buildClosure(
 
   // Build node specs for fast evaluation
   const nodeSpecs: NodeSpec[] = [];
-  const delayStates = new Map<NodeId, DelayState>();
+  const nodeStates = new Map<NodeId, NodeRuntimeState>();
 
   for (const nodeId of processingOrder) {
     const node = nodes.get(nodeId);
@@ -273,13 +249,10 @@ function buildClosure(
       outputCount: node.outputCount,
     });
 
-    // Create delay state for delay nodes
-    if (node.type === 'delay') {
-      const subdivisions =
-        typeof node.params['subdivisions'] === 'number'
-          ? node.params['subdivisions']
-          : 0;
-      delayStates.set(nodeId, createDelayState(subdivisions));
+    // Create node state for stateful nodes using the registry
+    const def = getNodeDefinition(node.type);
+    if (def?.createState) {
+      nodeStates.set(nodeId, def.createState());
     }
   }
 
@@ -297,6 +270,9 @@ function buildClosure(
 
   // Storage for node outputs, reused across calls
   const nodeOutputs = new Map<NodeId, number[]>();
+
+  // Track tick index for stateful nodes
+  let tickIndex = 0;
 
   // The closure
   return function evaluate(inputs: number[]): number[] {
@@ -326,10 +302,12 @@ function buildClosure(
         }
       }
 
-      const delayState = delayStates.get(spec.id);
-      const outputs = evaluateNodePure(spec.type, nodeInputs, spec.params, delayState);
+      const nodeState = nodeStates.get(spec.id);
+      const outputs = evaluateNodePure(spec.type, nodeInputs, spec.params, nodeState, tickIndex);
       nodeOutputs.set(spec.id, outputs);
     }
+
+    tickIndex++;
 
     // Step 3: Collect output CP values
     const result = new Array<number>(outputCount).fill(0);

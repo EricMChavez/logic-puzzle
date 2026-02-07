@@ -1,13 +1,17 @@
-/** Node rendering dimensions */
-export const NODE_CONFIG = {
-  WIDTH: 140,
-  HEIGHT: 60,
-  BORDER_RADIUS: 6,
-  PORT_RADIUS: 6,
-  PORT_OFFSET_X: 0,
-  FONT_SIZE: 13,
-  LABEL_FONT: '13px system-ui, sans-serif',
-  PARAM_FONT: '10px system-ui, sans-serif',
+/** Ratio-based node styling (multiplied by cellSize at render time) */
+export const NODE_STYLE = {
+  BORDER_RADIUS_RATIO: 0.12,
+  PORT_RADIUS_RATIO: 0.12,
+  LABEL_FONT_RATIO: 0.32,
+  PARAM_FONT_RATIO: 0.22,
+  LABEL_FONT_FAMILY: "'Inter', 'Segoe UI', system-ui, sans-serif",
+  PARAM_FONT_FAMILY: "'Consolas', 'JetBrains Mono', monospace",
+  SHADOW_BLUR_RATIO: 0.2,
+  SHADOW_OFFSET_Y_RATIO: 0.06,
+  FOCUS_RING_WIDTH: 2,
+  SELECTION_PAD: 3,
+  /** Half-cell offset so ports sit on grid lines while body is offset */
+  BODY_OFFSET: 0.5,
 } as const;
 
 /** Connection point rendering (gameboard I/O) */
@@ -18,16 +22,13 @@ export const CONNECTION_POINT_CONFIG = {
   OUTPUT_COUNT: 3,
   /** Radius of connection point circles */
   RADIUS: 8,
-  /** Horizontal margin from canvas edge */
-  MARGIN_X: 30,
 } as const;
 
 /** Signal processing constants */
 export const SIGNAL_CONFIG = {
   MIN_VALUE: -100,
   MAX_VALUE: 100,
-  MATCH_TOLERANCE: 5,
-  VICTORY_CYCLES: 2,
+  MATCH_TOLERANCE: 0,
 } as const;
 
 /** WTS timing constants */
@@ -38,8 +39,7 @@ export const WTS_CONFIG = {
 
 /** Validation constants */
 export const VALIDATION_CONFIG = {
-  MATCH_TOLERANCE: 5,
-  VICTORY_CYCLES: 2,
+  MATCH_TOLERANCE: 0,
 } as const;
 
 /** Color palette for rendering */
@@ -61,11 +61,20 @@ export const COLORS = {
   TARGET_WAVEFORM: '#50c878',
 } as const;
 
-/** Display labels for node types */
+/** Display labels for node types (derived from registry for v2 nodes) */
 export const NODE_TYPE_LABELS: Record<string, string> = {
+  // v2 nodes
+  constant: 'Constant',
+  inverter: 'Inverter',
+  scaler: 'Scaler',
+  merger: 'Merger',
+  splitter: 'Splitter',
+  switch: 'Switch',
+  shaper: 'Shaper',
+  delay: 'Delay',
+  // Legacy v1 nodes (for migration period)
   multiply: 'Multiply',
   mix: 'Mix',
   invert: 'Invert',
   threshold: 'Threshold',
-  delay: 'Delay',
 };

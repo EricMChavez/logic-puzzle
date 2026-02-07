@@ -11,30 +11,30 @@ export const SIGNAL_INVERTER: PuzzleDefinition = {
   allowedNodes: ['invert'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32',
+      name: 'Sine amp=100 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 16, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 128, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=80 period=32',
+      name: 'Triangle amp=80 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 16, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 128, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=60 period=16',
+      name: 'Square amp=60 period=256',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 8, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 128, offset: 0 },
       ],
     },
   ],
@@ -51,30 +51,30 @@ export const SIGNAL_ATTENUATOR: PuzzleDefinition = {
   allowedNodes: ['multiply'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32',
+      name: 'Sine amp=100 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=80 period=32',
+      name: 'Triangle amp=80 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 40, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=60 period=16',
+      name: 'Square amp=60 period=256',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 30, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 30, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
@@ -91,70 +91,70 @@ export const SIGNAL_FULLWAVE_RECTIFIER: PuzzleDefinition = {
   allowedNodes: ['mix', 'invert'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32',
+      name: 'Sine amp=100 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'fullwave-rectified-sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'fullwave-rectified-sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=80 period=32',
+      name: 'Triangle amp=80 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'fullwave-rectified-triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'fullwave-rectified-triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=60 period=16',
+      name: 'Square amp=60 period=256',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'constant', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'constant', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
 };
 
-/** Level 9: Signal Delay — delay by 4 subdivisions */
+/** Level 9: Signal Delay — delay by 1 WTS */
 export const SIGNAL_DELAY: PuzzleDefinition = {
   id: 'signal-delay',
   title: 'Signal Delay',
   description:
-    'Delay the input signal by 4 ticks: output(t) = input(t - 4). Use a Delay node set to 4 subdivisions.',
+    'Delay the input signal by 1 WTS: output(t) = input(t - 16). Use a Delay node set to 1 WTS.',
   activeInputs: 1,
   activeOutputs: 1,
   allowedNodes: ['delay'],
   testCases: [
     {
-      name: 'Sine amp=100 period=32',
+      name: 'Sine amp=100 period=256',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: -4, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: -16, offset: 0 },
       ],
     },
     {
-      name: 'Triangle amp=80 period=24',
+      name: 'Triangle amp=80 period=256',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 24, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 80, period: 24, phase: -4, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: -16, offset: 0 },
       ],
     },
     {
-      name: 'Square amp=60 period=16',
+      name: 'Square amp=60 period=256',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: -4, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: -16, offset: 0 },
       ],
     },
   ],

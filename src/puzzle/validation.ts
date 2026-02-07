@@ -1,5 +1,4 @@
-import type { PuzzleTestCase } from './types.ts';
-import { VALIDATION_CONFIG } from '../shared/constants/index.ts';
+import type { MeterCircularBuffer } from '../gameboard/meters/circular-buffer.ts';
 
 /** Check if a single actual value matches a target within tolerance. */
 export function validatePort(actual: number, target: number, tolerance: number): boolean {
@@ -27,19 +26,37 @@ export function validateAllPorts(
   return { allMatch, perPort };
 }
 
-/**
- * Calculate the victory threshold for a test case.
- * Returns VICTORY_CYCLES * max(period across expectedOutputs).
- */
-export function getVictoryThreshold(testCase: PuzzleTestCase): number {
-  if (testCase.expectedOutputs.length === 0) return 0;
+/** Result of full-buffer validation comparing output vs target. */
+export interface BufferValidationResult {
+  allMatch: boolean;
+  perSample: boolean[];
+  matchCount: number;
+}
 
-  let maxPeriod = 0;
-  for (const output of testCase.expectedOutputs) {
-    if (output.period > maxPeriod) {
-      maxPeriod = output.period;
-    }
+/**
+ * Compare two circular buffers sample-by-sample within tolerance.
+ * Returns per-sample match booleans and overall match status.
+ * allMatch is true only when both buffers are full (256 samples) AND all positions match.
+ */
+export function validateBuffers(
+  outputBuffer: MeterCircularBuffer,
+  targetBuffer: MeterCircularBuffer,
+  tolerance: number,
+): BufferValidationResult {
+  const len = Math.min(outputBuffer.count, targetBuffer.count);
+  const perSample: boolean[] = new Array(len);
+  let matchCount = 0;
+
+  for (let i = 0; i < len; i++) {
+    const match = Math.abs(outputBuffer.at(i) - targetBuffer.at(i)) <= tolerance;
+    perSample[i] = match;
+    if (match) matchCount++;
   }
 
-  return VALIDATION_CONFIG.VICTORY_CYCLES * maxPeriod;
+  const allMatch = len > 0 &&
+    len === outputBuffer.capacity &&
+    len === targetBuffer.capacity &&
+    matchCount === len;
+
+  return { allMatch, perSample, matchCount };
 }

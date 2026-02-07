@@ -13,11 +13,11 @@ import { generateWaveformValue } from '../waveform-generators.ts';
 
 describe('SIGNAL_INVERTER mathematical correctness', () => {
   for (const tc of SIGNAL_INVERTER.testCases) {
-    it(`${tc.name}: -input matches expected output over 64 ticks`, () => {
+    it(`${tc.name}: -input matches expected output over 256 ticks`, () => {
       const inputDef = tc.inputs[0];
       const expectedDef = tc.expectedOutputs[0];
 
-      for (let t = 0; t < 64; t++) {
+      for (let t = 0; t < 256; t++) {
         const inputVal = generateWaveformValue(t, inputDef);
         const inverted = Math.max(-100, Math.min(100, -inputVal));
         const expected = generateWaveformValue(t, expectedDef);
@@ -33,11 +33,11 @@ describe('SIGNAL_INVERTER mathematical correctness', () => {
 
 describe('SIGNAL_ATTENUATOR mathematical correctness', () => {
   for (const tc of SIGNAL_ATTENUATOR.testCases) {
-    it(`${tc.name}: input * 50 / 100 matches expected output over 64 ticks`, () => {
+    it(`${tc.name}: input * 50 / 100 matches expected output over 256 ticks`, () => {
       const inputDef = tc.inputs[0];
       const expectedDef = tc.expectedOutputs[0];
 
-      for (let t = 0; t < 64; t++) {
+      for (let t = 0; t < 256; t++) {
         const inputVal = generateWaveformValue(t, inputDef);
         const attenuated = Math.max(-100, Math.min(100, inputVal * 50 / 100));
         const expected = generateWaveformValue(t, expectedDef);
@@ -53,11 +53,11 @@ describe('SIGNAL_ATTENUATOR mathematical correctness', () => {
 
 describe('SIGNAL_FULLWAVE_RECTIFIER mathematical correctness', () => {
   for (const tc of SIGNAL_FULLWAVE_RECTIFIER.testCases) {
-    it(`${tc.name}: |input| matches expected output over 64 ticks`, () => {
+    it(`${tc.name}: |input| matches expected output over 256 ticks`, () => {
       const inputDef = tc.inputs[0];
       const expectedDef = tc.expectedOutputs[0];
 
-      for (let t = 0; t < 64; t++) {
+      for (let t = 0; t < 256; t++) {
         const inputVal = generateWaveformValue(t, inputDef);
         const rectified = Math.abs(inputVal);
         const expected = generateWaveformValue(t, expectedDef);
@@ -68,17 +68,17 @@ describe('SIGNAL_FULLWAVE_RECTIFIER mathematical correctness', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mathematical correctness — Signal Delay: output(t) = input(t - 4)
+// Mathematical correctness — Signal Delay: output(t) = input(t - 16)
 // ---------------------------------------------------------------------------
 
 describe('SIGNAL_DELAY mathematical correctness', () => {
   for (const tc of SIGNAL_DELAY.testCases) {
-    it(`${tc.name}: input(t - 4) matches expected output over 64 ticks`, () => {
+    it(`${tc.name}: input(t - 16) matches expected output over 256 ticks`, () => {
       const inputDef = tc.inputs[0];
       const expectedDef = tc.expectedOutputs[0];
 
-      for (let t = 0; t < 64; t++) {
-        const delayedInput = generateWaveformValue(t - 4, inputDef);
+      for (let t = 0; t < 256; t++) {
+        const delayedInput = generateWaveformValue(t - 16, inputDef);
         const expected = generateWaveformValue(t, expectedDef);
         expect(expected).toBeCloseTo(delayedInput, 5);
       }

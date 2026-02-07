@@ -9,7 +9,12 @@ import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
 import { createHistorySlice, initHistory } from './history-slice.ts';
+import { createMeterSlice } from './meter-slice.ts';
+import { createRoutingSlice } from './routing-slice.ts';
+import { createOverlaySlice } from './overlay-slice.ts';
+import { createAnimationSlice } from './animation-slice.ts';
 import type { GameStore } from '../index.ts';
+import { createWire } from '../../shared/types/index.ts';
 import type { GameboardState, NodeState, Wire } from '../../shared/types/index.ts';
 
 function createTestStore() {
@@ -23,6 +28,10 @@ function createTestStore() {
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
     ...createHistorySlice(...a),
+    ...createMeterSlice(...a),
+    ...createRoutingSlice(...a),
+    ...createOverlaySlice(...a),
+    ...createAnimationSlice(...a),
   }));
   initHistory(store);
   return store;
@@ -33,17 +42,11 @@ function makeBoard(id: string): GameboardState {
 }
 
 function makeNode(id: string): NodeState {
-  return { id, type: 'invert', position: { x: 0, y: 0 }, params: {}, inputCount: 1, outputCount: 1 };
+  return { id, type: 'invert', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 };
 }
 
 function makeWire(id: string): Wire {
-  return {
-    id,
-    from: { nodeId: 'n1', portIndex: 0, side: 'output' as const },
-    to: { nodeId: 'n2', portIndex: 0, side: 'input' as const },
-    wtsDelay: 0,
-    signals: [],
-  };
+  return createWire(id, { nodeId: 'n1', portIndex: 0, side: 'output' }, { nodeId: 'n2', portIndex: 0, side: 'input' });
 }
 
 describe('history-slice', () => {

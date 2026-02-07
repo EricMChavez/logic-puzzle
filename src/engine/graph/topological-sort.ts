@@ -28,8 +28,8 @@ export function topologicalSort(
   }
 
   for (const wire of wires) {
-    const from = wire.from.nodeId;
-    const to = wire.to.nodeId;
+    const from = wire.source.nodeId;
+    const to = wire.target.nodeId;
     adjacency.get(from)!.push(to);
     inDegree.set(to, (inDegree.get(to) ?? 0) + 1);
   }
@@ -87,8 +87,8 @@ function findCycle(
     adjacency.set(id, []);
   }
   for (const wire of wires) {
-    if (remainingSet.has(wire.from.nodeId) && remainingSet.has(wire.to.nodeId)) {
-      adjacency.get(wire.from.nodeId)!.push(wire.to.nodeId);
+    if (remainingSet.has(wire.source.nodeId) && remainingSet.has(wire.target.nodeId)) {
+      adjacency.get(wire.source.nodeId)!.push(wire.target.nodeId);
     }
   }
 

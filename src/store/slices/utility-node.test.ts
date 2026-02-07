@@ -7,6 +7,12 @@ import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
 import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
+import { createProgressionSlice } from './progression-slice.ts';
+import { createHistorySlice } from './history-slice.ts';
+import { createMeterSlice } from './meter-slice.ts';
+import { createRoutingSlice } from './routing-slice.ts';
+import { createOverlaySlice } from './overlay-slice.ts';
+import { createAnimationSlice } from './animation-slice.ts';
 import type { GameStore } from '../index.ts';
 import type { GameboardState } from '../../shared/types/index.ts';
 import type { BakeMetadata } from '../../engine/baking/index.ts';
@@ -22,6 +28,12 @@ function createTestStore() {
     ...createPaletteSlice(...a),
     ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
+    ...createProgressionSlice(...a),
+    ...createHistorySlice(...a),
+    ...createMeterSlice(...a),
+    ...createRoutingSlice(...a),
+    ...createOverlaySlice(...a),
+    ...createAnimationSlice(...a),
   }));
 }
 
@@ -44,7 +56,7 @@ const fakeMeta: BakeMetadata = {
 const fakeBoard: GameboardState = {
   id: 'utility-test',
   nodes: new Map([
-    ['n1', { id: 'n1', type: 'invert', position: { x: 100, y: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
+    ['n1', { id: 'n1', type: 'invert', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
   ]),
   wires: [],
 };
@@ -204,7 +216,7 @@ describe('navigation-slice utility editing', () => {
     const board: GameboardState = {
       id: 'test-board',
       nodes: new Map([
-        ['u-placed', { id: 'u-placed', type: 'utility:u1', position: { x: 100, y: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['u-placed', { id: 'u-placed', type: 'utility:u1', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
       wires: [],
     };

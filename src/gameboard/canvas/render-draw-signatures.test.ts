@@ -15,7 +15,6 @@ const DRAW_FILES = [
   'render-wires.ts',
   'render-wire-preview.ts',
   'render-connection-points.ts',
-  'render-waveforms.ts',
   'render-grid.ts',
 ];
 
@@ -94,11 +93,6 @@ describe('Draw function contracts', () => {
     it('imports isRunning', () => {
       const content = readCanvasFile('render-loop.ts');
       expect(content).toMatch(/isRunning/);
-    });
-
-    it('imports getWaveformBuffers', () => {
-      const content = readCanvasFile('render-loop.ts');
-      expect(content).toMatch(/getWaveformBuffers/);
     });
 
     it('imports getMeterBuffers', () => {

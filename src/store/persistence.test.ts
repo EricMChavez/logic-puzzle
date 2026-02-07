@@ -9,10 +9,11 @@ import {
   persistenceFieldsChanged,
   initPersistence,
 } from './persistence.ts';
-import type { HydratableState, PersistedState } from './persistence.ts';
+import type { HydratableState } from './persistence.ts';
 import type { PuzzleNodeEntry, UtilityNodeEntry } from './slices/palette-slice.ts';
 import type { BakeMetadata } from '../engine/baking/index.ts';
 import type { GameboardState } from '../shared/types/index.ts';
+import { createWire } from '../shared/types/index.ts';
 
 const fakeMeta: BakeMetadata = {
   topoOrder: ['n1'],
@@ -36,14 +37,18 @@ function makePuzzleEntry(id: string): PuzzleNodeEntry {
 }
 
 function makeBoard(id: string): GameboardState {
+  const wire = createWire('w1',
+    { nodeId: 'cp-in-0', portIndex: 0, side: 'output' },
+    { nodeId: 'node-1', portIndex: 0, side: 'input' },
+  );
+  // Set a non-zero value for testing serialization
+  wire.signalBuffer[0] = 50;
   return {
     id,
     nodes: new Map([
-      ['node-1', { id: 'node-1', type: 'invert', position: { x: 10, y: 20 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['node-1', { id: 'node-1', type: 'invert', position: { col: 10, row: 20 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]),
-    wires: [
-      { id: 'w1', from: { nodeId: 'cp-in-0', portIndex: 0, side: 'output' as const }, to: { nodeId: 'node-1', portIndex: 0, side: 'input' as const }, wtsDelay: 0, signals: [{ value: 50, ticksRemaining: 2 }] },
-    ],
+    wires: [wire],
   };
 }
 
@@ -99,15 +104,15 @@ describe('gameboard serialization', () => {
     expect(deserialized.nodes).toBeInstanceOf(Map);
     expect(deserialized.nodes.size).toBe(1);
     expect(deserialized.nodes.get('node-1')!.type).toBe('invert');
-    expect(deserialized.nodes.get('node-1')!.position).toEqual({ x: 10, y: 20 });
+    expect(deserialized.nodes.get('node-1')!.position).toEqual({ col: 10, row: 20 });
   });
 
-  it('strips wire signals on serialize', () => {
+  it('resets signalBuffer on serialize', () => {
     const board = makeBoard('test-board');
-    expect(board.wires[0].signals.length).toBe(1);
+    expect(board.wires[0].signalBuffer[0]).toBe(50);
 
     const serialized = serializeGameboard(board);
-    expect(serialized.wires[0].signals).toEqual([]);
+    expect(serialized.wires[0].signalBuffer.every((v: number) => v === 0)).toBe(true);
   });
 
   it('preserves wire structure', () => {
@@ -116,9 +121,8 @@ describe('gameboard serialization', () => {
     const deserialized = deserializeGameboard(serialized);
 
     expect(deserialized.wires.length).toBe(1);
-    expect(deserialized.wires[0].from.nodeId).toBe('cp-in-0');
-    expect(deserialized.wires[0].to.nodeId).toBe('node-1');
-    expect(deserialized.wires[0].wtsDelay).toBe(0);
+    expect(deserialized.wires[0].source.nodeId).toBe('cp-in-0');
+    expect(deserialized.wires[0].target.nodeId).toBe('node-1');
   });
 });
 

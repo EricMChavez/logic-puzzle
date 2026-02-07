@@ -1,26 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { SignalGraph } from './signal-graph.ts';
+import { createWire } from '../../shared/types/index.ts';
 import type { NodeState, Wire, NodeId } from '../../shared/types/index.ts';
 
 function makeNode(id: string): NodeState {
   return {
     id,
     type: 'multiply',
-    position: { x: 0, y: 0 },
+    position: { col: 0, row: 0 },
     params: {},
     inputCount: 2,
     outputCount: 1,
   };
 }
 
-function makeWire(id: string, from: NodeId, to: NodeId): Wire {
-  return {
+function makeWire(id: string, sourceId: NodeId, targetId: NodeId): Wire {
+  return createWire(
     id,
-    from: { nodeId: from, portIndex: 0, side: 'output' },
-    to: { nodeId: to, portIndex: 0, side: 'input' },
-    wtsDelay: 16,
-    signals: [],
-  };
+    { nodeId: sourceId, portIndex: 0, side: 'output' },
+    { nodeId: targetId, portIndex: 0, side: 'input' },
+  );
 }
 
 describe('SignalGraph', () => {

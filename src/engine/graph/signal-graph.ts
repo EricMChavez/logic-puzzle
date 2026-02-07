@@ -52,10 +52,10 @@ export class SignalGraph {
   removeNode(nodeId: NodeId): Wire[] {
     this.nodes.delete(nodeId);
     const removed = this.wires.filter(
-      (w) => w.from.nodeId === nodeId || w.to.nodeId === nodeId,
+      (w) => w.source.nodeId === nodeId || w.target.nodeId === nodeId,
     );
     this.wires = this.wires.filter(
-      (w) => w.from.nodeId !== nodeId && w.to.nodeId !== nodeId,
+      (w) => w.source.nodeId !== nodeId && w.target.nodeId !== nodeId,
     );
     this.recalculate();
     return removed;

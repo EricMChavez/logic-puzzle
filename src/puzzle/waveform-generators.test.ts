@@ -242,8 +242,6 @@ describe('generateWaveformValue', () => {
     });
 
     it('clamps to -100', () => {
-      const def = makeDef({ shape: 'constant', amplitude: 80, offset: -50 });
-      // constant returns 1 * 80 + (-50) = 30, that's within range
       // Try negative amplitude case
       const def2 = makeDef({ shape: 'square', amplitude: 80, offset: -50 });
       // second half: -80 + (-50) = -130 → clamped to -100

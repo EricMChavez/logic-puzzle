@@ -13,31 +13,31 @@ export const TIMING_DIFFERENCE: PuzzleDefinition = {
     {
       name: 'Sine 100 - Sine 60',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
-        { shape: 'sine', amplitude: 60, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 40, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Triangle 80 - Triangle 30',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
-        { shape: 'triangle', amplitude: 30, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 30, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 50, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 50, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Square 100 - Square 40',
       inputs: [
-        { shape: 'square', amplitude: 100, period: 16, phase: 0, offset: 0 },
-        { shape: 'square', amplitude: 40, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
@@ -56,31 +56,31 @@ export const TIMING_CROSSFADER: PuzzleDefinition = {
     {
       name: 'Sine avg(80, 40)',
       inputs: [
-        { shape: 'sine', amplitude: 80, period: 32, phase: 0, offset: 0 },
-        { shape: 'sine', amplitude: 40, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 80, period: 256, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 60, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Triangle avg(100, 60)',
       inputs: [
-        { shape: 'triangle', amplitude: 100, period: 32, phase: 0, offset: 0 },
-        { shape: 'triangle', amplitude: 60, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Square avg(80, 40)',
       inputs: [
-        { shape: 'square', amplitude: 80, period: 16, phase: 0, offset: 0 },
-        { shape: 'square', amplitude: 40, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 80, period: 256, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 40, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],
@@ -99,31 +99,31 @@ export const TIMING_RING_MODULATOR: PuzzleDefinition = {
     {
       name: 'Sine × Square → fullwave-rectified-sine',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
-        { shape: 'square', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'fullwave-rectified-sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'fullwave-rectified-sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Triangle × Square → sawtooth',
       inputs: [
-        { shape: 'triangle', amplitude: 100, period: 32, phase: 0, offset: 0 },
-        { shape: 'square', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sawtooth', amplitude: 100, period: 16, phase: 0, offset: 0 },
+        { shape: 'sawtooth', amplitude: 100, period: 128, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Square × Square → constant',
       inputs: [
-        { shape: 'square', amplitude: 80, period: 16, phase: 0, offset: 0 },
-        { shape: 'square', amplitude: 100, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 80, period: 256, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'constant', amplitude: 80, period: 16, phase: 0, offset: 0 },
+        { shape: 'constant', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],

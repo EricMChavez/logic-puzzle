@@ -35,3 +35,20 @@
 .buttonActive:hover {
   background: #3a5a3a;
 }
+
+.saveButton {
+  background: linear-gradient(135deg, #F5AF28 0%, #e09d1f 100%);
+  border: none;
+  border-radius: 6px;
+  color: #1a1a2e;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.saveButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 175, 40, 0.3);
+}

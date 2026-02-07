@@ -1,7 +1,8 @@
 /** Supported waveform shapes for puzzle inputs/outputs */
 export type WaveformShape = 'sine' | 'square' | 'triangle' | 'sawtooth' | 'constant'
   | 'rectified-sine' | 'rectified-triangle' | 'clipped-sine'
-  | 'fullwave-rectified-sine' | 'fullwave-rectified-triangle';
+  | 'fullwave-rectified-sine' | 'fullwave-rectified-triangle'
+  | 'samples';
 
 /** Definition of a single waveform signal */
 export interface WaveformDef {
@@ -14,6 +15,8 @@ export interface WaveformDef {
   phase: number;
   /** DC offset added after scaling */
   offset: number;
+  /** Raw samples for 'samples' shape (loops when tick exceeds length) */
+  samples?: number[];
 }
 
 /** A single test case within a puzzle */
@@ -23,6 +26,56 @@ export interface PuzzleTestCase {
   inputs: WaveformDef[];
   /** One WaveformDef per active output connection point (the target) */
   expectedOutputs: WaveformDef[];
+}
+
+/** Configuration for a single connection point slot */
+export interface ConnectionPointSlot {
+  /** Whether this connection point is active (visible and usable) */
+  active: boolean;
+  /** Direction: 'input' emits signals into the board, 'output' receives signals */
+  direction: 'input' | 'output';
+}
+
+/**
+ * Configuration for all 6 connection point slots on a gameboard.
+ * Left side: 3 slots (indices 0-2), Right side: 3 slots (indices 0-2).
+ */
+export interface ConnectionPointConfig {
+  /** Left-side connection point slots (up to 3) */
+  left: ConnectionPointSlot[];
+  /** Right-side connection point slots (up to 3) */
+  right: ConnectionPointSlot[];
+}
+
+/**
+ * Build a ConnectionPointConfig from activeInputs/activeOutputs counts.
+ * Inputs occupy left slots, outputs occupy right slots.
+ */
+export function buildConnectionPointConfig(
+  activeInputs: number,
+  activeOutputs: number,
+): ConnectionPointConfig {
+  const left: ConnectionPointSlot[] = [];
+  for (let i = 0; i < 3; i++) {
+    left.push({ active: i < activeInputs, direction: 'input' });
+  }
+  const right: ConnectionPointSlot[] = [];
+  for (let i = 0; i < 3; i++) {
+    right.push({ active: i < activeOutputs, direction: 'output' });
+  }
+  return { left, right };
+}
+
+/**
+ * Build a default ConnectionPointConfig for custom/utility node gameboards.
+ * All 6 slots default to active outputs; player can toggle direction.
+ */
+export function buildCustomNodeConnectionPointConfig(): ConnectionPointConfig {
+  const slot = (): ConnectionPointSlot => ({ active: true, direction: 'output' });
+  return {
+    left: [slot(), slot(), slot()],
+    right: [slot(), slot(), slot()],
+  };
 }
 
 /** Complete definition of a puzzle level */
@@ -38,4 +91,6 @@ export interface PuzzleDefinition {
   allowedNodes: string[] | null;
   /** Test cases the player's circuit must satisfy */
   testCases: PuzzleTestCase[];
+  /** Connection point configuration (derived from activeInputs/activeOutputs if not set) */
+  connectionPoints?: ConnectionPointConfig;
 }

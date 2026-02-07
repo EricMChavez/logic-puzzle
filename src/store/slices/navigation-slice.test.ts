@@ -7,6 +7,12 @@ import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
 import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
+import { createProgressionSlice } from './progression-slice.ts';
+import { createHistorySlice } from './history-slice.ts';
+import { createMeterSlice } from './meter-slice.ts';
+import { createRoutingSlice } from './routing-slice.ts';
+import { createOverlaySlice } from './overlay-slice.ts';
+import { createAnimationSlice } from './animation-slice.ts';
 import { computeBreadcrumbs } from '../../ui/controls/NavigationBar.tsx';
 import type { GameStore } from '../index.ts';
 import type { GameboardState } from '../../shared/types/index.ts';
@@ -22,6 +28,12 @@ function createTestStore() {
     ...createPaletteSlice(...a),
     ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
+    ...createProgressionSlice(...a),
+    ...createHistorySlice(...a),
+    ...createMeterSlice(...a),
+    ...createRoutingSlice(...a),
+    ...createOverlaySlice(...a),
+    ...createAnimationSlice(...a),
   }));
 }
 
@@ -45,8 +57,8 @@ function setupBoardWithPuzzleNode(store: ReturnType<typeof createTestStore>) {
   const board: GameboardState = {
     id: 'test-board',
     nodes: new Map([
-      ['p1', { id: 'p1', type: 'puzzle:inv1', position: { x: 100, y: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
-      ['n1', { id: 'n1', type: 'invert', position: { x: 200, y: 200 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['p1', { id: 'p1', type: 'puzzle:inv1', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['n1', { id: 'n1', type: 'invert', position: { col: 200, row: 200 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]),
     wires: [],
   };
@@ -207,7 +219,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       nodes: new Map([
-        ['x', { id: 'x', type: 'puzzle:unknown-node', position: { x: 0, y: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['x', { id: 'x', type: 'puzzle:unknown-node', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
       wires: [],
     };
@@ -220,7 +232,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       nodes: new Map([
-        ['n1', { id: 'n1', type: 'invert', position: { x: 0, y: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['n1', { id: 'n1', type: 'invert', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
       wires: [],
     };

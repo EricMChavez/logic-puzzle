@@ -1,0 +1,51 @@
+/*
+ * Design Tokens — Source of Truth
+ *
+ * Three-tier system:
+ *   1. CSS custom properties defined here (base + semantic)
+ *   2. Theme overrides in theme-dark.css / theme-light.css
+ *   3. buildThemeTokens() reads into ThemeTokens cache for Canvas
+ *
+ * Token naming: --token-<category>-<name>
+ * Categories: surface, signal, depth, text, selection, wire, anim
+ */
+
+:root {
+  /* ── Surfaces ────────────────────────────────────── */
+  --token-surface-page-background: #050508;
+  --token-surface-gameboard: #0e0e18;
+  --token-surface-grid-area: #141422;
+  --token-surface-meter-housing: #0a0a14;
+  --token-surface-meter-interior: #060610;
+  --token-surface-node: #2d2d44;
+  --token-surface-node-bottom: #222238;
+
+  /* ── Signals / Polarity ──────────────────────────── */
+  --token-signal-positive: #e8a838;
+  --token-signal-negative: #38b8a0;
+  --token-color-neutral: #3a3a4a;
+  --token-color-target: #50c878;
+  --token-meter-needle: #e03838;
+
+  /* ── Depth ───────────────────────────────────────── */
+  --token-depth-raised: rgba(0, 0, 0, 0.4);
+  --token-depth-sunken: rgba(0, 0, 0, 0.6);
+
+  /* ── Text ────────────────────────────────────────── */
+  --token-text-primary: #e0e0f0;
+  --token-text-secondary: #9090b0;
+
+  /* ── Selection ───────────────────────────────────── */
+  --token-color-selection: #5a9bf5;
+
+  /* ── Wire ────────────────────────────────────────── */
+  --token-wire-width-base: 2.5;
+
+  /* ── Port ────────────────────────────────────────── */
+  --token-port-fill: #3a7bd5;
+  --token-port-stroke: #5a9bf5;
+  --token-port-connected: #50c878;
+
+  /* ── Grid ────────────────────────────────────────── */
+  --token-grid-line: #1e1e38;
+}

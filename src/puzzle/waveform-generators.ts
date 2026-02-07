@@ -46,8 +46,16 @@ function generateShape(shape: WaveformShape, tick: number, period: number, phase
 /**
  * Generate a waveform value at a given tick, clamped to [-100, +100].
  * output = clamp(shape(tick) * amplitude + offset)
+ *
+ * For 'samples' shape, returns samples[tick % samples.length] directly.
  */
 export function generateWaveformValue(tick: number, def: WaveformDef): number {
+  // Special case: samples shape returns raw sample values
+  if (def.shape === 'samples' && def.samples && def.samples.length > 0) {
+    const index = ((tick % def.samples.length) + def.samples.length) % def.samples.length;
+    return clamp(def.samples[index]);
+  }
+
   const raw = generateShape(def.shape, tick, def.period, def.phase);
   const scaled = raw * def.amplitude + def.offset;
   return clamp(scaled);

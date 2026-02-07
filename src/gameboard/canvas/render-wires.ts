@@ -1,5 +1,8 @@
-import type { Wire } from '../../shared/types/index.ts';
+import type { Wire, NodeState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
+import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
+import { isConnectionPointNode, isConnectionInputNode, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex } from '../../puzzle/connection-point-nodes.ts';
+import { getDevOverrides } from '../../dev/index.ts';
 
 // ── Colour helpers ──────────────────────────────────────────────────────────
 
@@ -30,26 +33,38 @@ export function lerpColor(a: RGB, b: RGB, t: number): string {
 
 /**
  * Map a signal value (±100) to a polarity colour.
- * Gradient: neutral → polarity over |value| 0–75, clamped beyond.
+ * Gradient: neutral → polarity over |value| 0–colorRampEnd, clamped beyond.
  */
 export function signalToColor(value: number, tokens: ThemeTokens): string {
+  const devOverrides = getDevOverrides();
+  const useOverrides = devOverrides.enabled;
+
+  const colorRampEnd = useOverrides ? devOverrides.wireStyle.colorRampEnd : 75;
+  const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
+  const positiveColor = useOverrides ? devOverrides.colors.signalPositive : tokens.signalPositive;
+  const negativeColor = useOverrides ? devOverrides.colors.signalNegative : tokens.signalNegative;
+
   const abs = Math.abs(value);
-  const t = Math.min(abs / 75, 1.0);
-  const neutralRgb = hexToRgb(tokens.colorNeutral);
-  const polarityRgb = hexToRgb(
-    value >= 0 ? tokens.signalPositive : tokens.signalNegative,
-  );
+  const t = Math.min(abs / colorRampEnd, 1.0);
+  const neutralRgb = hexToRgb(neutralColor);
+  const polarityRgb = hexToRgb(value >= 0 ? positiveColor : negativeColor);
   return lerpColor(neutralRgb, polarityRgb, t);
 }
 
 /**
  * Map |value| to a glow radius.
- * 0 for |v| ≤ 75, ramps linearly to 12 at |v| = 100.
+ * 0 for |v| ≤ glowThreshold, ramps linearly to glowMaxRadius at |v| = 100.
  */
 export function signalToGlow(value: number): number {
+  const devOverrides = getDevOverrides();
+  const useOverrides = devOverrides.enabled;
+
+  const glowThreshold = useOverrides ? devOverrides.wireStyle.glowThreshold : 75;
+  const glowMaxRadius = useOverrides ? devOverrides.wireStyle.glowMaxRadius : 12;
+
   const abs = Math.abs(value);
-  if (abs <= 75) return 0;
-  return ((abs - 75) / 25) * 12;
+  if (abs <= glowThreshold) return 0;
+  return ((abs - glowThreshold) / (100 - glowThreshold)) * glowMaxRadius;
 }
 
 // ── Ring-buffer → segment mapping ───────────────────────────────────────────
@@ -76,39 +91,122 @@ export function getSegmentSignal(
   return wire.signalBuffer[bufIdx];
 }
 
+// ── Port position helpers ────────────────────────────────────────────────────
+
+/**
+ * Get the pixel position of a port for wire rendering.
+ * Handles both regular nodes and connection point virtual nodes.
+ */
+function getPortPixelPosition(
+  nodeId: string,
+  side: 'input' | 'output',
+  portIndex: number,
+  nodes: ReadonlyMap<string, NodeState>,
+  cellSize: number,
+): { x: number; y: number } | null {
+  if (isConnectionPointNode(nodeId)) {
+    let cpSide: 'input' | 'output';
+    let cpIndex: number;
+
+    if (isCreativeSlotNode(nodeId)) {
+      // Creative slots: 0-2 are left (input side), 3-5 are right (output side)
+      const slotIndex = getCreativeSlotIndex(nodeId);
+      cpSide = slotIndex < 3 ? 'input' : 'output';
+      cpIndex = slotIndex < 3 ? slotIndex : slotIndex - 3;
+    } else {
+      cpSide = isConnectionInputNode(nodeId) ? 'input' : 'output';
+      cpIndex = getConnectionPointIndex(nodeId);
+    }
+
+    return getConnectionPointPosition(cpSide, cpIndex, cellSize);
+  }
+  const node = nodes.get(nodeId);
+  if (!node) return null;
+  return getNodePortPosition(node, side, portIndex, cellSize);
+}
+
 // ── Three-pass wire renderer ────────────────────────────────────────────────
 
-/** Draw all wires along their auto-routed grid paths. */
+/** Draw all wires along their auto-routed grid paths, connecting to port positions. */
 export function drawWires(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   wires: ReadonlyArray<Wire>,
   cellSize: number,
+  nodes?: ReadonlyMap<string, NodeState>,
 ): void {
-  const wireWidth = Number(tokens.wireWidthBase) || 2;
+  const devOverrides = getDevOverrides();
+  const useOverrides = devOverrides.enabled;
+
+  const wireWidth = useOverrides ? devOverrides.wireStyle.baseWidth : (Number(tokens.wireWidthBase) || 2);
+  const baseOpacity = useOverrides ? devOverrides.wireStyle.baseOpacity : 0.4;
+  const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
 
   for (const wire of wires) {
     if (wire.path.length === 0) continue;
 
-    const totalSegments = wire.path.length - 1;
-
-    // Pre-compute pixel positions
-    const pts = wire.path.map((gp) => ({
-      x: gp.col * cellSize + cellSize / 2,
-      y: gp.row * cellSize + cellSize / 2,
+    // Pre-compute pixel positions for path cells (at gridline intersections)
+    const pathPts = wire.path.map((gp) => ({
+      x: gp.col * cellSize,
+      y: gp.row * cellSize,
     }));
+
+    // Build full point list: source port → path → target port
+    const pts: Array<{ x: number; y: number }> = [];
+
+    // Add source port position if nodes are available
+    if (nodes) {
+      const sourcePos = getPortPixelPosition(
+        wire.source.nodeId,
+        wire.source.side,
+        wire.source.portIndex,
+        nodes,
+        cellSize,
+      );
+      if (sourcePos) pts.push(sourcePos);
+    }
+
+    // Add path points
+    pts.push(...pathPts);
+
+    // Add target port position if nodes are available
+    if (nodes) {
+      const targetPos = getPortPixelPosition(
+        wire.target.nodeId,
+        wire.target.side,
+        wire.target.portIndex,
+        nodes,
+        cellSize,
+      );
+      if (targetPos) pts.push(targetPos);
+    }
+
+    if (pts.length === 0) continue;
+
+    // Deduplicate adjacent coincident points (removes zero-length bridging segments)
+    const dedupedPts = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.abs(pts[i].x - dedupedPts[dedupedPts.length - 1].x) > 0.5 ||
+          Math.abs(pts[i].y - dedupedPts[dedupedPts.length - 1].y) > 0.5) {
+        dedupedPts.push(pts[i]);
+      }
+    }
+
+    if (dedupedPts.length === 0) continue;
+
+    const totalSegments = dedupedPts.length - 1;
 
     // ── Pass 1: neutral base polyline ──
     ctx.save();
-    ctx.strokeStyle = tokens.colorNeutral;
+    ctx.strokeStyle = neutralColor;
     ctx.lineWidth = wireWidth;
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = baseOpacity;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) {
-      ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.moveTo(dedupedPts[0].x, dedupedPts[0].y);
+    for (let i = 1; i < dedupedPts.length; i++) {
+      ctx.lineTo(dedupedPts[i].x, dedupedPts[i].y);
     }
     ctx.stroke();
     ctx.restore();
@@ -129,8 +227,8 @@ export function drawWires(
       ctx.shadowColor = ctx.strokeStyle;
       ctx.shadowBlur = glow;
       ctx.beginPath();
-      ctx.moveTo(pts[s].x, pts[s].y);
-      ctx.lineTo(pts[s + 1].x, pts[s + 1].y);
+      ctx.moveTo(dedupedPts[s].x, dedupedPts[s].y);
+      ctx.lineTo(dedupedPts[s + 1].x, dedupedPts[s + 1].y);
       ctx.stroke();
       ctx.restore();
     }
@@ -144,8 +242,8 @@ export function drawWires(
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(pts[s].x, pts[s].y);
-      ctx.lineTo(pts[s + 1].x, pts[s + 1].y);
+      ctx.moveTo(dedupedPts[s].x, dedupedPts[s].y);
+      ctx.lineTo(dedupedPts[s + 1].x, dedupedPts[s + 1].y);
       ctx.stroke();
       ctx.restore();
     }

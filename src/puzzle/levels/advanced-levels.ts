@@ -13,31 +13,31 @@ export const ADVANCED_SPLITTER: PuzzleDefinition = {
     {
       name: 'Sine split',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'rectified-sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
-        { shape: 'rectified-sine', amplitude: 100, period: 32, phase: 16, offset: 0 },
+        { shape: 'rectified-sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
+        { shape: 'rectified-sine', amplitude: 100, period: 256, phase: 128, offset: 0 },
       ],
     },
     {
       name: 'Triangle split',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'rectified-triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
-        { shape: 'rectified-triangle', amplitude: 80, period: 32, phase: 16, offset: 0 },
+        { shape: 'rectified-triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
+        { shape: 'rectified-triangle', amplitude: 80, period: 256, phase: 128, offset: 0 },
       ],
     },
     {
       name: 'Square split',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 30, period: 16, phase: 0, offset: 30 },
-        { shape: 'square', amplitude: 30, period: 16, phase: 8, offset: 30 },
+        { shape: 'square', amplitude: 30, period: 256, phase: 0, offset: 30 },
+        { shape: 'square', amplitude: 30, period: 256, phase: 128, offset: 30 },
       ],
     },
   ],
@@ -56,28 +56,28 @@ export const ADVANCED_GAIN_STAGE: PuzzleDefinition = {
     {
       name: 'Sine half + 50',
       inputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 50, period: 32, phase: 0, offset: 50 },
+        { shape: 'sine', amplitude: 50, period: 256, phase: 0, offset: 50 },
       ],
     },
     {
       name: 'Triangle half + 50',
       inputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 40, period: 32, phase: 0, offset: 50 },
+        { shape: 'triangle', amplitude: 40, period: 256, phase: 0, offset: 50 },
       ],
     },
     {
       name: 'Square half + 50',
       inputs: [
-        { shape: 'square', amplitude: 60, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 60, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 30, period: 16, phase: 0, offset: 50 },
+        { shape: 'square', amplitude: 30, period: 256, phase: 0, offset: 50 },
       ],
     },
   ],
@@ -96,28 +96,28 @@ export const ADVANCED_QUADRUPLER: PuzzleDefinition = {
     {
       name: 'Sine 25 → 100',
       inputs: [
-        { shape: 'sine', amplitude: 25, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 25, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'sine', amplitude: 100, period: 32, phase: 0, offset: 0 },
+        { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Triangle 20 → 80',
       inputs: [
-        { shape: 'triangle', amplitude: 20, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 20, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'triangle', amplitude: 80, period: 32, phase: 0, offset: 0 },
+        { shape: 'triangle', amplitude: 80, period: 256, phase: 0, offset: 0 },
       ],
     },
     {
       name: 'Square 25 → 100',
       inputs: [
-        { shape: 'square', amplitude: 25, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 25, period: 256, phase: 0, offset: 0 },
       ],
       expectedOutputs: [
-        { shape: 'square', amplitude: 100, period: 16, phase: 0, offset: 0 },
+        { shape: 'square', amplitude: 100, period: 256, phase: 0, offset: 0 },
       ],
     },
   ],

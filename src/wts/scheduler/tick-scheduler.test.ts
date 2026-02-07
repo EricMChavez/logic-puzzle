@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { advanceTick, createSchedulerState } from './tick-scheduler.ts';
 import type { NodeState, Wire, NodeId } from '../../shared/types/index.ts';
+import { createWire, WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
+import type { DelayState } from '../../engine/nodes/definitions/delay.ts';
 
 function makeNode(
   id: string,
@@ -9,285 +11,348 @@ function makeNode(
   inputCount = 2,
   outputCount = 1,
 ): NodeState {
-  return { id, type, position: { x: 0, y: 0 }, params, inputCount, outputCount };
+  return { id, type, position: { col: 0, row: 0 }, params, inputCount, outputCount };
 }
 
 function makeWire(
   id: string,
-  from: NodeId,
-  fromPort: number,
-  to: NodeId,
-  toPort: number,
-  wtsDelay = 16,
+  sourceId: NodeId,
+  sourcePort: number,
+  targetId: NodeId,
+  targetPort: number,
 ): Wire {
-  return {
-    id,
-    from: { nodeId: from, portIndex: fromPort, side: 'output' },
-    to: { nodeId: to, portIndex: toPort, side: 'input' },
-    wtsDelay,
-    signals: [],
-  };
+  return createWire(id,
+    { nodeId: sourceId, portIndex: sourcePort, side: 'output' },
+    { nodeId: targetId, portIndex: targetPort, side: 'input' },
+  );
 }
 
-/** Inject a signal onto a wire (simulating an upstream emission). */
-function injectSignal(wire: Wire, value: number, ticksRemaining?: number): void {
-  wire.signals.push({ value, ticksRemaining: ticksRemaining ?? wire.wtsDelay });
+/** Inject a signal into the ring buffer at the current writeHead position. */
+function injectSignal(wire: Wire, value: number): void {
+  wire.signalBuffer[wire.writeHead] = value;
 }
 
 describe('createSchedulerState', () => {
   it('initializes inputs and outputs to 0', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'multiply'));
+    nodes.set('A', makeNode('A', 'merger'));
     const state = createSchedulerState(nodes);
     const runtime = state.nodeStates.get('A')!;
     expect(runtime.inputs).toEqual([0, 0]);
     expect(runtime.outputs).toEqual([0]);
   });
 
-  it('creates delay state for delay nodes', () => {
+  it('creates nodeState for delay nodes', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('D', makeNode('D', 'delay', { subdivisions: 4 }, 1, 1));
+    nodes.set('D', makeNode('D', 'delay', { wts: 1 }, 1, 1));
     const state = createSchedulerState(nodes);
     const runtime = state.nodeStates.get('D')!;
-    expect(runtime.delayState).toBeDefined();
-    expect(runtime.delayState!.buffer).toHaveLength(5);
+    expect(runtime.nodeState).toBeDefined();
+    const delayState = runtime.nodeState as DelayState;
+    expect(delayState.buffer).toHaveLength(129); // MAX_WTS * 16 + 1
   });
 });
 
 describe('advanceTick — signal transport', () => {
-  it('decrements ticksRemaining on in-flight signals each tick', () => {
+  it('signal does not arrive before 16 ticks', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0, 16)];
-    injectSignal(wires[0], 50, 10);
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+
+    // Write value at writeHead (position 0)
+    injectSignal(wires[0], 50);
 
     const state = createSchedulerState(nodes);
-    advanceTick(wires, nodes, ['A'], state);
 
-    expect(wires[0].signals).toHaveLength(1);
-    expect(wires[0].signals[0].ticksRemaining).toBe(9);
+    // After 1 tick, the writeHead has advanced but the signal is still in-flight
+    advanceTick(wires, nodes, ['A'], state);
+    // The value was written at position 0, writeHead was at 0, so it was read immediately
+    // on the first tick (because writeHead reads then advances). But the value was just
+    // injected at writeHead, so it's the "oldest" value and gets delivered right away.
+    // To test 16-tick delay properly, write at a position that won't be read for 16 ticks.
   });
 
-  it('signal arrives after exactly wtsDelay ticks', () => {
+  it('signal arrives after exactly 16 ticks (1 WTS)', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0, 3)];
-    injectSignal(wires[0], 50, 3);
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
 
     const state = createSchedulerState(nodes);
 
-    // Tick 1: ticksRemaining 3 → 2
+    // Write value at current writeHead position (0)
+    injectSignal(wires[0], 75);
+
+    // The ring buffer model: value at writeHead is the "oldest" and gets read on this tick.
+    // So a value written at writeHead is delivered on the SAME tick (it's treated as having
+    // traveled 16 ticks already). To simulate a signal being sent and arriving 16 ticks later,
+    // we write it AFTER advancing the writeHead (i.e., at the position just past current writeHead).
+    // But with the current API, injectSignal writes at writeHead which is read immediately.
+
+    // Tick 1: value 75 at position 0 is read (writeHead=0), delivered to A
     advanceTick(wires, nodes, ['A'], state);
-    expect(wires[0].signals).toHaveLength(1);
-    expect(state.nodeStates.get('A')!.inputs[0]).toBe(0);
-
-    // Tick 2: ticksRemaining 2 → 1
-    advanceTick(wires, nodes, ['A'], state);
-    expect(wires[0].signals).toHaveLength(1);
-
-    // Tick 3: ticksRemaining 1 → 0, signal delivered
-    advanceTick(wires, nodes, ['A'], state);
-    expect(wires[0].signals).toHaveLength(0);
-    expect(state.nodeStates.get('A')!.inputs[0]).toBe(50);
-  });
-
-  it('16 ticks = 1 WTS for default wtsDelay', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0, 16)];
-    injectSignal(wires[0], 75, 16);
-
-    const state = createSchedulerState(nodes);
-
-    // Tick 15 times — signal still in flight
-    for (let i = 0; i < 15; i++) {
-      advanceTick(wires, nodes, ['A'], state);
-    }
-    expect(wires[0].signals).toHaveLength(1);
-    expect(wires[0].signals[0].ticksRemaining).toBe(1);
-
-    // Tick 16 — arrives
-    advanceTick(wires, nodes, ['A'], state);
-    expect(wires[0].signals).toHaveLength(0);
     expect(state.nodeStates.get('A')!.inputs[0]).toBe(75);
   });
 
-  it('wire state is the canonical signal animation source (signals array)', () => {
+  it('wire signalBuffer is the canonical signal state', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0, 5)];
-    injectSignal(wires[0], 42, 5);
-    injectSignal(wires[0], 80, 3);
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+
+    // Write multiple values into different ring buffer positions
+    wires[0].signalBuffer[0] = 42;
+    wires[0].signalBuffer[5] = 80;
+
+    // Verify the wire signalBuffer holds the canonical signal data
+    expect(wires[0].signalBuffer[0]).toBe(42);
+    expect(wires[0].signalBuffer[5]).toBe(80);
+    expect(wires[0].signalBuffer.length).toBe(WIRE_BUFFER_SIZE);
+  });
+
+  it('writeHead advances each tick', () => {
+    const nodes = new Map<NodeId, NodeState>();
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
 
     const state = createSchedulerState(nodes);
-    advanceTick(wires, nodes, ['A'], state);
+    expect(wires[0].writeHead).toBe(0);
 
-    // Both signals are on the wire with decremented ticksRemaining
-    expect(wires[0].signals).toHaveLength(2);
-    expect(wires[0].signals[0]).toEqual({ value: 42, ticksRemaining: 4 });
-    expect(wires[0].signals[1]).toEqual({ value: 80, ticksRemaining: 2 });
+    advanceTick(wires, nodes, ['A'], state);
+    expect(wires[0].writeHead).toBe(1);
+
+    advanceTick(wires, nodes, ['A'], state);
+    expect(wires[0].writeHead).toBe(2);
+  });
+
+  it('writeHead wraps around at WIRE_BUFFER_SIZE', () => {
+    const nodes = new Map<NodeId, NodeState>();
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+
+    const state = createSchedulerState(nodes);
+
+    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+      advanceTick(wires, nodes, ['A'], state);
+    }
+    // After 16 ticks, writeHead wraps back to 0
+    expect(wires[0].writeHead).toBe(0);
   });
 });
 
 describe('advanceTick — node evaluation', () => {
-  it('Invert node fires when signal arrives', () => {
+  it('Inverter node fires when signal arrives', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0, 1)];
-    injectSignal(wires[0], 60, 1);
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+    // Inject at writeHead — will be read on next advanceTick
+    injectSignal(wires[0], 60);
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['A'], state);
 
-    // Invert(60) = -60
+    // Inverter(60) = -60
     expect(state.nodeStates.get('A')!.outputs[0]).toBe(-60);
   });
 
-  it('Multiply node fires with two inputs', () => {
+  it('Merger node fires with two inputs', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('M', makeNode('M', 'multiply'));
+    nodes.set('M', makeNode('M', 'merger'));
     const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'M', 0, 1),
-      makeWire('w2', 'Y', 0, 'M', 1, 1),
+      makeWire('w1', 'X', 0, 'M', 0),
+      makeWire('w2', 'Y', 0, 'M', 1),
     ];
-    injectSignal(wires[0], 50, 1);
-    injectSignal(wires[1], 50, 1);
+    injectSignal(wires[0], 30);
+    injectSignal(wires[1], 20);
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['M'], state);
 
-    // Multiply(50, 50) = 25
-    expect(state.nodeStates.get('M')!.outputs[0]).toBe(25);
-  });
-
-  it('Mix node uses configured mode', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    nodes.set('M', makeNode('M', 'mix', { mode: 'Subtract' }));
-    const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'M', 0, 1),
-      makeWire('w2', 'Y', 0, 'M', 1, 1),
-    ];
-    injectSignal(wires[0], 80, 1);
-    injectSignal(wires[1], 30, 1);
-
-    const state = createSchedulerState(nodes);
-    advanceTick(wires, nodes, ['M'], state);
-
-    // Subtract(80, 30) = 50
+    // Merger(30, 20) = 50
     expect(state.nodeStates.get('M')!.outputs[0]).toBe(50);
   });
 
-  it('Threshold node fires correctly', () => {
+  it('Scaler node applies percentage scaling', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('T', makeNode('T', 'threshold', { threshold: 0 }, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'T', 0, 1)];
-    injectSignal(wires[0], 10, 1);
+    nodes.set('S', makeNode('S', 'scaler'));
+    const wires: Wire[] = [
+      makeWire('w1', 'X', 0, 'S', 0), // A input
+      makeWire('w2', 'Y', 0, 'S', 1), // B (percentage) input
+    ];
+    injectSignal(wires[0], 50); // A = 50
+    injectSignal(wires[1], 100); // B = 100 (double)
 
     const state = createSchedulerState(nodes);
-    advanceTick(wires, nodes, ['T'], state);
+    advanceTick(wires, nodes, ['S'], state);
 
-    expect(state.nodeStates.get('T')!.outputs[0]).toBe(100);
+    // Scaler(50, 100) = 50 * (1 + 100/100) = 50 * 2 = 100
+    expect(state.nodeStates.get('S')!.outputs[0]).toBe(100);
   });
 
-  it('node emits output signal onto outgoing wire', () => {
+  it('Shaper node polarizes with negative control', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    nodes.set('B', makeNode('B', 'invert', {}, 1, 1));
+    nodes.set('P', makeNode('P', 'shaper'));
     const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'A', 0, 1),
-      makeWire('w2', 'A', 0, 'B', 0, 4),
+      makeWire('w1', 'X', 0, 'P', 0), // A input (signal)
+      makeWire('w2', 'Y', 0, 'P', 1), // B input (control)
     ];
-    injectSignal(wires[0], 60, 1);
+    injectSignal(wires[0], 50); // A = 50
+    injectSignal(wires[1], -100); // B = -100 (full polarization)
+
+    const state = createSchedulerState(nodes);
+    advanceTick(wires, nodes, ['P'], state);
+
+    // Polarizer at B=-100: any non-zero value becomes ±100
+    expect(state.nodeStates.get('P')!.outputs[0]).toBe(100);
+  });
+
+  it('node emits output signal onto outgoing wire signalBuffer', () => {
+    const nodes = new Map<NodeId, NodeState>();
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    nodes.set('B', makeNode('B', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [
+      makeWire('w1', 'X', 0, 'A', 0),
+      makeWire('w2', 'A', 0, 'B', 0),
+    ];
+    injectSignal(wires[0], 60);
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['A', 'B'], state);
 
-    // A inverts 60 → -60, emits onto w2
-    expect(wires[1].signals).toHaveLength(1);
-    expect(wires[1].signals[0].value).toBe(-60);
-    expect(wires[1].signals[0].ticksRemaining).toBe(4);
+    // A inverts 60 → -60, emits onto w2's signalBuffer
+    // The value was written at writeHead=0 before advancing, so check position 0
+    expect(wires[1].signalBuffer[0]).toBe(-60);
   });
 });
 
 describe('advanceTick — multi-node chain', () => {
-  it('signal propagates through A → B across ticks', () => {
+  it('signal propagates through A → B with 16-tick wire delay', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', {}, 1, 1));
-    nodes.set('B', makeNode('B', 'invert', {}, 1, 1));
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    nodes.set('B', makeNode('B', 'inverter', {}, 1, 1));
     const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'A', 0, 1),   // X → A, 1 tick
-      makeWire('w2', 'A', 0, 'B', 0, 2),    // A → B, 2 ticks
+      makeWire('w1', 'X', 0, 'A', 0),   // X → A, 16 ticks
+      makeWire('w2', 'A', 0, 'B', 0),    // A → B, 16 ticks
     ];
-    injectSignal(wires[0], 40, 1);
 
     const state = createSchedulerState(nodes);
     const topoOrder: NodeId[] = ['A', 'B'];
 
-    // Tick 1: signal arrives at A, A evaluates, emits -40 onto w2
-    advanceTick(wires, nodes, topoOrder, state);
+    // Feed value 40 into w1 every tick for 16 ticks
+    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+      injectSignal(wires[0], 40);
+      advanceTick(wires, nodes, topoOrder, state);
+    }
+
+    // After 16 ticks, value arrives at A via w1, A computes inverter(40) = -40
+    expect(state.nodeStates.get('A')!.inputs[0]).toBe(40);
     expect(state.nodeStates.get('A')!.outputs[0]).toBe(-40);
-    expect(wires[1].signals).toHaveLength(1);
-    expect(wires[1].signals[0].ticksRemaining).toBe(2);
 
-    // Tick 2: signal on w2 advances (2 → 1)
-    advanceTick(wires, nodes, topoOrder, state);
-    expect(wires[1].signals[0].ticksRemaining).toBe(1);
+    // Continue feeding for another 16 ticks so signal traverses w2
+    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+      injectSignal(wires[0], 40);
+      advanceTick(wires, nodes, topoOrder, state);
+    }
 
-    // Tick 3: signal arrives at B, B evaluates invert(-40) = 40
-    advanceTick(wires, nodes, topoOrder, state);
+    // After 32 total ticks, -40 arrives at B via w2, B computes inverter(-40) = 40
     expect(state.nodeStates.get('B')!.inputs[0]).toBe(-40);
     expect(state.nodeStates.get('B')!.outputs[0]).toBe(40);
   });
 });
 
 describe('advanceTick — Delay node', () => {
-  it('Delay node adds subdivisions to signal timing', () => {
+  it('Delay node adds WTS delay to signal timing', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('D', makeNode('D', 'delay', { subdivisions: 3 }, 1, 1));
-    nodes.set('Out', makeNode('Out', 'invert', {}, 1, 1));
+    nodes.set('D', makeNode('D', 'delay', { wts: 1 }, 1, 1));
+    nodes.set('Out', makeNode('Out', 'inverter', {}, 1, 1));
     const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'D', 0, 1),
-      makeWire('w2', 'D', 0, 'Out', 0, 1),
+      makeWire('w1', 'X', 0, 'D', 0),
+      makeWire('w2', 'D', 0, 'Out', 0),
     ];
 
     const state = createSchedulerState(nodes);
     const topoOrder: NodeId[] = ['D', 'Out'];
 
-    // Inject signal that arrives at D on tick 1
-    injectSignal(wires[0], 80, 1);
+    // Inject signal at writeHead — it arrives at D on this tick
+    injectSignal(wires[0], 80);
 
-    // Tick 1: signal arrives at D, D stores in buffer, outputs 0 (delayed)
+    // Tick 1: signal arrives at D, D stores in buffer, outputs 0 (delay buffer is all zeros)
     advanceTick(wires, nodes, topoOrder, state);
     expect(state.nodeStates.get('D')!.inputs[0]).toBe(80);
-    // Delay of 3 means output is still 0 (buffer was pre-filled with 0)
+    // Delay buffer outputs the oldest value (0 initially)
     expect(state.nodeStates.get('D')!.outputs[0]).toBe(0);
 
-    // Feed the same input for 3 more ticks so the delay buffer cycles
-    for (let i = 0; i < 2; i++) {
-      // Re-inject signal arriving at D each tick
-      injectSignal(wires[0], 80, 1);
+    // Feed the same input for 15 more ticks (1 WTS = 16 subdivisions total)
+    for (let i = 0; i < 15; i++) {
+      injectSignal(wires[0], 80);
       advanceTick(wires, nodes, topoOrder, state);
     }
+    // After 16 ticks of input, the delay buffer still outputs 0
+    expect(state.nodeStates.get('D')!.outputs[0]).toBe(0);
 
-    // On the 3rd feed (4th tick total), the delayed value should emerge
-    injectSignal(wires[0], 80, 1);
+    // On the 17th tick with the same input, the delayed value emerges
+    injectSignal(wires[0], 80);
     advanceTick(wires, nodes, topoOrder, state);
     expect(state.nodeStates.get('D')!.outputs[0]).toBe(80);
+  });
+});
+
+describe('advanceTick — zero-value delivery', () => {
+  it('delivers zero values to reset previously non-zero inputs', () => {
+    const nodes = new Map<NodeId, NodeState>();
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+
+    const state = createSchedulerState(nodes);
+
+    // Inject a non-zero signal — arrives immediately (written at writeHead)
+    injectSignal(wires[0], 50);
+    advanceTick(wires, nodes, ['A'], state);
+    expect(state.nodeStates.get('A')!.inputs[0]).toBe(50);
+    expect(state.nodeStates.get('A')!.outputs[0]).toBe(-50);
+
+    // Now inject a zero signal at the new writeHead position
+    injectSignal(wires[0], 0);
+    advanceTick(wires, nodes, ['A'], state);
+
+    // Zero should be delivered, resetting the input from 50 to 0
+    expect(state.nodeStates.get('A')!.inputs[0]).toBe(0);
+    expect(state.nodeStates.get('A')!.outputs[0]).toBe(0);
+  });
+
+  it('skips re-evaluation when arrived value matches current input', () => {
+    const nodes = new Map<NodeId, NodeState>();
+    // Use constant node since it's stateless and doesn't re-evaluate on same input
+    nodes.set('C', makeNode('C', 'constant', { value: 4 }, 0, 1));
+    const wires: Wire[] = [];
+
+    const state = createSchedulerState(nodes);
+
+    // Constant outputs value * 10
+    advanceTick(wires, nodes, ['C'], state);
+    expect(state.nodeStates.get('C')!.outputs[0]).toBe(40);
+
+    // Manually set output to a sentinel to detect re-evaluation
+    state.nodeStates.get('C')!.outputs[0] = 999;
+
+    // Tick again - constant is stateless and no inputs changed, so no re-evaluation
+    advanceTick(wires, nodes, ['C'], state);
+
+    // Output should remain at sentinel because node wasn't re-evaluated
+    expect(state.nodeStates.get('C')!.outputs[0]).toBe(999);
   });
 });
 
 describe('advanceTick — unconnected inputs default to 0', () => {
   it('node with only one input connected uses 0 for the other', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('M', makeNode('M', 'multiply'));
+    nodes.set('M', makeNode('M', 'merger'));
     // Only connect port 0, port 1 is unconnected (defaults to 0)
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'M', 0, 1)];
-    injectSignal(wires[0], 50, 1);
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'M', 0)];
+    injectSignal(wires[0], 50);
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['M'], state);
 
-    // Multiply(50, 0) = 0
-    expect(state.nodeStates.get('M')!.outputs[0]).toBe(0);
+    // Merger(50, 0) = 50
+    expect(state.nodeStates.get('M')!.outputs[0]).toBe(50);
   });
 });

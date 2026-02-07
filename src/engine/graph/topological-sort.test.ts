@@ -1,16 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { topologicalSort } from './topological-sort.ts';
+import { createWire } from '../../shared/types/index.ts';
 import type { Wire, NodeId } from '../../shared/types/index.ts';
 
 /** Helper to create a minimal wire between two nodes */
-function wire(from: NodeId, to: NodeId): Wire {
-  return {
-    id: `${from}->${to}`,
-    from: { nodeId: from, portIndex: 0, side: 'output' },
-    to: { nodeId: to, portIndex: 0, side: 'input' },
-    wtsDelay: 16,
-    signals: [],
-  };
+function wire(sourceId: NodeId, targetId: NodeId): Wire {
+  return createWire(
+    `${sourceId}->${targetId}`,
+    { nodeId: sourceId, portIndex: 0, side: 'output' },
+    { nodeId: targetId, portIndex: 0, side: 'input' },
+  );
 }
 
 /** Check that `a` appears before `b` in the sorted order */

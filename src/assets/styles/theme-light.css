@@ -1,0 +1,37 @@
+/*
+ * Studio Monitor — Light Theme
+ *
+ * Warm gray surfaces with deeper amber and teal polarity.
+ * Professional monitoring aesthetic with high readability.
+ */
+
+[data-theme="light"] {
+  --token-surface-page-background: #ccc8c4;
+  --token-surface-gameboard: #e8e4e0;
+  --token-surface-grid-area: #dedad6;
+  --token-surface-meter-housing: #ccc8c4;
+  --token-surface-meter-interior: #ccc8c4;
+  --token-surface-node: #f0ece8;
+  --token-surface-node-bottom: #e4e0dc;
+
+  --token-signal-positive: #c08020;
+  --token-signal-negative: #208870;
+  --token-color-neutral: #8a8a98;
+  --token-color-target: #309058;
+  --token-color-validation-match: #16A34A;
+  --token-meter-needle: #cc3030;
+
+  --token-depth-raised: rgba(0, 0, 0, 0.12);
+  --token-depth-sunken: rgba(0, 0, 0, 0.18);
+
+  --token-text-primary: #1a1a28;
+  --token-text-secondary: #4a4a60;
+
+  --token-color-selection: #2a6ad0;
+
+  --token-port-fill: #2a6ad0;
+  --token-port-stroke: #3a7ae0;
+  --token-port-connected: #309058;
+
+  --token-grid-line: #c8c4c0;
+}

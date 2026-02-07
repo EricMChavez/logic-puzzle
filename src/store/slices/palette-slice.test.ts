@@ -8,10 +8,15 @@ import { createPaletteSlice } from './palette-slice.ts';
 import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
+import { createHistorySlice } from './history-slice.ts';
+import { createMeterSlice } from './meter-slice.ts';
+import { createRoutingSlice } from './routing-slice.ts';
+import { createOverlaySlice } from './overlay-slice.ts';
+import { createAnimationSlice } from './animation-slice.ts';
 import type { GameStore } from '../index.ts';
 import type { PuzzleNodeEntry } from './palette-slice.ts';
 import type { BakeMetadata } from '../../engine/baking/index.ts';
-import { FUNDAMENTAL_NODES } from '../../palette/fundamental/index.ts';
+import { nodeRegistry } from '../../engine/nodes/registry.ts';
 
 function createTestStore() {
   return create<GameStore>()((...a) => ({
@@ -23,6 +28,11 @@ function createTestStore() {
     ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
+    ...createHistorySlice(...a),
+    ...createMeterSlice(...a),
+    ...createRoutingSlice(...a),
+    ...createOverlaySlice(...a),
+    ...createAnimationSlice(...a),
   }));
 }
 
@@ -123,24 +133,24 @@ describe('palette filtering logic', () => {
 
   describe('fundamental nodes filtered by allowedNodes', () => {
     it('null allowedNodes shows all fundamentals', () => {
-      const allowedNodes: string[] | null = null;
+      const allowedNodes: string[] | null = null as string[] | null;
       const visible = allowedNodes
-        ? FUNDAMENTAL_NODES.filter((def) => allowedNodes.includes(def.type))
-        : FUNDAMENTAL_NODES;
-      expect(visible).toEqual(FUNDAMENTAL_NODES);
-      expect(visible.length).toBe(5);
+        ? nodeRegistry.all.filter((def) => allowedNodes.includes(def.type))
+        : nodeRegistry.all;
+      expect(visible).toEqual(nodeRegistry.all);
+      expect(visible.length).toBe(8); // 8 v2 nodes
     });
 
     it('allowedNodes filters to matching types only', () => {
-      const allowedNodes = ['mix', 'invert'];
-      const visible = FUNDAMENTAL_NODES.filter((def) => allowedNodes.includes(def.type));
+      const allowedNodes = ['merger', 'inverter'];
+      const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
       expect(visible.length).toBe(2);
-      expect(visible.map((d) => d.type)).toEqual(['mix', 'invert']);
+      expect(visible.map((d) => d.type).sort()).toEqual(['inverter', 'merger']);
     });
 
     it('allowedNodes with no matches returns empty', () => {
       const allowedNodes = ['nonexistent'];
-      const visible = FUNDAMENTAL_NODES.filter((def) => allowedNodes.includes(def.type));
+      const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
       expect(visible.length).toBe(0);
     });
   });
@@ -166,7 +176,7 @@ describe('palette filtering logic', () => {
       store.getState().completeLevel('puzzle-a');
 
       const completedLevels = store.getState().completedLevels;
-      const allowedNodes: string[] | null = null;
+      const allowedNodes: string[] | null = null as string[] | null;
       const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
         if (allowedNodes && !allowedNodes.includes(entry.puzzleId)) return false;
@@ -202,7 +212,7 @@ describe('palette filtering logic', () => {
       store.getState().completeLevel('puzzle-b');
 
       const completedLevels = store.getState().completedLevels;
-      const allowedNodes: string[] | null = null;
+      const allowedNodes: string[] | null = null as string[] | null;
       const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
         if (allowedNodes && !allowedNodes.includes(entry.puzzleId)) return false;

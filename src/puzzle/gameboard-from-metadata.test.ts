@@ -50,10 +50,10 @@ describe('gameboardFromBakeMetadata', () => {
     expect(n1.outputCount).toBe(1);
 
     expect(board.wires).toHaveLength(2);
-    expect(board.wires[0].from.nodeId).toBe(cpInputId(0));
-    expect(board.wires[0].to.nodeId).toBe('n1');
-    expect(board.wires[1].from.nodeId).toBe('n1');
-    expect(board.wires[1].to.nodeId).toBe(cpOutputId(0));
+    expect(board.wires[0].source.nodeId).toBe(cpInputId(0));
+    expect(board.wires[0].target.nodeId).toBe('n1');
+    expect(board.wires[1].source.nodeId).toBe('n1');
+    expect(board.wires[1].target.nodeId).toBe(cpOutputId(0));
   });
 
   it('multi-node graph → all nodes present, non-overlapping positions', () => {
@@ -92,7 +92,7 @@ describe('gameboardFromBakeMetadata', () => {
     const positions = ['a', 'b', 'c'].map((id) => board.nodes.get(id)!.position);
     for (let i = 0; i < positions.length; i++) {
       for (let j = i + 1; j < positions.length; j++) {
-        const same = positions[i].x === positions[j].x && positions[i].y === positions[j].y;
+        const same = positions[i].col === positions[j].col && positions[i].row === positions[j].row;
         expect(same).toBe(false);
       }
     }

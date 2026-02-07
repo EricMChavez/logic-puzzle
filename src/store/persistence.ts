@@ -45,7 +45,7 @@ export function serializeGameboard(board: GameboardState): SerializedGameboard {
   return {
     id: board.id,
     nodes: Array.from(board.nodes.entries()),
-    wires: board.wires.map((w) => ({ ...w, signals: [] })),
+    wires: board.wires.map((w) => ({ ...w, signalBuffer: Array(16).fill(0), writeHead: 0 })),
   };
 }
 

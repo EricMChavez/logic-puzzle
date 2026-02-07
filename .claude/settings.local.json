@@ -22,7 +22,31 @@
       "Bash(find:*)",
       "Bash(npm test:*)",
       "Bash(for dir in \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\src\"/*)",
-      "Bash(do if [ -d \"$dir\" ])"
+      "Bash(do if [ -d \"$dir\" ])",
+      "Bash(test:*)",
+      "Bash(dir \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\src\\\\assets\\\\styles\")",
+      "Bash(xargs:*)",
+      "Bash(node -e:*)",
+      "Bash(ls -la \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\src\\\\ui\"\" 2>/dev/null || echo \"Directory not found \")",
+      "Bash(wc:*)",
+      "Bash(npx vite:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npm update:*)",
+      "Bash(where:*)",
+      "Bash(npm:*)",
+      "Bash(C:nvm4wnodejsnpm install -g @anthropic-ai/claude-code@latest)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(node C:/nvm4w/nodejs/node_modules/npm/bin/npm-cli.js --version)",
+      "Bash(claude:*)",
+      "Bash(dir:*)",
+      "Bash(reg query:*)",
+      "Bash(C:nvm4wnodejsnpm.cmd run dev --prefix \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\")",
+      "Bash(/c/nvm4w/nodejs/npm.cmd run dev --prefix \"/c/Users/emcha/OneDrive/Documents/Code/logic-puzzle\")",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/emcha/AppData/Roaming/npm\")",
+      "Bash(C:\\\\nvm4w\\\\nodejs\\\\node.exe:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

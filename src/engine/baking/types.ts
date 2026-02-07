@@ -4,7 +4,7 @@ import type { NodeId } from '../../shared/types/index.ts';
 export interface BakedNodeConfig {
   id: NodeId;
   type: string;
-  params: Record<string, number | string>;
+  params: Record<string, number | string | boolean>;
   inputCount: number;
   outputCount: number;
 }

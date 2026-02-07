@@ -1,5 +1,5 @@
 import { useGameStore } from '../../store/index.ts';
-import { FUNDAMENTAL_NODES } from '../fundamental/index.ts';
+import { nodeRegistry, getNodeLabel } from '../../engine/nodes/registry.ts';
 import { generateId } from '../../shared/generate-id.ts';
 import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
 import { stopSimulation } from '../../simulation/simulation-controller.ts';
@@ -56,8 +56,8 @@ export function PalettePanel() {
 
   // Filter fundamental nodes by allowedNodes constraint
   const visibleFundamentals = allowedNodes
-    ? FUNDAMENTAL_NODES.filter((def) => allowedNodes.includes(def.type))
-    : FUNDAMENTAL_NODES;
+    ? nodeRegistry.all.filter((def) => allowedNodes.includes(def.type))
+    : nodeRegistry.all;
 
   // Filter puzzle nodes: must be completed AND allowed
   const visiblePuzzleNodes = Array.from(puzzleNodes.values()).filter((entry) => {
@@ -90,7 +90,7 @@ export function PalettePanel() {
                 }
               }}
             >
-              {def.label}
+              {getNodeLabel(def.type)}
             </button>
           );
         })}

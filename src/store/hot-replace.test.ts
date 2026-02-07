@@ -9,7 +9,7 @@ function makeNode(id: string, type: string, overrides?: Partial<NodeState>): Nod
   return {
     id,
     type,
-    position: { x: 0, y: 0 },
+    position: { col: 0, row: 0 },
     params: {},
     inputCount: 1,
     outputCount: 1,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
+import { createWire } from '../../shared/types/index.ts';
 import { bakeGraph, reconstructFromMetadata } from './bake.ts';
 import { analyzeDelays } from './delay-calculator.ts';
 import { topologicalSort } from '../graph/topological-sort.ts';
@@ -19,23 +20,20 @@ function makeNode(
   outputCount: number,
   params: Record<string, number | string> = {},
 ): NodeState {
-  return { id, type, position: { x: 0, y: 0 }, params, inputCount, outputCount };
+  return { id, type, position: { col: 0, row: 0 }, params, inputCount, outputCount };
 }
 
 function makeWire(
-  from: NodeId,
-  fromPort: number,
-  to: NodeId,
-  toPort: number,
-  wtsDelay = 16,
+  sourceId: NodeId,
+  sourcePort: number,
+  targetId: NodeId,
+  targetPort: number,
 ): Wire {
-  return {
-    id: `${from}:${fromPort}->${to}:${toPort}`,
-    from: { nodeId: from, portIndex: fromPort, side: 'output' },
-    to: { nodeId: to, portIndex: toPort, side: 'input' },
-    wtsDelay,
-    signals: [],
-  };
+  return createWire(
+    `${sourceId}:${sourcePort}->${targetId}:${targetPort}`,
+    { nodeId: sourceId, portIndex: sourcePort, side: 'output' },
+    { nodeId: targetId, portIndex: targetPort, side: 'input' },
+  );
 }
 
 /** Build a nodes Map and wires array from a description. */
@@ -43,7 +41,7 @@ function buildGraph(
   inputCount: number,
   outputCount: number,
   processingNodes: NodeState[],
-  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number; delay?: number }[],
+  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number }[],
 ) {
   const nodes = new Map<NodeId, NodeState>();
 
@@ -66,7 +64,7 @@ function buildGraph(
 
   // Build wires
   const wires = wireSpecs.map((spec) =>
-    makeWire(spec.from, spec.fromPort, spec.to, spec.toPort, spec.delay ?? 16),
+    makeWire(spec.from, spec.fromPort, spec.to, spec.toPort),
   );
 
   return { nodes, wires };
@@ -86,10 +84,10 @@ function runLiveSimulation(
   if (!sortResult.ok) throw new Error('Cycle in live simulation graph');
   const topoOrder = sortResult.value;
 
-  // Deep-copy wires so signals don't leak between tests
+  // Deep-copy wires so signal buffers don't leak between tests
   const simWires: Wire[] = wires.map((w) => ({
     ...w,
-    signals: [],
+    signalBuffer: [...w.signalBuffer],
   }));
 
   const state = createSchedulerState(nodes);
@@ -101,19 +99,16 @@ function runLiveSimulation(
   }
 
   for (let t = 0; t < ticks; t++) {
-    // Drive input CPs: set their output values and emit onto outgoing wires
+    // Drive input CPs: set their output values and write onto outgoing wire ring buffers
     for (let i = 0; i < inputValues.length; i++) {
       const cpId = inputCpIds[i];
       const runtime = state.nodeStates.get(cpId);
       if (runtime) {
         runtime.outputs[0] = inputValues[i];
-        // Emit onto outgoing wires
+        // Write onto outgoing wires at current writeHead
         for (const wire of simWires) {
-          if (wire.from.nodeId === cpId) {
-            wire.signals.push({
-              value: inputValues[i],
-              ticksRemaining: wire.wtsDelay,
-            });
+          if (wire.source.nodeId === cpId) {
+            wire.signalBuffer[wire.writeHead] = inputValues[i];
           }
         }
       }
@@ -138,10 +133,10 @@ function runLiveSimulation(
 // ─── Delay Analysis ────────────────────────────────────────────────────────
 
 describe('analyzeDelays', () => {
-  it('linear chain: CP_in → Invert → CP_out', () => {
+  it('linear chain: CP_in → Inverter → CP_out', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -159,14 +154,14 @@ describe('analyzeDelays', () => {
     expect(analysis.outputMappings[0].sourceNodeId).toBe('inv');
   });
 
-  it('two-input node: 2 CP_ins → Mix → CP_out', () => {
+  it('two-input node: 2 CP_ins → Merger → CP_out', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Add' })],
+      [makeNode('mrg1', 'merger', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
     const sortResult = topologicalSort(Array.from(nodes.keys()), wires);
@@ -176,25 +171,25 @@ describe('analyzeDelays', () => {
     const analysis = analyzeDelays(sortResult.value, nodes, wires);
     expect(analysis.inputCount).toBe(2);
     expect(analysis.outputCount).toBe(1);
-    expect(analysis.processingOrder).toEqual(['mix1']);
+    expect(analysis.processingOrder).toEqual(['mrg1']);
   });
 
   it('asymmetric delays: one path has more wire delay', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
       [
-        makeNode('inv1', 'invert', 1, 1),
-        makeNode('inv2', 'invert', 1, 1),
-        makeNode('mix1', 'mix', 2, 1, { mode: 'Add' }),
+        makeNode('inv1', 'inverter', 1, 1),
+        makeNode('inv2', 'inverter', 1, 1),
+        makeNode('mrg1', 'merger', 2, 1),
       ],
       [
-        // Short path: CP0 → inv1 (delay=16) → mix1 port 0
-        { from: cpInputId(0), fromPort: 0, to: 'inv1', toPort: 0, delay: 16 },
-        { from: 'inv1', fromPort: 0, to: 'mix1', toPort: 0, delay: 16 },
-        // Long path: CP0 → inv2 (delay=16) → mix1 port 1
-        { from: cpInputId(0), fromPort: 0, to: 'inv2', toPort: 0, delay: 16 },
-        { from: 'inv2', fromPort: 0, to: 'mix1', toPort: 1, delay: 16 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        // Short path: CP0 → inv1 → mrg1 port 0
+        { from: cpInputId(0), fromPort: 0, to: 'inv1', toPort: 0 },
+        { from: 'inv1', fromPort: 0, to: 'mrg1', toPort: 0 },
+        // Long path: CP0 → inv2 → mrg1 port 1
+        { from: cpInputId(0), fromPort: 0, to: 'inv2', toPort: 0 },
+        { from: 'inv2', fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
     const sortResult = topologicalSort(Array.from(nodes.keys()), wires);
@@ -206,10 +201,10 @@ describe('analyzeDelays', () => {
     expect(analysis.inputBufferSizes[0]).toBeGreaterThanOrEqual(1);
   });
 
-  it('delay node propagation adds subdivisions to output delay', () => {
+  it('delay node propagation adds WTS delay to output delay', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('dly', 'delay', 1, 1, { subdivisions: 4 })],
+      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
       [
         { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
         { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -229,8 +224,8 @@ describe('analyzeDelays', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
       [
-        makeNode('inv1', 'invert', 1, 1),
-        makeNode('disconnected', 'invert', 1, 1),
+        makeNode('inv1', 'inverter', 1, 1),
+        makeNode('disconnected', 'inverter', 1, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv1', toPort: 0 },
@@ -253,8 +248,8 @@ describe('analyzeDelays', () => {
 describe('bakeGraph', () => {
   it('returns err for cyclic graphs', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'invert', 1, 1));
-    nodes.set('B', makeNode('B', 'invert', 1, 1));
+    nodes.set('A', makeNode('A', 'inverter', 1, 1));
+    nodes.set('B', makeNode('B', 'inverter', 1, 1));
 
     const wires = [
       makeWire('A', 0, 'B', 0),
@@ -271,7 +266,7 @@ describe('bakeGraph', () => {
   it('returns ok for valid graphs', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -335,10 +330,10 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('single Invert node', () => {
+  it('single Inverter node', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('inv', 'invert', 1, 1)],
+      [makeNode('inv', 'inverter', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
         { from: 'inv', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -363,14 +358,14 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('two-input Mix (Add)', () => {
+  it('two-input Merger', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Add' })],
+      [makeNode('mrg1', 'merger', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -386,15 +381,15 @@ describe('steady-state equivalence', () => {
 
     const liveOutput = runLiveSimulation(nodes, wires, [30, 40], 100);
 
-    // Add: 30 + 40 = 70
+    // Merger: 30 + 40 = 70
     expect(bakedOutput[0]).toBe(70);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('Delay node with subdivisions=4', () => {
+  it('Delay node with wts=1', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('dly', 'delay', 1, 1, { subdivisions: 4 })],
+      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
       [
         { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
         { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -419,14 +414,14 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('Multiply node: (50 * 40) / 100 = 20', () => {
+  it('Scaler node: 50 * (1 + 40/100) = 70', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mul', 'multiply', 2, 1)],
+      [makeNode('scl', 'scaler', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mul', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mul', toPort: 1 },
-        { from: 'mul', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'scl', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 1 },
+        { from: 'scl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -442,17 +437,19 @@ describe('steady-state equivalence', () => {
 
     const liveOutput = runLiveSimulation(nodes, wires, [50, 40], 100);
 
-    expect(bakedOutput[0]).toBe(20);
+    // Scaler: 50 * (1 + 40/100) = 50 * 1.4 = 70
+    expect(bakedOutput[0]).toBe(70);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('Threshold node', () => {
+  it('Shaper node with polarization (B=-100)', () => {
     const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('thr', 'threshold', 1, 1, { threshold: 25 })],
+      2, 1,
+      [makeNode('shp', 'shaper', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'thr', toPort: 0 },
-        { from: 'thr', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shp', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shp', toPort: 1 },
+        { from: 'shp', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -461,14 +458,15 @@ describe('steady-state equivalence', () => {
     if (!result.ok) return;
 
     const { evaluate } = result.value;
-    for (let i = 0; i < 20; i++) {
-      evaluate([50]);
+    // Warm up with constant inputs
+    for (let i = 0; i < 100; i++) {
+      evaluate([50, -100]);
     }
-    const bakedOutput = evaluate([50]);
+    const bakedOutput = evaluate([50, -100]);
 
-    const liveOutput = runLiveSimulation(nodes, wires, [50], 100);
+    const liveOutput = runLiveSimulation(nodes, wires, [50, -100], 200);
 
-    // 50 > 25, so output = 100
+    // Shaper with B=-100 polarizes: positive input → +100
     expect(bakedOutput[0]).toBe(100);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
@@ -477,8 +475,8 @@ describe('steady-state equivalence', () => {
     const { nodes, wires } = buildGraph(
       2, 2,
       [
-        makeNode('inv1', 'invert', 1, 1),
-        makeNode('inv2', 'invert', 1, 1),
+        makeNode('inv1', 'inverter', 1, 1),
+        makeNode('inv2', 'inverter', 1, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv1', toPort: 0 },
@@ -506,30 +504,37 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[1]).toBe(liveOutput[1]);
   });
 
-  it('all 5 node types in one graph', () => {
-    // CP0 → Invert → Mix(port0)
-    // CP1 → Threshold(>0) → Mix(port1)
-    // Mix(Add) → Multiply(port0)
-    // CP2 → Delay(subs=2) → Multiply(port1)
-    // Multiply → Out0
+  it('all v2 node types in one graph', () => {
+    // CP0 → Inverter → Merger(port0)
+    // CP1 → Scaler(port0), Constant → Scaler(port1) → Merger(port1)
+    // Merger → Splitter
+    // Splitter(port0) → Switch(port0)
+    // Splitter(port1) → Switch(port1)
+    // CP2 → Delay → Switch(control port2)
+    // Switch(port0) → Out0
     const { nodes, wires } = buildGraph(
       3, 1,
       [
-        makeNode('inv', 'invert', 1, 1),
-        makeNode('thr', 'threshold', 1, 1, { threshold: 0 }),
-        makeNode('mix', 'mix', 2, 1, { mode: 'Add' }),
-        makeNode('dly', 'delay', 1, 1, { subdivisions: 2 }),
-        makeNode('mul', 'multiply', 2, 1),
+        makeNode('inv', 'inverter', 1, 1),
+        makeNode('const', 'constant', 0, 1, { value: 5 }),
+        makeNode('scl', 'scaler', 2, 1),
+        makeNode('mrg', 'merger', 2, 1),
+        makeNode('spl', 'splitter', 1, 2),
+        makeNode('dly', 'delay', 1, 1, { wts: 1 }),
+        makeNode('swt', 'switch', 3, 2),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'thr', toPort: 0 },
-        { from: 'inv', fromPort: 0, to: 'mix', toPort: 0 },
-        { from: 'thr', fromPort: 0, to: 'mix', toPort: 1 },
-        { from: 'mix', fromPort: 0, to: 'mul', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 0 },
+        { from: 'const', fromPort: 0, to: 'scl', toPort: 1 },
+        { from: 'inv', fromPort: 0, to: 'mrg', toPort: 0 },
+        { from: 'scl', fromPort: 0, to: 'mrg', toPort: 1 },
+        { from: 'mrg', fromPort: 0, to: 'spl', toPort: 0 },
+        { from: 'spl', fromPort: 0, to: 'swt', toPort: 0 },
+        { from: 'spl', fromPort: 1, to: 'swt', toPort: 1 },
         { from: cpInputId(2), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: 'mul', toPort: 1 },
-        { from: 'mul', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'dly', fromPort: 0, to: 'swt', toPort: 2 },
+        { from: 'swt', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -538,7 +543,8 @@ describe('steady-state equivalence', () => {
     if (!result.ok) return;
 
     const { evaluate } = result.value;
-    const inputs = [50, 30, 80];
+    // inputs: CP0=40, CP1=20, CP2=50 (positive control → straight through)
+    const inputs = [40, 20, 50];
     for (let i = 0; i < 50; i++) {
       evaluate(inputs);
     }
@@ -546,12 +552,14 @@ describe('steady-state equivalence', () => {
 
     const liveOutput = runLiveSimulation(nodes, wires, inputs, 200);
 
-    // Invert(50) = -50
-    // Threshold(30, 0) = 100 (30 > 0)
-    // Mix(Add, -50, 100) = 50
-    // Delay(80, subs=2) = 80 (steady state)
-    // Multiply(50, 80) = 50*80/100 = 40
-    expect(bakedOutput[0]).toBe(40);
+    // Inverter(40) = -40
+    // Constant(value=5) = 5*10 = 50
+    // Scaler(20, 50) = 20 * (1 + 50/100) = 20 * 1.5 = 30
+    // Merger(-40, 30) = -10
+    // Splitter(-10) = -5, -5
+    // Delay(50, wts=1) = 50 (steady state)
+    // Switch(-5, -5, 50): control >= 0 → straight → Out0 = -5
+    expect(bakedOutput[0]).toBe(-5);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 });
@@ -560,17 +568,19 @@ describe('steady-state equivalence', () => {
 
 describe('metadata serialization roundtrip', () => {
   it('JSON roundtrip produces identical outputs', () => {
+    // Chain: CP0 → Inverter → Merger(port0), CP1 → Merger(port1) → Out
+    // Result: -CP0 + CP1
     const { nodes, wires } = buildGraph(
       2, 1,
       [
-        makeNode('inv', 'invert', 1, 1),
-        makeNode('mix1', 'mix', 2, 1, { mode: 'Subtract' }),
+        makeNode('inv', 'inverter', 1, 1),
+        makeNode('mrg1', 'merger', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
-        { from: 'inv', fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'inv', fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -591,6 +601,7 @@ describe('metadata serialization roundtrip', () => {
     }
 
     // Compare outputs
+    // -40 + 20 = -20
     const original = result.value.evaluate(inputs);
     const roundtripped = reconstructed.evaluate(inputs);
 
@@ -600,7 +611,7 @@ describe('metadata serialization roundtrip', () => {
   it('roundtrip with delay node preserves behavior', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('dly', 'delay', 1, 1, { subdivisions: 4 })],
+      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
       [
         { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
         { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -633,14 +644,14 @@ describe('metadata serialization roundtrip', () => {
 
 describe('edge cases', () => {
   it('unconnected input ports default to 0', () => {
-    // Mix with only one input connected
+    // Merger with only one input connected
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Add' })],
+      [makeNode('mrg1', 'merger', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
         // Port 1 is unconnected
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -654,7 +665,7 @@ describe('edge cases', () => {
     }
     const output = evaluate([50]);
 
-    // Add(50, 0) = 50 (unconnected port defaults to 0)
+    // Merger(50, 0) = 50 (unconnected port defaults to 0)
     expect(output[0]).toBe(50);
   });
 
@@ -662,8 +673,8 @@ describe('edge cases', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
       [
-        makeNode('inv', 'invert', 1, 1),
-        makeNode('orphan', 'multiply', 2, 1),
+        makeNode('inv', 'inverter', 1, 1),
+        makeNode('orphan', 'scaler', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
@@ -684,34 +695,10 @@ describe('edge cases', () => {
     expect(output[0]).toBe(-42);
   });
 
-  it('delay subdivisions=0 is pass-through', () => {
+  it('delay wts=1 (minimum, 16 subdivisions)', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('dly', 'delay', 1, 1, { subdivisions: 0 })],
-      [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-      ],
-    );
-
-    const result = bakeGraph(nodes, wires);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const { evaluate } = result.value;
-    // With subdivisions=0, delay is pass-through (buffer size 1)
-    // After warmup, output should match input
-    for (let i = 0; i < 5; i++) {
-      evaluate([99]);
-    }
-    const output = evaluate([99]);
-    expect(output[0]).toBe(99);
-  });
-
-  it('delay subdivisions=16 (max)', () => {
-    const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('dly', 'delay', 1, 1, { subdivisions: 16 })],
+      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
       [
         { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
         { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -724,13 +711,38 @@ describe('edge cases', () => {
 
     const { evaluate } = result.value;
 
-    // Feed zeros then a value — should take 16 calls before the value appears
+    // Feed value — should take 16 calls before the value appears (1 WTS = 16 subdivisions)
     for (let i = 0; i < 16; i++) {
       const out = evaluate([100]);
       // During warmup period, output should still be 0
       expect(out[0]).toBe(0);
     }
     // On the 17th call, the first value should appear
+    const output = evaluate([100]);
+    expect(output[0]).toBe(100);
+  });
+
+  it('delay wts=2 (32 subdivisions)', () => {
+    const { nodes, wires } = buildGraph(
+      1, 1,
+      [makeNode('dly', 'delay', 1, 1, { wts: 2 })],
+      [
+        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
+        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+      ],
+    );
+
+    const result = bakeGraph(nodes, wires);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const { evaluate } = result.value;
+
+    // Feed value — should take 32 calls before the value appears (2 WTS = 32 subdivisions)
+    for (let i = 0; i < 32; i++) {
+      const out = evaluate([100]);
+      expect(out[0]).toBe(0);
+    }
     const output = evaluate([100]);
     expect(output[0]).toBe(100);
   });
@@ -747,14 +759,14 @@ describe('edge cases', () => {
     expect(output).toEqual([]);
   });
 
-  it('Mix mode Subtract', () => {
+  it('Splitter node produces two half-value outputs', () => {
     const { nodes, wires } = buildGraph(
-      2, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Subtract' })],
+      1, 2,
+      [makeNode('spl', 'splitter', 1, 2)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'spl', toPort: 0 },
+        { from: 'spl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'spl', fromPort: 1, to: cpOutputId(1), toPort: 0 },
       ],
     );
 
@@ -764,22 +776,23 @@ describe('edge cases', () => {
 
     const { evaluate } = result.value;
     for (let i = 0; i < 20; i++) {
-      evaluate([80, 30]);
+      evaluate([80]);
     }
-    const output = evaluate([80, 30]);
+    const output = evaluate([80]);
 
-    // Subtract: 80 - 30 = 50
-    expect(output[0]).toBe(50);
+    // Splitter: 80 / 2 = 40 on each output
+    expect(output[0]).toBe(40);
+    expect(output[1]).toBe(40);
   });
 
-  it('clamping: Mix Add with values exceeding range', () => {
+  it('clamping: Merger with values exceeding range', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mix1', 'mix', 2, 1, { mode: 'Add' })],
+      [makeNode('mrg1', 'merger', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mix1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mix1', toPort: 1 },
-        { from: 'mix1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
+        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -793,7 +806,7 @@ describe('edge cases', () => {
     }
     const output = evaluate([80, 80]);
 
-    // Add: 80 + 80 = 160, clamped to 100
+    // Merger: 80 + 80 = 160, clamped to 100
     expect(output[0]).toBe(100);
   });
 });

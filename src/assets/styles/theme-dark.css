@@ -1,0 +1,37 @@
+/*
+ * Signal Bench — Dark Theme (default)
+ *
+ * Near-black surfaces with amber (positive) and teal (negative) polarity.
+ * Designed for focused puzzle-solving sessions.
+ */
+
+[data-theme="dark"] {
+  --token-surface-page-background: #0a0a14;
+  --token-surface-gameboard: #0e0e18;
+  --token-surface-grid-area: #141422;
+  --token-surface-meter-housing: #0a0a14;
+  --token-surface-meter-interior: #0a0a14;
+  --token-surface-node: #2d2d44;
+  --token-surface-node-bottom: #222238;
+
+  --token-signal-positive: #e8a838;
+  --token-signal-negative: #38b8a0;
+  --token-color-neutral: #3a3a4a;
+  --token-color-target: #50c878;
+  --token-color-validation-match: #22C55E;
+  --token-meter-needle: #e03838;
+
+  --token-depth-raised: rgba(0, 0, 0, 0.4);
+  --token-depth-sunken: rgba(0, 0, 0, 0.6);
+
+  --token-text-primary: #e0e0f0;
+  --token-text-secondary: #9090b0;
+
+  --token-color-selection: #5a9bf5;
+
+  --token-port-fill: #3a7bd5;
+  --token-port-stroke: #5a9bf5;
+  --token-port-connected: #50c878;
+
+  --token-grid-line: #1e1e38;
+}

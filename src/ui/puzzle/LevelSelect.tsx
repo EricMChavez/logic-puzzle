@@ -1,11 +1,11 @@
 import { useGameStore } from '../../store/index.ts';
 import { PUZZLE_LEVELS } from '../../puzzle/levels/index.ts';
 import { createPuzzleGameboard } from '../../puzzle/puzzle-gameboard.ts';
+import { buildConnectionPointConfig } from '../../puzzle/types.ts';
 import styles from './LevelSelect.module.css';
 
 export function LevelSelect() {
   const completedLevels = useGameStore((s) => s.completedLevels);
-  const currentLevelIndex = useGameStore((s) => s.currentLevelIndex);
   const activePuzzle = useGameStore((s) => s.activePuzzle);
 
   function handleSelectLevel(index: number) {
@@ -18,6 +18,8 @@ export function LevelSelect() {
     store.setCurrentLevel(index);
     store.loadPuzzle(puzzle);
     store.setActiveBoard(createPuzzleGameboard(puzzle));
+    const cpConfig = buildConnectionPointConfig(puzzle.activeInputs, puzzle.activeOutputs);
+    store.initializeMeters(cpConfig, 'dimmed');
   }
 
   return (

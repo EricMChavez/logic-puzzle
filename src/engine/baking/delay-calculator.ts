@@ -1,4 +1,5 @@
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
+import { WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
 import {
   isConnectionInputNode,
   isConnectionOutputNode,
@@ -50,14 +51,14 @@ export function analyzeDelays(
   // Build wire lookup: target "nodeId:portIndex" → wire
   const wireByTarget = new Map<string, Wire>();
   for (const wire of wires) {
-    const key = `${wire.to.nodeId}:${wire.to.portIndex}`;
+    const key = `${wire.target.nodeId}:${wire.target.portIndex}`;
     wireByTarget.set(key, wire);
   }
 
   // Build outgoing wire lookup: source "nodeId:portIndex" → wire[]
   const wiresBySource = new Map<string, Wire[]>();
   for (const wire of wires) {
-    const key = `${wire.from.nodeId}:${wire.from.portIndex}`;
+    const key = `${wire.source.nodeId}:${wire.source.portIndex}`;
     const list = wiresBySource.get(key) ?? [];
     list.push(wire);
     wiresBySource.set(key, list);
@@ -96,8 +97,8 @@ export function analyzeDelays(
       if (wire) {
         outputMappings.push({
           cpIndex,
-          sourceNodeId: wire.from.nodeId,
-          sourcePort: wire.from.portIndex,
+          sourceNodeId: wire.source.nodeId,
+          sourcePort: wire.source.portIndex,
         });
       }
       continue;
@@ -117,14 +118,14 @@ export function analyzeDelays(
         continue;
       }
 
-      const sourceNodeId = wire.from.nodeId;
-      const sourcePort = wire.from.portIndex;
+      const sourceNodeId = wire.source.nodeId;
+      const sourcePort = wire.source.portIndex;
 
       if (isConnectionInputNode(sourceNodeId)) {
         // Wire from an input CP
         const cpIndex = getConnectionPointIndex(sourceNodeId);
         const sourceDelay = outputDelay.get(sourceNodeId) ?? 0;
-        const totalDelay = sourceDelay + wire.wtsDelay;
+        const totalDelay = sourceDelay + WIRE_BUFFER_SIZE;
         portSources.set(wireKey, {
           kind: 'cp',
           cpIndex,
@@ -134,7 +135,7 @@ export function analyzeDelays(
       } else {
         // Wire from another processing node
         const sourceDelay = outputDelay.get(sourceNodeId) ?? 0;
-        const totalDelay = sourceDelay + wire.wtsDelay;
+        const totalDelay = sourceDelay + WIRE_BUFFER_SIZE;
         portSources.set(wireKey, {
           kind: 'node',
           sourceNodeId,
@@ -144,14 +145,14 @@ export function analyzeDelays(
       }
     }
 
-    // For delay nodes, add subdivisions to the output delay
+    // For delay nodes, add WTS delay converted to subdivisions
     let nodeDelay = 0;
     if (node.type === 'delay') {
-      const subdivisions =
-        typeof node.params['subdivisions'] === 'number'
-          ? node.params['subdivisions']
-          : 0;
-      nodeDelay = subdivisions;
+      const wts =
+        typeof node.params['wts'] === 'number'
+          ? node.params['wts']
+          : 1;
+      nodeDelay = wts * WIRE_BUFFER_SIZE; // WTS → subdivisions
     }
     outputDelay.set(nodeId, maxInputDelay + nodeDelay);
   }
