@@ -6,6 +6,7 @@ export interface HotReplacePatch {
   inputCount: number;
   outputCount: number;
   libraryVersionHash: string;
+  cpLayout?: ('input' | 'output' | 'off')[];
 }
 
 export interface HotReplaceResult {
@@ -20,6 +21,10 @@ function patchNode(node: NodeState, patch: HotReplacePatch): NodeState {
     inputCount: patch.inputCount,
     outputCount: patch.outputCount,
     libraryVersionHash: patch.libraryVersionHash,
+    params: {
+      ...node.params,
+      ...(patch.cpLayout ? { cpLayout: patch.cpLayout } : {}),
+    },
   };
 }
 

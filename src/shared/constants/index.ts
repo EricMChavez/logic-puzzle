@@ -39,7 +39,7 @@ export const WTS_CONFIG = {
 
 /** Validation constants */
 export const VALIDATION_CONFIG = {
-  MATCH_TOLERANCE: 0,
+  MATCH_TOLERANCE: 2,
 } as const;
 
 /** Color palette for rendering */
@@ -58,23 +58,32 @@ export const COLORS = {
   CONNECTION_POINT_STROKE: '#f0c868',
   CONNECTION_POINT_LABEL: '#e8a838',
   GRID_LINE: '#1e1e38',
-  TARGET_WAVEFORM: '#50c878',
+  TARGET_WAVEFORM: '#c8c8d8',
 } as const;
 
 /** Display labels for node types (derived from registry for v2 nodes) */
 export const NODE_TYPE_LABELS: Record<string, string> = {
   // v2 nodes
-  constant: 'Constant',
   inverter: 'Inverter',
-  scaler: 'Scaler',
-  merger: 'Merger',
-  splitter: 'Splitter',
-  switch: 'Switch',
-  shaper: 'Shaper',
   delay: 'Delay',
+  mixer: 'Mixer',
+  amp: 'Amp',
+  fader: 'Fader',
+  polarizer: 'Polarizer',
+  shifter: 'Shifter',
+  // Custom blank (unsaved utility node)
+  'custom-blank': 'Custom',
   // Legacy v1 nodes (for migration period)
   multiply: 'Multiply',
   mix: 'Mix',
   invert: 'Invert',
   threshold: 'Threshold',
+};
+
+/** Nodes that use a bottom-port knob control (portIndex + paramKey mapping) */
+export const KNOB_NODES: Record<string, { portIndex: number; paramKey: string }> = {
+  mixer: { portIndex: 2, paramKey: 'mix' },
+  amp: { portIndex: 1, paramKey: 'gain' },
+  fader: { portIndex: 1, paramKey: 'fade' },
+  shifter: { portIndex: 1, paramKey: 'shift' },
 };

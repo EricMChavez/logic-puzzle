@@ -2,7 +2,7 @@ import { useGameStore } from '../../store/index.ts';
 import { stopSimulation } from '../../simulation/simulation-controller.ts';
 import { bakeGraph } from '../../engine/baking/index.ts';
 import { generateId } from '../../shared/generate-id.ts';
-import type { BoardStackEntry } from '../../store/slices/navigation-slice.ts';
+import type { BoardStackEntry, NodeSwap } from '../../store/slices/navigation-slice.ts';
 import type { PuzzleNodeEntry, UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
 import type { PuzzleDefinition } from '../../puzzle/types.ts';
 import styles from './NavigationBar.module.css';
@@ -74,13 +74,20 @@ export function NavigationBar() {
     }
 
     const { metadata } = bakeResult.value;
+    const cpLayout = metadata.cpLayout;
     const existingEntry = state.utilityNodes.get(editingUtilityId);
+    const nodeIdInParent = state.editingNodeIdInParent;
 
     if (existingEntry) {
+      // Existing utility node: offer overwrite or rename
       const overwrite = window.confirm(`Overwrite "${existingEntry.title}"?`);
       if (overwrite) {
         state.updateUtilityNode(editingUtilityId, metadata, state.activeBoard);
+        const snapshot = document.querySelector('canvas')?.toDataURL() ?? '';
+        state.startZoomTransition('out', snapshot);
+        state.finishEditingUtility();
       } else {
+        // Rename: create a new utility node and swap only this instance
         const newName = window.prompt('Name for new custom node:');
         if (!newName) return;
         const newUtilityId = generateId();
@@ -92,9 +99,22 @@ export function NavigationBar() {
           bakeMetadata: metadata,
           board: state.activeBoard,
           versionHash: generateId(),
+          cpLayout,
         });
+        const snapshot = document.querySelector('canvas')?.toDataURL() ?? '';
+        state.startZoomTransition('out', snapshot);
+        // Swap this instance to the new type
+        const swap: NodeSwap | undefined = nodeIdInParent ? {
+          nodeId: nodeIdInParent,
+          newType: `utility:${newUtilityId}`,
+          inputCount: metadata.inputCount,
+          outputCount: metadata.outputCount,
+          cpLayout,
+        } : undefined;
+        state.finishEditingUtility(swap);
       }
     } else {
+      // First save: prompt for name, add to palette, swap blank→named
       const name = window.prompt('Name for this custom node:');
       if (!name) return;
       state.addUtilityNode({
@@ -105,12 +125,20 @@ export function NavigationBar() {
         bakeMetadata: metadata,
         board: state.activeBoard,
         versionHash: generateId(),
+        cpLayout,
       });
+      const snapshot = document.querySelector('canvas')?.toDataURL() ?? '';
+      state.startZoomTransition('out', snapshot);
+      // Swap custom-blank → utility:id in parent
+      const swap: NodeSwap | undefined = nodeIdInParent ? {
+        nodeId: nodeIdInParent,
+        newType: `utility:${editingUtilityId}`,
+        inputCount: metadata.inputCount,
+        outputCount: metadata.outputCount,
+        cpLayout,
+      } : undefined;
+      state.finishEditingUtility(swap);
     }
-
-    const snapshot = document.querySelector('canvas')?.toDataURL() ?? '';
-    state.startZoomTransition('out', snapshot);
-    state.finishEditingUtility();
   }
 
   function handleCancel() {

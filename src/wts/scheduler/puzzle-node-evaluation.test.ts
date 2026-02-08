@@ -167,20 +167,20 @@ describe('puzzle node evaluation in simulation', () => {
     expect(output[0]).toBe(-60);
   });
 
-  it('puzzle node with baked Merger graph sums two inputs', () => {
-    // Bake a Merger puzzle: 2 CP_ins → Merger → CP_out
+  it('puzzle node with baked Shifter graph sums two inputs', () => {
+    // Bake a Shifter puzzle: 2 CP_ins → Shifter → CP_out
     const metadata = bakePuzzleMetadata(
       2, 1,
-      [makeNode('mrg1', 'merger', 2, 1)],
+      [makeNode('shft1', 'shifter', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shft1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
     // Build gameboard: CP_in0, CP_in1 → PuzzleNode(2 in, 1 out) → CP_out
-    const puzzleNode = makeNode('pz1', 'puzzle:test-merger', 2, 1);
+    const puzzleNode = makeNode('pz1', 'puzzle:test-shifter', 2, 1);
     const { nodes, wires } = buildGraph(
       2, 1,
       [puzzleNode],
@@ -252,7 +252,7 @@ describe('puzzle node evaluation in simulation', () => {
   });
 
   it('multiple puzzle nodes in same graph', () => {
-    // Bake Inverter and Scaler puzzles
+    // Bake Inverter and Amp puzzles
     const invertMeta = bakePuzzleMetadata(
       1, 1,
       [makeNode('inv', 'inverter', 1, 1)],
@@ -262,39 +262,38 @@ describe('puzzle node evaluation in simulation', () => {
       ],
     );
 
-    // Scaler puzzle: CP_in0 signal, CP_in1 percentage → Scaler → CP_out
-    const scalerMeta = bakePuzzleMetadata(
+    // Amp puzzle: CP_in0 signal, CP_in1 gain → Amp → CP_out
+    const ampMeta = bakePuzzleMetadata(
       2, 1,
-      [makeNode('scl', 'scaler', 2, 1)],
+      [makeNode('amp1', 'amp', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'scl', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 1 },
-        { from: 'scl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'amp1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'amp1', toPort: 1 },
+        { from: 'amp1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    // Gameboard: CP_in → PuzzleInvert → PuzzleScaler(port0), Constant → PuzzleScaler(port1) → CP_out
-    // Invert(50) = -50, Scaler(-50, 100) = -50 * (1 + 100/100) = -50 * 2 = -100
+    // Gameboard: CP_in0 → PuzzleInvert → PuzzleAmp(port0), CP_in1 → PuzzleAmp(port1) → CP_out
+    // Invert(50) = -50, Amp(-50, 100) = -50 * (1 + 100/100) = -50 * 2 = -100
     const pzInvert = makeNode('pzInv', 'puzzle:test-inverter', 1, 1);
-    const pzScaler = makeNode('pzScl', 'puzzle:test-scaler', 2, 1);
-    const constNode = makeNode('const', 'constant', 0, 1, { value: 100 });
+    const pzAmp = makeNode('pzAmp', 'puzzle:test-amp', 2, 1);
     const { nodes, wires } = buildGraph(
-      1, 1,
-      [pzInvert, pzScaler, constNode],
+      2, 1,
+      [pzInvert, pzAmp],
       [
         { from: cpInputId(0), fromPort: 0, to: 'pzInv', toPort: 0 },
-        { from: 'pzInv', fromPort: 0, to: 'pzScl', toPort: 0 },
-        { from: 'const', fromPort: 0, to: 'pzScl', toPort: 1 },
-        { from: 'pzScl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'pzInv', fromPort: 0, to: 'pzAmp', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'pzAmp', toPort: 1 },
+        { from: 'pzAmp', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
     const closures = new Map<string, (inputs: number[]) => number[]>();
     closures.set('pzInv', reconstructFromMetadata(invertMeta).evaluate);
-    closures.set('pzScl', reconstructFromMetadata(scalerMeta).evaluate);
+    closures.set('pzAmp', reconstructFromMetadata(ampMeta).evaluate);
 
-    const output = runSimulationWithPuzzleNode(nodes, wires, closures, [50], 100);
-    // Invert(50) = -50, Scaler(-50, 100) = -50 * 2 = -100
+    const output = runSimulationWithPuzzleNode(nodes, wires, closures, [50, 100], 100);
+    // Invert(50) = -50, Amp(-50, 100) = -50 * 2 = -100
     expect(output[0]).toBe(-100);
   });
 });

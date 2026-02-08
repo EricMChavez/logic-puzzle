@@ -77,4 +77,43 @@ describe('createPuzzleGameboard', () => {
     const board = createPuzzleGameboard(makePuzzle(2, 2));
     expect(board.wires).toEqual([]);
   });
+
+  it('creates CP nodes with physicalSide/meterIndex when connectionPoints is set', () => {
+    const puzzle: PuzzleDefinition = {
+      ...makePuzzle(1, 1),
+      connectionPoints: {
+        left: [
+          { active: false, direction: 'input' },
+          { active: true, direction: 'output', cpIndex: 0 },  // output on left side
+          { active: false, direction: 'input' },
+        ],
+        right: [
+          { active: true, direction: 'input', cpIndex: 0 },   // input on right side
+          { active: false, direction: 'input' },
+          { active: false, direction: 'input' },
+        ],
+      },
+    };
+
+    const board = createPuzzleGameboard(puzzle);
+    expect(board.nodes.size).toBe(2);
+
+    // Output on left side, meter slot 1
+    const output0 = board.nodes.get(cpOutputId(0));
+    expect(output0).toBeDefined();
+    expect(output0!.params).toEqual({ physicalSide: 'left', meterIndex: 1 });
+
+    // Input on right side, meter slot 0
+    const input0 = board.nodes.get(cpInputId(0));
+    expect(input0).toBeDefined();
+    expect(input0!.params).toEqual({ physicalSide: 'right', meterIndex: 0 });
+  });
+
+  it('falls back to sequential creation when connectionPoints is not set', () => {
+    const board = createPuzzleGameboard(makePuzzle(1, 1));
+    const input0 = board.nodes.get(cpInputId(0));
+    expect(input0).toBeDefined();
+    // No physicalSide/meterIndex when using fallback
+    expect(input0!.params).toEqual({});
+  });
 });

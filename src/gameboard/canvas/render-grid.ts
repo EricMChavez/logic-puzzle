@@ -93,33 +93,25 @@ export function drawGrid(
   ctx.fillRect(gridX + gridWidth - cellSize, 0, cellSize, totalHeight);
   ctx.restore();
 
-  // 5. Grid lines in the playable area
+  // 5. Dot matrix at grid intersections in the playable area
   ctx.save();
-  // Only modify alpha if lineOpacity differs from 1.0 (via dev override)
   if (lineOpacity !== 1.0) {
     ctx.globalAlpha = ctx.globalAlpha * lineOpacity;
   }
-  ctx.strokeStyle = gridLineColor;
-  ctx.lineWidth = 1;
+  ctx.fillStyle = gridLineColor;
+
+  const dotRadius = Math.max(1, cellSize * 0.06);
+
   ctx.beginPath();
-
-  // Vertical lines within playable area (at each cell boundary)
-  for (let col = PLAYABLE_START; col <= PLAYABLE_END + 1; col++) {
-    const x = col * cellSize + 0.5; // +0.5 for crisp 1px lines
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, totalHeight);
+  for (let col = PLAYABLE_START + 1; col <= PLAYABLE_END; col++) {
+    const x = col * cellSize;
+    for (let row = 1; row < GRID_ROWS; row++) {
+      const y = row * cellSize;
+      ctx.moveTo(x + dotRadius, y);
+      ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+    }
   }
-
-  // Horizontal lines within playable area only
-  const playableLeft = PLAYABLE_START * cellSize + 0.5;
-  const playableRight = (PLAYABLE_END + 1) * cellSize + 0.5;
-  for (let row = 0; row <= GRID_ROWS; row++) {
-    const y = row * cellSize + 0.5;
-    ctx.moveTo(playableLeft, y);
-    ctx.lineTo(playableRight, y);
-  }
-
-  ctx.stroke();
+  ctx.fill();
   ctx.restore();
 
   // Restore alpha

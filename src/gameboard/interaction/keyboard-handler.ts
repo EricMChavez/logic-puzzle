@@ -117,7 +117,7 @@ export function getKeyboardAction(key: string, e: { shiftKey: boolean; ctrlKey: 
         return { type: 'enter-node', nodeId: focus.nodeId };
       }
       // Fundamental with editable params → open parameter popover
-      if (node.type === 'mix' || node.type === 'threshold' || node.type === 'delay' || node.type === 'constant') {
+      if (node.type === 'mix' || node.type === 'threshold' || node.type === 'delay') {
         return { type: 'open-params', nodeId: focus.nodeId };
       }
     }

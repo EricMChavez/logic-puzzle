@@ -75,6 +75,20 @@ export function getPortApproachDirection(side: PortSide): WireDirection {
 }
 
 /**
+ * Rotate an explicit port side by a given rotation.
+ * Used for per-port side overrides in node definitions.
+ */
+export function rotateExplicitSide(
+  side: PortSide,
+  rotation: NodeRotation,
+): PortSide {
+  const sides: PortSide[] = ['left', 'top', 'right', 'bottom'];
+  const baseIndex = sides.indexOf(side);
+  const rotationSteps = rotation / 90;
+  return sides[(baseIndex + rotationSteps) % 4];
+}
+
+/**
  * Get the opposite direction (for wire routing away from port).
  */
 export function getOppositeDirection(dir: WireDirection): WireDirection {

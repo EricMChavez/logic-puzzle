@@ -1,24 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { createUtilityGameboard } from './utility-gameboard.ts';
-import { CONNECTION_POINT_CONFIG } from '../shared/constants/index.ts';
-import { isConnectionInputNode, isConnectionOutputNode } from './connection-point-nodes.ts';
+import { isBidirectionalCpNode } from './connection-point-nodes.ts';
 
 describe('createUtilityGameboard', () => {
-  it('creates gameboard with 3 input + 3 output CP nodes', () => {
+  it('creates gameboard with 6 bidirectional CP nodes', () => {
     const board = createUtilityGameboard('test-id');
 
-    const inputCPs = Array.from(board.nodes.values()).filter((n) =>
-      isConnectionInputNode(n.id),
-    );
-    const outputCPs = Array.from(board.nodes.values()).filter((n) =>
-      isConnectionOutputNode(n.id),
+    const bidirCPs = Array.from(board.nodes.values()).filter((n) =>
+      isBidirectionalCpNode(n.id),
     );
 
-    expect(inputCPs).toHaveLength(CONNECTION_POINT_CONFIG.INPUT_COUNT);
-    expect(outputCPs).toHaveLength(CONNECTION_POINT_CONFIG.OUTPUT_COUNT);
-    expect(board.nodes.size).toBe(
-      CONNECTION_POINT_CONFIG.INPUT_COUNT + CONNECTION_POINT_CONFIG.OUTPUT_COUNT,
-    );
+    expect(bidirCPs).toHaveLength(6);
+    expect(board.nodes.size).toBe(6);
   });
 
   it('gameboard ID contains utilityId', () => {
@@ -31,27 +24,24 @@ describe('createUtilityGameboard', () => {
     expect(board.wires).toEqual([]);
   });
 
-  it('input CPs have 0 inputs and 1 output', () => {
+  it('bidirectional CPs have 1 input and 1 output', () => {
     const board = createUtilityGameboard('test-id');
-    const inputCPs = Array.from(board.nodes.values()).filter((n) =>
-      isConnectionInputNode(n.id),
+    const bidirCPs = Array.from(board.nodes.values()).filter((n) =>
+      isBidirectionalCpNode(n.id),
     );
-    for (const cp of inputCPs) {
-      expect(cp.inputCount).toBe(0);
+    for (const cp of bidirCPs) {
+      expect(cp.inputCount).toBe(1);
       expect(cp.outputCount).toBe(1);
-      expect(cp.type).toBe('connection-input');
+      expect(cp.type).toBe('connection-point');
     }
   });
 
-  it('output CPs have 1 input and 0 outputs', () => {
+  it('CP nodes have cpIndex params 0-5', () => {
     const board = createUtilityGameboard('test-id');
-    const outputCPs = Array.from(board.nodes.values()).filter((n) =>
-      isConnectionOutputNode(n.id),
-    );
-    for (const cp of outputCPs) {
-      expect(cp.inputCount).toBe(1);
-      expect(cp.outputCount).toBe(0);
-      expect(cp.type).toBe('connection-output');
-    }
+    const indices = Array.from(board.nodes.values())
+      .filter((n) => isBidirectionalCpNode(n.id))
+      .map((n) => n.params.cpIndex as number)
+      .sort();
+    expect(indices).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });

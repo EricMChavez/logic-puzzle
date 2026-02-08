@@ -3,7 +3,7 @@ import type { PixelRect } from '../../shared/grid/types.ts';
 import type { MeterSlotState } from './meter-types.ts';
 import { CHANNEL_RATIOS, VERTICAL_HEIGHT_RATIO } from './meter-types.ts';
 import type { MeterCircularBuffer } from './circular-buffer.ts';
-import { drawWaveformChannel } from './render-waveform-channel.ts';
+import { drawWaveformChannel, drawMatchOverlay } from './render-waveform-channel.ts';
 import { drawLevelBar, type LevelBarCutout } from './render-level-bar.ts';
 import { drawNeedle } from './render-needle.ts';
 import { drawTargetOverlay } from './render-target-overlay.ts';
@@ -29,8 +29,7 @@ export interface RenderMeterState {
  * - hidden: early return, no drawing
  * - dimmed: interior + faded overlay only
  * - active: all channels
- * - confirming: all channels + pulsing green border
- * - mismatch: all channels + red flash overlay
+ * - confirming: all channels (no special visual currently)
  */
 export function drawMeter(
   ctx: CanvasRenderingContext2D,
@@ -90,7 +89,12 @@ export function drawMeter(
 
   // Draw channels
   if (signalBuffer) {
-    drawWaveformChannel(ctx, tokens, signalBuffer, waveformRect, state.matchStatus);
+    drawWaveformChannel(ctx, tokens, signalBuffer, waveformRect);
+  }
+
+  // Match overlay: green wash on top of waveform bars where signal matches target
+  if (signalBuffer && state.matchStatus) {
+    drawMatchOverlay(ctx, tokens, signalBuffer, waveformRect, state.matchStatus);
   }
 
   drawLevelBar(ctx, tokens, currentValue, levelBarRect, cutout);
@@ -103,12 +107,6 @@ export function drawMeter(
 
   ctx.restore();
 
-  // Visual state overlays
-  if (slot.visualState === 'confirming') {
-    drawConfirmingBorder(ctx, tokens, rect);
-  } else if (slot.visualState === 'mismatch') {
-    drawMismatchOverlay(ctx, tokens, rect);
-  }
 }
 
 /**
@@ -254,26 +252,5 @@ function drawMeterInterior(
   ctx.restore();
 }
 
-/** Static green border for confirming state */
-function drawConfirmingBorder(
-  ctx: CanvasRenderingContext2D,
-  tokens: ThemeTokens,
-  rect: PixelRect,
-): void {
-  ctx.save();
-  ctx.strokeStyle = tokens.signalPositive;
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.8;
 
-  ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
-  ctx.restore();
-}
 
-/** Red flash overlay for mismatch state */
-function drawMismatchOverlay(ctx: CanvasRenderingContext2D, tokens: ThemeTokens, rect: PixelRect): void {
-  ctx.save();
-  ctx.fillStyle = tokens.signalNegative;
-  ctx.globalAlpha = 0.15;
-  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-  ctx.restore();
-}

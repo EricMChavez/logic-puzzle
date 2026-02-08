@@ -61,6 +61,14 @@ export function buildPaletteItems(
     });
   }
 
+  // Permanent "Custom" item — places a blank custom node on the board
+  items.push({
+    id: 'custom-blank',
+    nodeType: 'custom-blank',
+    label: 'Custom',
+    section: 'utility',
+  });
+
   return items;
 }
 

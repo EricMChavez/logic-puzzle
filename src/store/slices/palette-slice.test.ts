@@ -138,14 +138,14 @@ describe('palette filtering logic', () => {
         ? nodeRegistry.all.filter((def) => allowedNodes.includes(def.type))
         : nodeRegistry.all;
       expect(visible).toEqual(nodeRegistry.all);
-      expect(visible.length).toBe(8); // 8 v2 nodes
+      expect(visible.length).toBe(7); // 7 v2 nodes
     });
 
     it('allowedNodes filters to matching types only', () => {
-      const allowedNodes = ['merger', 'inverter'];
+      const allowedNodes = ['amp', 'inverter'];
       const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
       expect(visible.length).toBe(2);
-      expect(visible.map((d) => d.type).sort()).toEqual(['inverter', 'merger']);
+      expect(visible.map((d) => d.type).sort()).toEqual(['amp', 'inverter']);
     });
 
     it('allowedNodes with no matches returns empty', () => {

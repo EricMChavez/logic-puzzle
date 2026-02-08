@@ -17,10 +17,8 @@ export type ParamValue = number | string | boolean;
 
 /** Node categories for palette organization */
 export type NodeCategory =
-  | 'source'
   | 'math'
   | 'routing'
-  | 'shaping'
   | 'timing'
   | 'custom';
 
@@ -34,12 +32,17 @@ export interface GridSize {
 // Port Definitions
 // =============================================================================
 
+/** Physical side of a node where a port can be placed */
+export type PortSide = 'left' | 'right' | 'top' | 'bottom';
+
 /** Defines a single input or output port */
 export interface PortDefinition {
   /** Display name shown in UI: 'A', 'B', 'Control', 'Out' */
   name: string;
   /** Optional tooltip/description */
   description?: string;
+  /** Override the default side for this port (inputs default to 'left', outputs to 'right') */
+  side?: PortSide;
 }
 
 // =============================================================================
@@ -107,7 +110,7 @@ export type NodeEvaluator<TParams extends Record<string, ParamValue> = Record<st
  */
 export interface NodeDefinition<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> {
   // ─── Identity ───────────────────────────────────────────────────────────────
-  /** Unique type identifier: 'constant', 'scaler', etc. */
+  /** Unique type identifier: 'inverter', 'amp', etc. */
   type: string;
   /** Category for palette grouping */
   category: NodeCategory;

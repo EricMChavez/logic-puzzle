@@ -100,9 +100,9 @@ describe('Draw function contracts', () => {
       expect(content).toMatch(/getMeterBuffers/);
     });
 
-    it('imports getTargetMeterBuffers', () => {
+    it('imports getTargetDisplayBuffers', () => {
       const content = readCanvasFile('render-loop.ts');
-      expect(content).toMatch(/getTargetMeterBuffers/);
+      expect(content).toMatch(/getTargetDisplayBuffers/);
     });
 
     it('calls useGameStore.getState() exactly once', () => {

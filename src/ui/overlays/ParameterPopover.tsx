@@ -6,7 +6,7 @@ import { getCellSize } from '../../shared/grid/index.ts';
 import styles from './ParameterPopover.module.css';
 
 const MIX_MODES = ['Add', 'Subtract', 'Average', 'Min', 'Max'] as const;
-const DELAY_OPTIONS = Array.from({ length: 8 }, (_, i) => i + 1); // 1-8 WTS
+const DELAY_OPTIONS = Array.from({ length: 9 }, (_, i) => i); // 0-8 WTS
 
 export function ParameterPopover() {
   const overlay = useGameStore((s) => s.activeOverlay);
@@ -72,8 +72,14 @@ function ParameterPopoverInner({ nodeId }: { nodeId: string }) {
         {node.type === 'threshold' && (
           <ThresholdControls node={node} updateNodeParams={updateNodeParams} />
         )}
-        {node.type === 'constant' && (
-          <ConstantControls node={node} updateNodeParams={updateNodeParams} />
+        {node.type === 'mixer' && (
+          <MixerControls node={node} updateNodeParams={updateNodeParams} />
+        )}
+        {node.type === 'amp' && (
+          <AmpControls node={node} updateNodeParams={updateNodeParams} />
+        )}
+        {node.type === 'fader' && (
+          <FaderControls node={node} updateNodeParams={updateNodeParams} />
         )}
       </div>
     </>
@@ -141,21 +147,95 @@ function ThresholdControls({ node, updateNodeParams }: ControlProps) {
   );
 }
 
-function ConstantControls({ node, updateNodeParams }: ControlProps) {
-  const current = Number(node.params['value'] ?? 0);
+const KNOB_VALUES = [-100, -75, -50, -25, 0, 25, 50, 75, 100] as const;
+
+const MIXER_VALUES = KNOB_VALUES;
+
+function MixerControls({ node, updateNodeParams }: ControlProps) {
+  const setPortConstant = useGameStore((s) => s.setPortConstant);
+  const current = Number(node.params['mix'] ?? 0);
   return (
     <div className={styles.field}>
-      <label className={styles.label}>Value</label>
-      <div className={styles.rangeWrap}>
-        <input
-          type="range"
-          className={styles.range}
-          min={-10}
-          max={10}
-          value={current}
-          onChange={(e) => updateNodeParams(node.id, { value: Number(e.target.value) })}
-        />
-        <span className={styles.rangeValue}>{current}</span>
+      <label className={styles.label}>Mix ({current})</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {MIXER_VALUES.map((v) => (
+          <button
+            key={v}
+            className={styles.select}
+            style={{
+              padding: '2px 6px',
+              minWidth: '36px',
+              fontWeight: v === current ? 'bold' : 'normal',
+              opacity: v === current ? 1 : 0.7,
+            }}
+            onClick={() => {
+              updateNodeParams(node.id, { mix: v });
+              setPortConstant(node.id, 2, v);
+            }}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FaderControls({ node, updateNodeParams }: ControlProps) {
+  const setPortConstant = useGameStore((s) => s.setPortConstant);
+  const current = Number(node.params['fade'] ?? 0);
+  return (
+    <div className={styles.field}>
+      <label className={styles.label}>Fade ({current})</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {KNOB_VALUES.map((v) => (
+          <button
+            key={v}
+            className={styles.select}
+            style={{
+              padding: '2px 6px',
+              minWidth: '36px',
+              fontWeight: v === current ? 'bold' : 'normal',
+              opacity: v === current ? 1 : 0.7,
+            }}
+            onClick={() => {
+              updateNodeParams(node.id, { fade: v });
+              setPortConstant(node.id, 1, v);
+            }}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AmpControls({ node, updateNodeParams }: ControlProps) {
+  const setPortConstant = useGameStore((s) => s.setPortConstant);
+  const current = Number(node.params['gain'] ?? 0);
+  return (
+    <div className={styles.field}>
+      <label className={styles.label}>Gain ({current})</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {KNOB_VALUES.map((v) => (
+          <button
+            key={v}
+            className={styles.select}
+            style={{
+              padding: '2px 6px',
+              minWidth: '36px',
+              fontWeight: v === current ? 'bold' : 'normal',
+              opacity: v === current ? 1 : 0.7,
+            }}
+            onClick={() => {
+              updateNodeParams(node.id, { gain: v });
+              setPortConstant(node.id, 1, v);
+            }}
+          >
+            {v}
+          </button>
+        ))}
       </div>
     </div>
   );

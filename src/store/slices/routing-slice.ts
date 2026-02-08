@@ -33,8 +33,8 @@ export const createRoutingSlice: StateCreator<GameStore, [], [], RoutingSlice> =
       );
 
       // Get wire directions based on node rotations
-      const startDir = getPortWireDirection(sourceNode, wire.source.side);
-      const endDir = getPortWireDirection(targetNode, wire.target.side);
+      const startDir = getPortWireDirection(sourceNode, wire.source.side, wire.source.portIndex);
+      const endDir = getPortWireDirection(targetNode, wire.target.side, wire.target.portIndex);
 
       // Try routing with combined node + wire occupancy for collision avoidance
       const combined = mergeOccupancy(occupancy, wireOccupancy);

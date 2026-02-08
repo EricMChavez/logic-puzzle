@@ -11,39 +11,36 @@ import {
 describe('Node Registry', () => {
   describe('nodeRegistry', () => {
     it('contains all fundamental nodes', () => {
-      expect(nodeRegistry.allTypes).toContain('constant');
       expect(nodeRegistry.allTypes).toContain('inverter');
-      expect(nodeRegistry.allTypes).toContain('scaler');
-      expect(nodeRegistry.allTypes).toContain('merger');
-      expect(nodeRegistry.allTypes).toContain('splitter');
-      expect(nodeRegistry.allTypes).toContain('switch');
-      expect(nodeRegistry.allTypes).toContain('shaper');
       expect(nodeRegistry.allTypes).toContain('delay');
+      expect(nodeRegistry.allTypes).toContain('mixer');
+      expect(nodeRegistry.allTypes).toContain('amp');
+      expect(nodeRegistry.allTypes).toContain('fader');
+      expect(nodeRegistry.allTypes).toContain('polarizer');
+      expect(nodeRegistry.allTypes).toContain('shifter');
     });
 
     it('has correct count', () => {
-      expect(nodeRegistry.all).toHaveLength(8);
+      expect(nodeRegistry.all).toHaveLength(7);
     });
 
     it('has byType lookup', () => {
-      expect(nodeRegistry.byType.get('constant')).toBeDefined();
+      expect(nodeRegistry.byType.get('inverter')).toBeDefined();
       expect(nodeRegistry.byType.get('unknown')).toBeUndefined();
     });
 
     it('has byCategory lookup', () => {
-      expect(nodeRegistry.byCategory.source).toHaveLength(1);
-      expect(nodeRegistry.byCategory.math).toHaveLength(3); // inverter, scaler, merger
-      expect(nodeRegistry.byCategory.routing).toHaveLength(2); // splitter, switch
-      expect(nodeRegistry.byCategory.shaping).toHaveLength(1);
+      expect(nodeRegistry.byCategory.math).toHaveLength(4); // inverter, amp, polarizer, shifter
+      expect(nodeRegistry.byCategory.routing).toHaveLength(2); // mixer, fader
       expect(nodeRegistry.byCategory.timing).toHaveLength(1);
     });
   });
 
   describe('getNodeDefinition', () => {
     it('returns definition for known type', () => {
-      const def = getNodeDefinition('scaler');
+      const def = getNodeDefinition('amp');
       expect(def).toBeDefined();
-      expect(def?.type).toBe('scaler');
+      expect(def?.type).toBe('amp');
       expect(def?.inputs).toHaveLength(2);
     });
 
@@ -59,8 +56,8 @@ describe('Node Registry', () => {
 
   describe('isFundamentalNode', () => {
     it('returns true for fundamental types', () => {
-      expect(isFundamentalNode('constant')).toBe(true);
-      expect(isFundamentalNode('scaler')).toBe(true);
+      expect(isFundamentalNode('inverter')).toBe(true);
+      expect(isFundamentalNode('amp')).toBe(true);
       expect(isFundamentalNode('delay')).toBe(true);
     });
 
@@ -73,21 +70,21 @@ describe('Node Registry', () => {
 
   describe('getNodeLabel', () => {
     it('capitalizes first letter', () => {
-      expect(getNodeLabel('constant')).toBe('Constant');
-      expect(getNodeLabel('scaler')).toBe('Scaler');
+      expect(getNodeLabel('inverter')).toBe('Inverter');
+      expect(getNodeLabel('amp')).toBe('Amp');
       expect(getNodeLabel('delay')).toBe('Delay');
     });
   });
 
   describe('getDefaultParams', () => {
     it('returns default params for parameterized nodes', () => {
-      expect(getDefaultParams('constant')).toEqual({ value: 0 });
       expect(getDefaultParams('delay')).toEqual({ wts: 1 });
+      expect(getDefaultParams('amp')).toEqual({ gain: 0 });
     });
 
     it('returns empty object for non-parameterized nodes', () => {
       expect(getDefaultParams('inverter')).toEqual({});
-      expect(getDefaultParams('merger')).toEqual({});
+      expect(getDefaultParams('polarizer')).toEqual({});
     });
 
     it('returns empty object for unknown types', () => {
@@ -97,10 +94,8 @@ describe('Node Registry', () => {
 
   describe('CATEGORY_LABELS', () => {
     it('has labels for all categories', () => {
-      expect(CATEGORY_LABELS.source).toBe('Sources');
       expect(CATEGORY_LABELS.math).toBe('Math');
       expect(CATEGORY_LABELS.routing).toBe('Routing');
-      expect(CATEGORY_LABELS.shaping).toBe('Shaping');
       expect(CATEGORY_LABELS.timing).toBe('Timing');
       expect(CATEGORY_LABELS.custom).toBe('Custom');
     });

@@ -15,7 +15,7 @@ const DARK_VALUES: Record<string, string> = {
   '--token-signal-positive': '#e8a838',
   '--token-signal-negative': '#38b8a0',
   '--token-color-neutral': '#3a3a4a',
-  '--token-color-target': '#50c878',
+  '--token-color-target': '#c8c8d8',
   '--token-color-validation-match': '#22C55E',
   '--token-meter-needle': '#e03838',
   '--token-depth-raised': 'rgba(0, 0, 0, 0.4)',
@@ -169,7 +169,7 @@ describe('buildThemeTokens', () => {
     const tokens = buildThemeTokens();
     expect(tokens.signalPositive).toBe('#e8a838');
     expect(tokens.signalNegative).toBe('#38b8a0');
-    expect(tokens.colorTarget).toBe('#50c878');
+    expect(tokens.colorTarget).toBe('#c8c8d8');
     expect(tokens.meterNeedle).toBe('#e03838');
   });
 

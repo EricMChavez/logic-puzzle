@@ -77,10 +77,13 @@ export const createGameboardSlice: StateCreator<GameboardSlice> = (set) => ({
       const node = state.activeBoard.nodes.get(nodeId);
       const nodes = new Map(state.activeBoard.nodes);
       nodes.delete(nodeId);
+      const wires = state.activeBoard.wires.filter(
+        (w) => w.source.nodeId !== nodeId && w.target.nodeId !== nodeId
+      );
       const occupancy = state.occupancy.map((col) => [...col]);
       if (node) clearNodeOccupied(occupancy, node);
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, nodes, wires },
         graphVersion: state.graphVersion + 1,
         occupancy,
       };

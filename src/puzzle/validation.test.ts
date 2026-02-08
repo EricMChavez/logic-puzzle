@@ -133,4 +133,41 @@ describe('validateBuffers', () => {
     expect(result.matchCount).toBe(0);
     expect(result.perSample).toHaveLength(0);
   });
+
+  it('aligns newest samples when output is partially filled and target is full', () => {
+    // Target: full buffer with distinct values per position
+    const target = new MeterCircularBuffer(METER_BUFFER_CAPACITY);
+    for (let i = 0; i < METER_BUFFER_CAPACITY; i++) {
+      target.push(i); // target.at(i) = i
+    }
+
+    // Output: only 10 samples, matching the LAST 10 target values (newest-aligned)
+    const output = new MeterCircularBuffer(METER_BUFFER_CAPACITY);
+    const offset = METER_BUFFER_CAPACITY - 10;
+    for (let i = 0; i < 10; i++) {
+      output.push(offset + i); // matches target.at(offset + i)
+    }
+
+    const result = validateBuffers(output, target, 0);
+    expect(result.perSample).toHaveLength(10);
+    expect(result.matchCount).toBe(10);
+    expect(result.perSample.every(v => v)).toBe(true);
+  });
+
+  it('detects mismatches with offset alignment', () => {
+    const target = new MeterCircularBuffer(METER_BUFFER_CAPACITY);
+    for (let i = 0; i < METER_BUFFER_CAPACITY; i++) {
+      target.push(i);
+    }
+
+    // Output: 10 samples matching the FIRST 10 target values (wrong alignment)
+    const output = new MeterCircularBuffer(METER_BUFFER_CAPACITY);
+    for (let i = 0; i < 10; i++) {
+      output.push(i); // matches target.at(i) but NOT target.at(i + offset)
+    }
+
+    const result = validateBuffers(output, target, 0);
+    expect(result.perSample).toHaveLength(10);
+    expect(result.matchCount).toBe(0);
+  });
 });

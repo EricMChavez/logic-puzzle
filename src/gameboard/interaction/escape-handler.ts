@@ -27,6 +27,7 @@ export interface EscapeHandlerState {
   cancelWireDraw: () => void;
   cancelPlacing: () => void;
   cancelKeyboardWiring: () => void;
+  commitKnobAdjust: () => void;
   selectedNodeId: string | null;
   clearSelection: () => void;
   navigationDepth: number;
@@ -42,6 +43,7 @@ export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
     return state.isOverlayEscapeDismissible() ? 'close-overlay' : 'noop';
   }
   if (state.interactionMode.type === 'drawing-wire' || state.interactionMode.type === 'keyboard-wiring') return 'cancel-wiring';
+  if (state.interactionMode.type === 'adjusting-knob') return 'deselect';
   if (state.interactionMode.type === 'placing-node') return 'deselect';
   if (state.selectedNodeId !== null) return 'deselect';
   if (state.navigationDepth > 0) return 'zoom-out';
@@ -66,6 +68,8 @@ export function executeEscapeAction(state: EscapeHandlerState, action: EscapeAct
     case 'deselect':
       if (state.interactionMode.type === 'placing-node') {
         state.cancelPlacing();
+      } else if (state.interactionMode.type === 'adjusting-knob') {
+        state.commitKnobAdjust();
       } else {
         state.clearSelection();
       }

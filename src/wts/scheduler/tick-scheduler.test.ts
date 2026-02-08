@@ -35,7 +35,7 @@ function injectSignal(wire: Wire, value: number): void {
 describe('createSchedulerState', () => {
   it('initializes inputs and outputs to 0', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'merger'));
+    nodes.set('A', makeNode('A', 'shifter'));
     const state = createSchedulerState(nodes);
     const runtime = state.nodeStates.get('A')!;
     expect(runtime.inputs).toEqual([0, 0]);
@@ -153,9 +153,9 @@ describe('advanceTick — node evaluation', () => {
     expect(state.nodeStates.get('A')!.outputs[0]).toBe(-60);
   });
 
-  it('Merger node fires with two inputs', () => {
+  it('Shifter node fires with two inputs', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('M', makeNode('M', 'merger'));
+    nodes.set('M', makeNode('M', 'shifter'));
     const wires: Wire[] = [
       makeWire('w1', 'X', 0, 'M', 0),
       makeWire('w2', 'Y', 0, 'M', 1),
@@ -166,41 +166,39 @@ describe('advanceTick — node evaluation', () => {
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['M'], state);
 
-    // Merger(30, 20) = 50
+    // Shifter(30, 20) = 50
     expect(state.nodeStates.get('M')!.outputs[0]).toBe(50);
   });
 
-  it('Scaler node applies percentage scaling', () => {
+  it('Amp node applies gain scaling', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('S', makeNode('S', 'scaler'));
+    nodes.set('S', makeNode('S', 'amp'));
     const wires: Wire[] = [
       makeWire('w1', 'X', 0, 'S', 0), // A input
-      makeWire('w2', 'Y', 0, 'S', 1), // B (percentage) input
+      makeWire('w2', 'Y', 0, 'S', 1), // X (gain) input
     ];
     injectSignal(wires[0], 50); // A = 50
-    injectSignal(wires[1], 100); // B = 100 (double)
+    injectSignal(wires[1], 100); // X = 100 (double)
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['S'], state);
 
-    // Scaler(50, 100) = 50 * (1 + 100/100) = 50 * 2 = 100
+    // Amp(50, 100) = 50 * (1 + 100/100) = 50 * 2 = 100
     expect(state.nodeStates.get('S')!.outputs[0]).toBe(100);
   });
 
-  it('Shaper node polarizes with negative control', () => {
+  it('Polarizer node saturates positive input', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('P', makeNode('P', 'shaper'));
+    nodes.set('P', makeNode('P', 'polarizer', {}, 1, 1));
     const wires: Wire[] = [
       makeWire('w1', 'X', 0, 'P', 0), // A input (signal)
-      makeWire('w2', 'Y', 0, 'P', 1), // B input (control)
     ];
     injectSignal(wires[0], 50); // A = 50
-    injectSignal(wires[1], -100); // B = -100 (full polarization)
 
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['P'], state);
 
-    // Polarizer at B=-100: any non-zero value becomes ±100
+    // Polarizer: positive input → +100
     expect(state.nodeStates.get('P')!.outputs[0]).toBe(100);
   });
 
@@ -320,31 +318,33 @@ describe('advanceTick — zero-value delivery', () => {
 
   it('skips re-evaluation when arrived value matches current input', () => {
     const nodes = new Map<NodeId, NodeState>();
-    // Use constant node since it's stateless and doesn't re-evaluate on same input
-    nodes.set('C', makeNode('C', 'constant', { value: 4 }, 0, 1));
-    const wires: Wire[] = [];
+    // Use inverter — inject a signal, evaluate, then re-inject same signal
+    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
+    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
 
     const state = createSchedulerState(nodes);
 
-    // Constant outputs value * 10
-    advanceTick(wires, nodes, ['C'], state);
-    expect(state.nodeStates.get('C')!.outputs[0]).toBe(40);
+    // Inject signal and evaluate
+    injectSignal(wires[0], 50);
+    advanceTick(wires, nodes, ['A'], state);
+    expect(state.nodeStates.get('A')!.outputs[0]).toBe(-50);
 
     // Manually set output to a sentinel to detect re-evaluation
-    state.nodeStates.get('C')!.outputs[0] = 999;
+    state.nodeStates.get('A')!.outputs[0] = 999;
 
-    // Tick again - constant is stateless and no inputs changed, so no re-evaluation
-    advanceTick(wires, nodes, ['C'], state);
+    // Inject same value — input unchanged, so no re-evaluation
+    injectSignal(wires[0], 50);
+    advanceTick(wires, nodes, ['A'], state);
 
     // Output should remain at sentinel because node wasn't re-evaluated
-    expect(state.nodeStates.get('C')!.outputs[0]).toBe(999);
+    expect(state.nodeStates.get('A')!.outputs[0]).toBe(999);
   });
 });
 
 describe('advanceTick — unconnected inputs default to 0', () => {
   it('node with only one input connected uses 0 for the other', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('M', makeNode('M', 'merger'));
+    nodes.set('M', makeNode('M', 'shifter'));
     // Only connect port 0, port 1 is unconnected (defaults to 0)
     const wires: Wire[] = [makeWire('w1', 'X', 0, 'M', 0)];
     injectSignal(wires[0], 50);
@@ -352,7 +352,7 @@ describe('advanceTick — unconnected inputs default to 0', () => {
     const state = createSchedulerState(nodes);
     advanceTick(wires, nodes, ['M'], state);
 
-    // Merger(50, 0) = 50
+    // Shifter(50, 0) = 50
     expect(state.nodeStates.get('M')!.outputs[0]).toBe(50);
   });
 });

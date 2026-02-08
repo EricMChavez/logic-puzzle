@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { PUZZLE_LEVELS } from '../../puzzle/levels/index.ts';
 import { createPuzzleGameboard } from '../../puzzle/puzzle-gameboard.ts';
 import { buildConnectionPointConfig } from '../../puzzle/types.ts';
+import { exportCustomPuzzleAsSource } from '../../puzzle/export-puzzle.ts';
 import { startSimulation, stopSimulation } from '../../simulation/simulation-controller.ts';
 import styles from './LevelSelectOverlay.module.css';
 
@@ -17,7 +18,10 @@ function LevelSelectInner() {
   const openOverlay = useGameStore((s) => s.openOverlay);
   const completedLevels = useGameStore((s) => s.completedLevels);
   const customPuzzles = useGameStore((s) => s.customPuzzles);
+  const removeCustomPuzzle = useGameStore((s) => s.removeCustomPuzzle);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     panelRef.current?.focus();
@@ -45,7 +49,8 @@ function LevelSelectInner() {
     store.setCurrentLevel(index);
     store.loadPuzzle(puzzle);
     store.setActiveBoard(createPuzzleGameboard(puzzle));
-    const cpConfig = buildConnectionPointConfig(puzzle.activeInputs, puzzle.activeOutputs);
+    const cpConfig = puzzle.connectionPoints
+      ?? buildConnectionPointConfig(puzzle.activeInputs, puzzle.activeOutputs);
     store.initializeMeters(cpConfig, 'dimmed');
 
     // Start simulation and close overlay
@@ -82,6 +87,17 @@ function LevelSelectInner() {
       handleBack();
     }
   }, [handleBack]);
+
+  const handleExport = useCallback((puzzleId: string) => {
+    const puzzle = useGameStore.getState().customPuzzles.get(puzzleId);
+    if (!puzzle) return;
+
+    const source = exportCustomPuzzleAsSource(puzzle);
+    navigator.clipboard.writeText(source).then(() => {
+      setCopiedId(puzzleId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }, []);
 
   const isLevelUnlocked = useGameStore((s) => s.isLevelUnlocked);
 
@@ -142,22 +158,73 @@ function LevelSelectInner() {
               </div>
             ) : (
               <div className={styles.levelGrid}>
-                {Array.from(customPuzzles.values()).map((puzzle) => (
-                  <button
-                    key={puzzle.id}
-                    className={styles.levelCard}
-                    onClick={() => handleSelectCustomPuzzle(puzzle.id)}
-                    title={puzzle.description}
-                  >
-                    <div className={styles.levelNumber}>
-                      &#x2605;
-                    </div>
-                    <div className={styles.levelInfo}>
-                      <div className={styles.levelTitle}>{puzzle.title}</div>
-                      <div className={styles.levelDesc}>{puzzle.description}</div>
-                    </div>
-                  </button>
-                ))}
+                {Array.from(customPuzzles.values()).map((puzzle) => {
+                  const isConfirming = confirmingDeleteId === puzzle.id;
+
+                  if (isConfirming) {
+                    return (
+                      <div key={puzzle.id} className={`${styles.levelCard} ${styles.confirmCard}`}>
+                        <div className={styles.confirmText}>Delete "{puzzle.title}"?</div>
+                        <div className={styles.confirmActions}>
+                          <button
+                            className={styles.confirmYes}
+                            onClick={() => {
+                              removeCustomPuzzle(puzzle.id);
+                              setConfirmingDeleteId(null);
+                            }}
+                          >
+                            Delete
+                          </button>
+                          <button
+                            className={styles.confirmNo}
+                            onClick={() => setConfirmingDeleteId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={puzzle.id}
+                      className={styles.levelCard}
+                      onClick={() => handleSelectCustomPuzzle(puzzle.id)}
+                      title={puzzle.description}
+                    >
+                      <div className={styles.levelNumber}>
+                        &#x2605;
+                      </div>
+                      <div className={styles.levelInfo}>
+                        <div className={styles.levelTitle}>{puzzle.title}</div>
+                        <div className={styles.levelDesc}>{puzzle.description}</div>
+                      </div>
+                      <button
+                        className={styles.exportButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExport(puzzle.id);
+                        }}
+                        title="Export as TypeScript"
+                        aria-label={`Export ${puzzle.title}`}
+                      >
+                        {copiedId === puzzle.id ? 'Copied!' : 'Export'}
+                      </button>
+                      <button
+                        className={styles.deleteButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmingDeleteId(puzzle.id);
+                        }}
+                        title="Delete puzzle"
+                        aria-label={`Delete ${puzzle.title}`}
+                      >
+                        &#x2715;
+                      </button>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </section>

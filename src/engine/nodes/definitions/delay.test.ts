@@ -77,13 +77,18 @@ describe('Delay node', () => {
   });
 
   describe('parameter handling', () => {
-    it('clamps wts to 1 minimum', () => {
+    it('wts=0 passes through immediately', () => {
       const state = createDelayState();
-      // wts=0 should be treated as 1 (16 subdivisions)
-      for (let i = 0; i < 16; i++) {
-        expect(evaluate(100, 0, state).output).toEqual([0]);
-      }
-      expect(evaluate(50, 0, state).output).toEqual([100]);
+      // wts=0 means no delay — output equals input on same tick
+      expect(evaluate(100, 0, state).output).toEqual([100]);
+      expect(evaluate(-50, 0, state).output).toEqual([-50]);
+      expect(evaluate(0, 0, state).output).toEqual([0]);
+    });
+
+    it('clamps wts to 0 minimum', () => {
+      const state = createDelayState();
+      // wts=-1 should be treated as 0 (pass-through)
+      expect(evaluate(42, -1, state).output).toEqual([42]);
     });
 
     it('clamps wts to 8 maximum', () => {
@@ -138,7 +143,7 @@ describe('Delay node', () => {
       key: 'wts',
       type: 'number',
       default: 1,
-      min: 1,
+      min: 0,
       max: 8,
     });
   });

@@ -25,6 +25,8 @@ export interface UtilityNodeEntry {
   bakeMetadata: BakeMetadata;
   board: GameboardState;
   versionHash: string;
+  /** Per-CP direction layout. CPs 0-2 = left, 3-5 = right. */
+  cpLayout?: ('input' | 'output' | 'off')[];
 }
 
 export interface PaletteSlice {
@@ -91,11 +93,24 @@ export const createPaletteSlice: StateCreator<GameStore, [], [], PaletteSlice> =
       if (!existing) return {};
       const newHash = generateId();
       const next = new Map(state.utilityNodes);
-      next.set(utilityId, { ...existing, bakeMetadata: metadata, board, versionHash: newHash });
+      next.set(utilityId, {
+        ...existing,
+        bakeMetadata: metadata,
+        board,
+        versionHash: newHash,
+        inputCount: metadata.inputCount,
+        outputCount: metadata.outputCount,
+        cpLayout: metadata.cpLayout,
+      });
 
       const replacements = hotReplaceNodes(
         'utility:' + utilityId,
-        { inputCount: existing.inputCount, outputCount: existing.outputCount, libraryVersionHash: newHash },
+        {
+          inputCount: metadata.inputCount,
+          outputCount: metadata.outputCount,
+          libraryVersionHash: newHash,
+          cpLayout: metadata.cpLayout,
+        },
         state.activeBoard,
         state.boardStack,
         // Pass the updated utilityNodes map so hot-replace sees the updated board

@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   cpInputId,
   cpOutputId,
+  cpBidirectionalId,
   isConnectionPointNode,
   isConnectionInputNode,
   isConnectionOutputNode,
+  isBidirectionalCpNode,
   getConnectionPointIndex,
+  getBidirectionalCpIndex,
   createConnectionPointNode,
+  createBidirectionalConnectionPointNode,
 } from './connection-point-nodes.ts';
 
 describe('cpInputId / cpOutputId', () => {
@@ -68,5 +72,55 @@ describe('createConnectionPointNode', () => {
     expect(node.type).toBe('connection-output');
     expect(node.inputCount).toBe(1);
     expect(node.outputCount).toBe(0);
+  });
+});
+
+describe('cpBidirectionalId', () => {
+  it('generates expected ID format', () => {
+    expect(cpBidirectionalId(0)).toBe('__cp_bidir_0__');
+    expect(cpBidirectionalId(5)).toBe('__cp_bidir_5__');
+  });
+});
+
+describe('isBidirectionalCpNode', () => {
+  it('returns true for bidir CP nodes', () => {
+    expect(isBidirectionalCpNode('__cp_bidir_0__')).toBe(true);
+    expect(isBidirectionalCpNode('__cp_bidir_5__')).toBe(true);
+  });
+  it('returns false for regular CP nodes', () => {
+    expect(isBidirectionalCpNode('__cp_input_0__')).toBe(false);
+    expect(isBidirectionalCpNode('__cp_output_0__')).toBe(false);
+  });
+  it('returns false for regular node IDs', () => {
+    expect(isBidirectionalCpNode('abc123')).toBe(false);
+  });
+});
+
+describe('getBidirectionalCpIndex', () => {
+  it('extracts index from bidir CP', () => {
+    expect(getBidirectionalCpIndex('__cp_bidir_0__')).toBe(0);
+    expect(getBidirectionalCpIndex('__cp_bidir_3__')).toBe(3);
+  });
+  it('returns -1 for non-bidir IDs', () => {
+    expect(getBidirectionalCpIndex('__cp_input_0__')).toBe(-1);
+    expect(getBidirectionalCpIndex('regular-node')).toBe(-1);
+  });
+});
+
+describe('isConnectionPointNode with bidir CPs', () => {
+  it('returns true for bidir CP nodes', () => {
+    expect(isConnectionPointNode('__cp_bidir_0__')).toBe(true);
+    expect(isConnectionPointNode('__cp_bidir_5__')).toBe(true);
+  });
+});
+
+describe('createBidirectionalConnectionPointNode', () => {
+  it('creates bidir CP with 1 input and 1 output', () => {
+    const node = createBidirectionalConnectionPointNode(2);
+    expect(node.id).toBe('__cp_bidir_2__');
+    expect(node.type).toBe('connection-point');
+    expect(node.inputCount).toBe(1);
+    expect(node.outputCount).toBe(1);
+    expect(node.params.cpIndex).toBe(2);
   });
 });

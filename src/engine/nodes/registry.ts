@@ -8,14 +8,13 @@
 import type { NodeDefinition, NodeCategory, ParamValue } from './framework';
 import { createDefaultParams } from './framework';
 import {
-  constantNode,
   inverterNode,
-  scalerNode,
-  mergerNode,
-  splitterNode,
-  switchNode,
-  shaperNode,
   delayNode,
+  mixerNode,
+  ampNode,
+  faderNode,
+  polarizerNode,
+  shifterNode,
 } from './definitions';
 
 // =============================================================================
@@ -27,14 +26,13 @@ import {
  * To add a new node: import it and add it to this array.
  */
 const NODE_DEFINITIONS: readonly NodeDefinition<Record<string, ParamValue>>[] = [
-  constantNode as NodeDefinition<Record<string, ParamValue>>,
   inverterNode,
-  scalerNode,
-  mergerNode,
-  splitterNode,
-  switchNode,
-  shaperNode,
   delayNode as NodeDefinition<Record<string, ParamValue>>,
+  mixerNode as NodeDefinition<Record<string, ParamValue>>,
+  ampNode as NodeDefinition<Record<string, ParamValue>>,
+  faderNode as NodeDefinition<Record<string, ParamValue>>,
+  polarizerNode,
+  shifterNode as NodeDefinition<Record<string, ParamValue>>,
 ] as const;
 
 // =============================================================================
@@ -123,10 +121,8 @@ export type FundamentalNodeType = (typeof NODE_DEFINITIONS)[number]['type'];
  * Category labels for UI display.
  */
 export const CATEGORY_LABELS: Record<NodeCategory, string> = {
-  source: 'Sources',
   math: 'Math',
   routing: 'Routing',
-  shaping: 'Shaping',
   timing: 'Timing',
   custom: 'Custom',
 };

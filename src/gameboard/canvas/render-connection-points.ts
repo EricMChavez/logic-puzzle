@@ -2,6 +2,7 @@ import { CONNECTION_POINT_CONFIG } from '../../shared/constants/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { RenderConnectionPointsState } from './render-types.ts';
 import { getConnectionPointPosition } from './port-positions.ts';
+import { buildConnectionPointConfig, buildCustomNodeConnectionPointConfig } from '../../puzzle/types.ts';
 
 /** Draw the gameboard's input and output connection points. */
 export function renderConnectionPoints(
@@ -10,26 +11,39 @@ export function renderConnectionPoints(
   state: RenderConnectionPointsState,
   cellSize: number,
 ): void {
-  const { INPUT_COUNT, OUTPUT_COUNT, RADIUS } = CONNECTION_POINT_CONFIG;
+  const { RADIUS } = CONNECTION_POINT_CONFIG;
 
-  // Determine active CP counts from puzzle config
-  const activeInputs = state.activePuzzle?.activeInputs ?? INPUT_COUNT;
-  const activeOutputs = state.activePuzzle?.activeOutputs ?? OUTPUT_COUNT;
+  const cpConfig = state.editingUtilityId
+    ? buildCustomNodeConnectionPointConfig()
+    : state.activePuzzle?.connectionPoints
+      ?? buildConnectionPointConfig(
+        state.activePuzzle?.activeInputs ?? CONNECTION_POINT_CONFIG.INPUT_COUNT,
+        state.activePuzzle?.activeOutputs ?? CONNECTION_POINT_CONFIG.OUTPUT_COUNT,
+      );
 
-  // Input connection points (left side)
-  for (let i = 0; i < activeInputs; i++) {
-    const pos = getConnectionPointPosition('input', i, cellSize);
-    drawConnectionPoint(ctx, tokens, pos.x, pos.y, RADIUS);
-  }
-
-  // Get validation state for output glow indicators
   const showValidation = state.isSimRunning && state.activePuzzle !== null;
 
-  // Output connection points (right side)
-  for (let i = 0; i < activeOutputs; i++) {
-    const pos = getConnectionPointPosition('output', i, cellSize);
-    const matchState = showValidation && i < state.perPortMatch.length
-      ? state.perPortMatch[i]
+  // Left-side connection points
+  for (let i = 0; i < cpConfig.left.length; i++) {
+    const slot = cpConfig.left[i];
+    if (!slot.active) continue;
+    const pos = getConnectionPointPosition('left', i, cellSize);
+    // Output CPs get validation glow
+    const matchState = showValidation && slot.direction === 'output' && slot.cpIndex !== undefined
+      && slot.cpIndex < state.perPortMatch.length
+      ? state.perPortMatch[slot.cpIndex]
+      : undefined;
+    drawConnectionPoint(ctx, tokens, pos.x, pos.y, RADIUS, matchState);
+  }
+
+  // Right-side connection points
+  for (let i = 0; i < cpConfig.right.length; i++) {
+    const slot = cpConfig.right[i];
+    if (!slot.active) continue;
+    const pos = getConnectionPointPosition('right', i, cellSize);
+    const matchState = showValidation && slot.direction === 'output' && slot.cpIndex !== undefined
+      && slot.cpIndex < state.perPortMatch.length
+      ? state.perPortMatch[slot.cpIndex]
       : undefined;
     drawConnectionPoint(ctx, tokens, pos.x, pos.y, RADIUS, matchState);
   }

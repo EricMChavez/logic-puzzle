@@ -34,6 +34,9 @@ export interface ConnectionPointSlot {
   active: boolean;
   /** Direction: 'input' emits signals into the board, 'output' receives signals */
   direction: 'input' | 'output';
+  /** Sequential index within this direction type (e.g., 0th input, 1st output).
+   *  Used by the render loop to build the correct buffer key (direction:cpIndex). */
+  cpIndex?: number;
 }
 
 /**
@@ -57,24 +60,32 @@ export function buildConnectionPointConfig(
 ): ConnectionPointConfig {
   const left: ConnectionPointSlot[] = [];
   for (let i = 0; i < 3; i++) {
-    left.push({ active: i < activeInputs, direction: 'input' });
+    left.push({ active: i < activeInputs, direction: 'input', cpIndex: i });
   }
   const right: ConnectionPointSlot[] = [];
   for (let i = 0; i < 3; i++) {
-    right.push({ active: i < activeOutputs, direction: 'output' });
+    right.push({ active: i < activeOutputs, direction: 'output', cpIndex: i });
   }
   return { left, right };
 }
 
 /**
- * Build a default ConnectionPointConfig for custom/utility node gameboards.
- * All 6 slots default to active outputs; player can toggle direction.
+ * Build a ConnectionPointConfig for utility node editing (bidirectional CPs).
+ * All 6 slots are active. Left slots report as 'input', right as 'output'
+ * for hit-testing purposes (the actual direction is determined by wiring).
  */
 export function buildCustomNodeConnectionPointConfig(): ConnectionPointConfig {
-  const slot = (): ConnectionPointSlot => ({ active: true, direction: 'output' });
   return {
-    left: [slot(), slot(), slot()],
-    right: [slot(), slot(), slot()],
+    left: [
+      { active: true, direction: 'input', cpIndex: 0 },
+      { active: true, direction: 'input', cpIndex: 1 },
+      { active: true, direction: 'input', cpIndex: 2 },
+    ],
+    right: [
+      { active: true, direction: 'output', cpIndex: 0 },
+      { active: true, direction: 'output', cpIndex: 1 },
+      { active: true, direction: 'output', cpIndex: 2 },
+    ],
   };
 }
 

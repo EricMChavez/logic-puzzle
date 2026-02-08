@@ -48,6 +48,7 @@ export const createMeterSlice: StateCreator<MeterSlice> = (set) => ({
           index: i,
           visualState: leftSlot?.active ? initialState : 'hidden',
           direction: leftSlot?.direction ?? 'input',
+          cpIndex: leftSlot?.cpIndex ?? i,
         });
         const rightSlot = config.right[i];
         slots.set(meterKey('right', i), {
@@ -55,6 +56,7 @@ export const createMeterSlice: StateCreator<MeterSlice> = (set) => ({
           index: i,
           visualState: rightSlot?.active ? initialState : 'hidden',
           direction: rightSlot?.direction ?? 'output',
+          cpIndex: rightSlot?.cpIndex ?? i,
         });
       }
       return { meterSlots: slots };

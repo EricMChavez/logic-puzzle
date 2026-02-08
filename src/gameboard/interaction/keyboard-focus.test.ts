@@ -149,7 +149,7 @@ describe('keyboard-focus', () => {
       expect(targets).toHaveLength(0);
     });
 
-    it('excludes already-connected port pairs', () => {
+    it('excludes ports that already have a wire', () => {
       const nodes = new Map<string, NodeState>();
       nodes.set('n1', makeNode('n1', 'invert', 3, 2, 1, 1));
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5, 2, 1));
@@ -158,9 +158,28 @@ describe('keyboard-focus', () => {
       const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, wires);
 
-      // Only n2:input:1 since n2:input:0 already connected to n1:output:0
+      // Only n2:input:1 since n2:input:0 is occupied
       expect(targets).toHaveLength(1);
       expect(targets[0]).toEqual({ nodeId: 'n2', portIndex: 1, side: 'input' });
+    });
+
+    it('excludes ports wired to a different source', () => {
+      const nodes = new Map<string, NodeState>();
+      nodes.set('n1', makeNode('n1', 'invert', 3, 2, 1, 1));
+      nodes.set('n2', makeNode('n2', 'invert', 10, 5, 1, 1));
+      nodes.set('n3', makeNode('n3', 'multiply', 15, 5, 2, 1));
+
+      // n2:output:0 → n3:input:0 already wired
+      const wires = [makeWire('w1', 'n2', 0, 'n3', 0)];
+      const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
+      const targets = computeValidWiringTargets(fromPort, nodes, wires);
+
+      // n2:input:0 is free, n3:input:0 is occupied, n3:input:1 is free
+      expect(targets).toHaveLength(2);
+      expect(targets).toEqual(expect.arrayContaining([
+        { nodeId: 'n2', portIndex: 0, side: 'input' },
+        { nodeId: 'n3', portIndex: 1, side: 'input' },
+      ]));
     });
 
     it('includes connection-point virtual node ports', () => {

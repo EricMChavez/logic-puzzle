@@ -3,6 +3,7 @@ import type { NodeState, NodeRotation } from '../types/index.ts';
 import type { PuzzleNodeEntry, UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { getRotatedSize } from './rotation.ts';
+import { getNodeDefinition } from '../../engine/nodes/registry.ts';
 
 // --- Per-category grid sizing constants ---
 
@@ -35,7 +36,7 @@ export function getNodeGridSize(node: NodeState): { cols: number; rows: number }
   let cols: number;
   let rows: number;
 
-  if (node.type.startsWith('utility:')) {
+  if (node.type.startsWith('utility:') || node.type === 'custom-blank') {
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (node.type.startsWith('puzzle:')) {
@@ -43,8 +44,15 @@ export function getNodeGridSize(node: NodeState): { cols: number; rows: number }
     cols = PUZZLE_GRID_COLS;
     rows = Math.max(PUZZLE_MIN_GRID_ROWS, maxPorts + 1);
   } else {
-    cols = FUNDAMENTAL_GRID_COLS;
-    rows = FUNDAMENTAL_GRID_ROWS;
+    // Look up definition for per-node size (e.g. mixer is 3x3, not 3x2)
+    const def = getNodeDefinition(node.type);
+    if (def) {
+      cols = def.size.width;
+      rows = def.size.height;
+    } else {
+      cols = FUNDAMENTAL_GRID_COLS;
+      rows = FUNDAMENTAL_GRID_ROWS;
+    }
   }
 
   // Apply rotation
@@ -70,7 +78,7 @@ export function getNodeGridSizeFromType(
   let cols: number;
   let rows: number;
 
-  if (nodeType.startsWith('utility:')) {
+  if (nodeType.startsWith('utility:') || nodeType === 'custom-blank') {
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (nodeType.startsWith('puzzle:')) {
@@ -85,8 +93,14 @@ export function getNodeGridSizeFromType(
       rows = PUZZLE_MIN_GRID_ROWS;
     }
   } else {
-    cols = FUNDAMENTAL_GRID_COLS;
-    rows = FUNDAMENTAL_GRID_ROWS;
+    const def = getNodeDefinition(nodeType);
+    if (def) {
+      cols = def.size.width;
+      rows = def.size.height;
+    } else {
+      cols = FUNDAMENTAL_GRID_COLS;
+      rows = FUNDAMENTAL_GRID_ROWS;
+    }
   }
 
   return getRotatedSize(cols, rows, rotation);
@@ -238,19 +252,25 @@ export function canMoveNode(
 
   // Get the size with the new rotation
   const rotation = newRotation ?? node.rotation ?? 0;
-  const { cols, rows } = getRotatedSize(
-    node.type.startsWith('utility:')
-      ? UTILITY_GRID_COLS
-      : node.type.startsWith('puzzle:')
-        ? PUZZLE_GRID_COLS
-        : FUNDAMENTAL_GRID_COLS,
-    node.type.startsWith('utility:')
-      ? UTILITY_GRID_ROWS
-      : node.type.startsWith('puzzle:')
-        ? Math.max(PUZZLE_MIN_GRID_ROWS, Math.max(node.inputCount, node.outputCount) + 1)
-        : FUNDAMENTAL_GRID_ROWS,
-    rotation,
-  );
+  let baseCols: number;
+  let baseRows: number;
+  if (node.type.startsWith('utility:') || node.type === 'custom-blank') {
+    baseCols = UTILITY_GRID_COLS;
+    baseRows = UTILITY_GRID_ROWS;
+  } else if (node.type.startsWith('puzzle:')) {
+    baseCols = PUZZLE_GRID_COLS;
+    baseRows = Math.max(PUZZLE_MIN_GRID_ROWS, Math.max(node.inputCount, node.outputCount) + 1);
+  } else {
+    const def = getNodeDefinition(node.type);
+    if (def) {
+      baseCols = def.size.width;
+      baseRows = def.size.height;
+    } else {
+      baseCols = FUNDAMENTAL_GRID_COLS;
+      baseRows = FUNDAMENTAL_GRID_ROWS;
+    }
+  }
+  const { cols, rows } = getRotatedSize(baseCols, baseRows, rotation);
 
   // Check if the new position is valid
   return canPlaceNode(tempGrid, newCol, newRow, cols, rows);

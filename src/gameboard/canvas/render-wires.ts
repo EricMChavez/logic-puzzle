@@ -105,20 +105,28 @@ function getPortPixelPosition(
   cellSize: number,
 ): { x: number; y: number } | null {
   if (isConnectionPointNode(nodeId)) {
-    let cpSide: 'input' | 'output';
-    let cpIndex: number;
+    let physicalSide: 'left' | 'right';
+    let meterIndex: number;
 
     if (isCreativeSlotNode(nodeId)) {
-      // Creative slots: 0-2 are left (input side), 3-5 are right (output side)
+      // Creative slots: 0-2 are left, 3-5 are right
       const slotIndex = getCreativeSlotIndex(nodeId);
-      cpSide = slotIndex < 3 ? 'input' : 'output';
-      cpIndex = slotIndex < 3 ? slotIndex : slotIndex - 3;
+      physicalSide = slotIndex < 3 ? 'left' : 'right';
+      meterIndex = slotIndex < 3 ? slotIndex : slotIndex - 3;
     } else {
-      cpSide = isConnectionInputNode(nodeId) ? 'input' : 'output';
-      cpIndex = getConnectionPointIndex(nodeId);
+      // Standard CP nodes: check for physicalSide in params (custom puzzles),
+      // fall back to direction-based mapping (standard puzzles)
+      const node = nodes.get(nodeId);
+      if (node?.params.physicalSide) {
+        physicalSide = node.params.physicalSide as 'left' | 'right';
+        meterIndex = node.params.meterIndex as number;
+      } else {
+        physicalSide = isConnectionInputNode(nodeId) ? 'left' : 'right';
+        meterIndex = getConnectionPointIndex(nodeId);
+      }
     }
 
-    return getConnectionPointPosition(cpSide, cpIndex, cellSize);
+    return getConnectionPointPosition(physicalSide, meterIndex, cellSize);
   }
   const node = nodes.get(nodeId);
   if (!node) return null;

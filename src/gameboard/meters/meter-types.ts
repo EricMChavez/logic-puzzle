@@ -32,6 +32,8 @@ export interface MeterSlotState {
   visualState: MeterVisualState;
   /** Direction of the associated connection point */
   direction: 'input' | 'output';
+  /** Sequential index within this direction type (for buffer key lookup) */
+  cpIndex?: number;
 }
 
 /** Build a MeterKey from side + index */

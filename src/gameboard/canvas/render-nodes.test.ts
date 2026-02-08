@@ -58,6 +58,7 @@ function makeState(overrides: Partial<RenderNodesState> = {}): RenderNodesState 
     nodes: new Map(),
     selectedNodeId: null,
     hoveredNodeId: null,
+    knobValues: new Map(),
     ...overrides,
   };
 }

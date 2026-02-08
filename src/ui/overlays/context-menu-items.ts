@@ -36,7 +36,7 @@ export function buildContextMenuItems(
       items.push({ id: 'inspect', label: 'Inspect', action: 'inspect' });
     }
 
-    if (target.nodeType.startsWith('utility:')) {
+    if (target.nodeType.startsWith('utility:') || target.nodeType === 'custom-blank') {
       items.push({ id: 'edit', label: 'Edit', action: 'edit' });
     }
 
@@ -52,5 +52,5 @@ export function buildContextMenuItems(
 
 /** Returns true for node types that have user-editable parameters */
 export function hasEditableParams(nodeType: string): boolean {
-  return nodeType === 'mix' || nodeType === 'threshold' || nodeType === 'delay' || nodeType === 'constant';
+  return nodeType === 'mix' || nodeType === 'threshold' || nodeType === 'delay' || nodeType === 'mixer' || nodeType === 'amp' || nodeType === 'fader';
 }

@@ -63,6 +63,8 @@ function createMockCtx() {
     moveTo: vi.fn(),
     lineTo: vi.fn(),
     stroke: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
     save: vi.fn(),
     restore: vi.fn(),
     createLinearGradient: vi.fn(() => mockGradient),
@@ -136,86 +138,67 @@ describe('drawGrid', () => {
     });
   });
 
-  describe('grid lines', () => {
-    it('draws vertical lines at playable area cell boundaries', () => {
+  describe('dot matrix', () => {
+    it('draws dots at interior grid intersections (edges excluded)', () => {
       const cellSize = 50;
       drawGrid(ctx, tokens, {}, cellSize);
 
-      const moveToCalls = (ctx.moveTo as ReturnType<typeof vi.fn>).mock.calls;
-      const lineToCalls = (ctx.lineTo as ReturnType<typeof vi.fn>).mock.calls;
+      const arcCalls = (ctx.arc as ReturnType<typeof vi.fn>).mock.calls;
 
-      // Vertical lines: from PLAYABLE_START to PLAYABLE_END + 1 (inclusive)
-      const expectedVerticals = PLAYABLE_END - PLAYABLE_START + 2;
-      // Horizontal lines: from row 0 to GRID_ROWS (inclusive)
-      const expectedHorizontals = GRID_ROWS + 1;
-      const gridLines = expectedVerticals + expectedHorizontals;
+      // Interior dots only: exclude first/last col and first/last row
+      const expectedCols = PLAYABLE_END - PLAYABLE_START; // +1 to END, -1 from START, so END - START
+      const expectedRows = GRID_ROWS - 1; // rows 1 to GRID_ROWS-1
+      const expectedDots = expectedCols * expectedRows;
 
-      expect(moveToCalls).toHaveLength(gridLines);
-      expect(lineToCalls).toHaveLength(gridLines);
-
-      // Verify first vertical line position
-      const firstVerticalX = PLAYABLE_START * cellSize + 0.5;
-      expect(moveToCalls[0][0]).toBe(firstVerticalX);
-      expect(moveToCalls[0][1]).toBe(0);
-      expect(lineToCalls[0][0]).toBe(firstVerticalX);
-      expect(lineToCalls[0][1]).toBe(GRID_ROWS * cellSize);
+      expect(arcCalls).toHaveLength(expectedDots);
     });
 
-    it('draws horizontal lines across playable area width', () => {
+    it('places first dot one cell inset from top-left corner', () => {
       const cellSize = 50;
       drawGrid(ctx, tokens, {}, cellSize);
 
-      const moveToCalls = (ctx.moveTo as ReturnType<typeof vi.fn>).mock.calls;
-      const lineToCalls = (ctx.lineTo as ReturnType<typeof vi.fn>).mock.calls;
+      const arcCalls = (ctx.arc as ReturnType<typeof vi.fn>).mock.calls;
 
-      const expectedVerticals = PLAYABLE_END - PLAYABLE_START + 2;
-
-      // First horizontal line is at index expectedVerticals
-      const firstHorizIdx = expectedVerticals;
-      const firstHorizY = 0 * cellSize + 0.5;
-      const playableLeft = PLAYABLE_START * cellSize + 0.5;
-      const playableRight = (PLAYABLE_END + 1) * cellSize + 0.5;
-      expect(moveToCalls[firstHorizIdx][0]).toBe(playableLeft);
-      expect(moveToCalls[firstHorizIdx][1]).toBe(firstHorizY);
-      expect(lineToCalls[firstHorizIdx][0]).toBe(playableRight);
-      expect(lineToCalls[firstHorizIdx][1]).toBe(firstHorizY);
+      // First dot: col = PLAYABLE_START + 1, row = 1
+      const [x, y] = arcCalls[0];
+      expect(x).toBe((PLAYABLE_START + 1) * cellSize);
+      expect(y).toBe(1 * cellSize);
     });
 
-    it('includes gridLine in stroke calls', () => {
+    it('uses a single fill call for all dots', () => {
+      drawGrid(ctx, tokens, {}, 40);
+      expect(ctx.fill).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not use stroke for dot matrix', () => {
+      drawGrid(ctx, tokens, {}, 40);
+      expect(ctx.stroke).not.toHaveBeenCalled();
+    });
+
+    it('uses gridLine color as fill style', () => {
       const customTokens = makeTokens({ gridLine: '#ff0000' });
       drawGrid(ctx, customTokens, {}, 40);
-      // strokeStyle is set multiple times; verify grid line was drawn
-      expect(ctx.stroke).toHaveBeenCalled();
-    });
-
-    it('calls stroke once for grid lines', () => {
-      drawGrid(ctx, tokens, {}, 40);
-      // Single stroke call for all grid lines batched into one beginPath
-      expect(ctx.stroke).toHaveBeenCalledTimes(1);
-    });
-
-    it('sets line width for grid lines', () => {
-      drawGrid(ctx, tokens, {}, 40);
-      // Grid lines use lineWidth 1
-      expect(ctx.lineWidth).toBe(1);
+      // fill was called, meaning dots were drawn with the gridLine color
+      expect(ctx.fill).toHaveBeenCalled();
     });
   });
 
-  describe('grid lines at different cell sizes', () => {
+  describe('dot matrix at different cell sizes', () => {
     const testSizes = [32, 40, 60, 80];
 
     for (const cellSize of testSizes) {
       it(`renders correct positions at cellSize=${cellSize}`, () => {
         drawGrid(ctx, tokens, {}, cellSize);
 
-        const moveToCalls = (ctx.moveTo as ReturnType<typeof vi.fn>).mock.calls;
+        const arcCalls = (ctx.arc as ReturnType<typeof vi.fn>).mock.calls;
 
-        // Check that the first vertical line is at PLAYABLE_START * cellSize + 0.5
-        expect(moveToCalls[0][0]).toBe(PLAYABLE_START * cellSize + 0.5);
+        // First dot at (PLAYABLE_START + 1) * cellSize, 1 * cellSize
+        expect(arcCalls[0][0]).toBe((PLAYABLE_START + 1) * cellSize);
+        expect(arcCalls[0][1]).toBe(1 * cellSize);
 
-        // Check last vertical line position
-        const lastVertIdx = PLAYABLE_END - PLAYABLE_START + 1;
-        expect(moveToCalls[lastVertIdx][0]).toBe((PLAYABLE_END + 1) * cellSize + 0.5);
+        // Dot radius scales with cellSize
+        const expectedRadius = Math.max(1, cellSize * 0.06);
+        expect(arcCalls[0][2]).toBeCloseTo(expectedRadius);
       });
     }
   });

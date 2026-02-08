@@ -5,6 +5,7 @@
 
 import type { PortRef, NodeState, Wire } from '../../shared/types/index.ts';
 import type { PuzzleDefinition } from '../../puzzle/types.ts';
+import { buildConnectionPointConfig } from '../../puzzle/types.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { CONNECTION_POINT_CONFIG } from '../../shared/constants/index.ts';
 
@@ -92,13 +93,22 @@ export function computeTabOrder(
     }
   }
 
-  // Active connection points (inputs then outputs)
+  // Active connection points (left side then right side)
   if (activePuzzle) {
-    for (let i = 0; i < Math.min(activePuzzle.activeInputs, CONNECTION_POINT_CONFIG.INPUT_COUNT); i++) {
-      order.push({ type: 'connection-point', side: 'input', index: i });
+    const cpConfig = activePuzzle.connectionPoints
+      ?? buildConnectionPointConfig(activePuzzle.activeInputs, activePuzzle.activeOutputs);
+
+    for (let i = 0; i < cpConfig.left.length; i++) {
+      const slot = cpConfig.left[i];
+      if (slot.active) {
+        order.push({ type: 'connection-point', side: slot.direction, index: slot.cpIndex ?? i });
+      }
     }
-    for (let i = 0; i < Math.min(activePuzzle.activeOutputs, CONNECTION_POINT_CONFIG.OUTPUT_COUNT); i++) {
-      order.push({ type: 'connection-point', side: 'output', index: i });
+    for (let i = 0; i < cpConfig.right.length; i++) {
+      const slot = cpConfig.right[i];
+      if (slot.active) {
+        order.push({ type: 'connection-point', side: slot.direction, index: slot.cpIndex ?? i });
+      }
     }
   }
 
@@ -122,10 +132,11 @@ export function computeValidWiringTargets(
   const targets: PortRef[] = [];
   const targetSide = fromPort.side === 'output' ? 'input' : 'output';
 
-  // Build a set of already-connected port pairs
-  const connectedPairs = new Set<string>();
+  // Build a set of occupied ports (each port can only have one wire)
+  const occupiedPorts = new Set<string>();
   for (const wire of wires) {
-    connectedPairs.add(`${wire.source.nodeId}:${wire.source.portIndex}:${wire.target.nodeId}:${wire.target.portIndex}`);
+    occupiedPorts.add(`${wire.source.nodeId}:${wire.source.portIndex}:output`);
+    occupiedPorts.add(`${wire.target.nodeId}:${wire.target.portIndex}:input`);
   }
 
   for (const node of nodes.values()) {
@@ -135,14 +146,10 @@ export function computeValidWiringTargets(
     for (let i = 0; i < portCount; i++) {
       const candidate: PortRef = { nodeId: node.id, portIndex: i, side: targetSide };
 
-      // Check if already connected
-      const pairKey = fromPort.side === 'output'
-        ? `${fromPort.nodeId}:${fromPort.portIndex}:${candidate.nodeId}:${candidate.portIndex}`
-        : `${candidate.nodeId}:${candidate.portIndex}:${fromPort.nodeId}:${fromPort.portIndex}`;
+      // Skip if this port already has a wire
+      if (occupiedPorts.has(`${candidate.nodeId}:${candidate.portIndex}:${candidate.side}`)) continue;
 
-      if (!connectedPairs.has(pairKey)) {
-        targets.push(candidate);
-      }
+      targets.push(candidate);
     }
   }
 

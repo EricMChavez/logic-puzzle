@@ -12,6 +12,12 @@ import type { UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
 import type { PuzzleDefinition } from '../../puzzle/types.ts';
 import type { MeterKey, MeterSlotState } from '../meters/meter-types.ts';
 
+/** Knob display state for a knob-equipped node (mixer, amp, etc.) */
+export interface KnobInfo {
+  value: number;
+  isWired: boolean;
+}
+
 /** State needed by drawNodes */
 export interface RenderNodesState {
   puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
@@ -19,6 +25,7 @@ export interface RenderNodesState {
   nodes: ReadonlyMap<string, NodeState>;
   selectedNodeId: string | null;
   hoveredNodeId: string | null;
+  knobValues: ReadonlyMap<string, KnobInfo>;
 }
 
 /** State needed by renderConnectionPoints */
@@ -26,6 +33,8 @@ export interface RenderConnectionPointsState {
   activePuzzle: PuzzleDefinition | null;
   perPortMatch: readonly boolean[];
   isSimRunning: boolean;
+  /** Non-null when editing a utility node (bidirectional CPs) */
+  editingUtilityId?: string | null;
 }
 
 /** State needed by drawGrid */

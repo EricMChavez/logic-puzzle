@@ -83,6 +83,27 @@ describe('meter-slice', () => {
     expect(get().meterSlots.size).toBe(before.size);
   });
 
+  it('initializeMeters passes cpIndex through from config', () => {
+    const { get, actions } = createTestSlice();
+    const config: ConnectionPointConfig = {
+      left: [
+        { active: true, direction: 'output', cpIndex: 0 },
+        { active: false, direction: 'input' },
+        { active: false, direction: 'input' },
+      ],
+      right: [
+        { active: false, direction: 'output' },
+        { active: true, direction: 'input', cpIndex: 0 },
+        { active: false, direction: 'output' },
+      ],
+    };
+    actions.initializeMeters(config);
+    expect(get().meterSlots.get(meterKey('left', 0))!.cpIndex).toBe(0);
+    expect(get().meterSlots.get(meterKey('left', 0))!.direction).toBe('output');
+    expect(get().meterSlots.get(meterKey('right', 1))!.cpIndex).toBe(0);
+    expect(get().meterSlots.get(meterKey('right', 1))!.direction).toBe('input');
+  });
+
   it('resetMeters restores all to hidden defaults', () => {
     const { get, actions } = createTestSlice();
     actions.setMeterVisualState(meterKey('left', 0), 'active');

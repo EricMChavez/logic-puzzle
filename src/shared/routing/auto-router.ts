@@ -5,8 +5,10 @@ import { getNodeGridSize } from '../grid/occupancy.ts';
 import {
   getRotatedPortSide,
   getPortOffset,
+  rotateExplicitSide,
   type PortSide,
 } from '../grid/rotation.ts';
+import { getNodeDefinition } from '../../engine/nodes/registry.ts';
 import {
   isConnectionPointNode,
   isConnectionInputNode,
@@ -62,34 +64,88 @@ export function portSideToWireDirection(portSide: PortSide): number {
  * is opposite to the port's facing direction. A wire entering a LEFT-side port
  * is traveling EAST, not WEST.
  */
+/**
+ * Resolve the physical side for a specific port, accounting for per-port side overrides.
+ */
+function resolvePortSide(
+  node: NodeState,
+  side: 'input' | 'output',
+  portIndex: number,
+): PortSide {
+  const rotation: NodeRotation = node.rotation ?? 0;
+  const def = getNodeDefinition(node.type);
+  if (def) {
+    const ports = side === 'input' ? def.inputs : def.outputs;
+    const portDef = ports[portIndex];
+    if (portDef?.side) {
+      return rotateExplicitSide(portDef.side, rotation);
+    }
+  }
+  return getRotatedPortSide(side, rotation);
+}
+
+/**
+ * Count ports on a specific physical side (across both inputs and outputs).
+ */
+function countPortsOnSide(
+  node: NodeState,
+  physicalSide: PortSide,
+): { inputCount: number; outputCount: number } {
+  let inputCount = 0;
+  let outputCount = 0;
+  for (let i = 0; i < node.inputCount; i++) {
+    if (resolvePortSide(node, 'input', i) === physicalSide) inputCount++;
+  }
+  for (let i = 0; i < node.outputCount; i++) {
+    if (resolvePortSide(node, 'output', i) === physicalSide) outputCount++;
+  }
+  return { inputCount, outputCount };
+}
+
+/**
+ * Get a port's index among ports on the same physical side.
+ */
+function getPortIndexOnPhysicalSide(
+  node: NodeState,
+  side: 'input' | 'output',
+  portIndex: number,
+  physicalSide: PortSide,
+): number {
+  let idx = 0;
+  for (let i = 0; i < portIndex; i++) {
+    if (resolvePortSide(node, side, i) === physicalSide) idx++;
+  }
+  return idx;
+}
+
 export function getPortWireDirection(
   node: NodeState,
   side: 'input' | 'output',
+  portIndex: number = 0,
 ): number {
   if (isConnectionPointNode(node.id)) {
-    // Connection points are always horizontal
-    // Wire direction is the direction the wire TRAVELS, not the port facing direction
-    // Left side (input CPs): wires exit traveling EAST
-    // Right side (output CPs): wires arrive traveling EAST (into the port)
+    // Determine which physical side the CP is on
+    let isLeftPhysical: boolean;
     if (isCreativeSlotNode(node.id)) {
-      const slotIndex = getCreativeSlotIndex(node.id);
-      // Slots 0-2 on left, slots 3-5 on right - all wires travel EAST
-      return DIR_E;
+      isLeftPhysical = getCreativeSlotIndex(node.id) < 3;
+    } else if (node.params.physicalSide) {
+      isLeftPhysical = node.params.physicalSide === 'left';
+    } else {
+      isLeftPhysical = isConnectionInputNode(node.id);
     }
-    // Regular connection points: input on left (exit E), output on right (arrive E)
-    return DIR_E;
+    // Facing direction: left CPs face east, right CPs face west
+    const facingDir = isLeftPhysical ? DIR_E : DIR_W;
+    // Output port (source): wire exits in facing direction
+    // Input port (target): wire enters from opposite direction
+    return side === 'output' ? facingDir : (facingDir + 4) % 8;
   }
 
-  const rotation: NodeRotation = node.rotation ?? 0;
-  const portSide = getRotatedPortSide(side, rotation);
+  const portSide = resolvePortSide(node, side, portIndex);
   const portFacingDir = portSideToWireDirection(portSide);
 
   if (side === 'output') {
-    // Output port: wire exits in the direction the port faces
     return portFacingDir;
   } else {
-    // Input port: wire arrives traveling INTO the port (opposite direction)
-    // Flip the direction: E<->W, N<->S
     return (portFacingDir + 4) % 8;
   }
 }
@@ -115,24 +171,30 @@ export function getPortGridAnchor(
   portIndex: number,
 ): GridPoint {
   if (isConnectionPointNode(node.id)) {
-    return getConnectionPointAnchor(node.id);
+    return getConnectionPointAnchor(node);
   }
 
-  const rotation: NodeRotation = node.rotation ?? 0;
   const { cols, rows } = getNodeGridSize(node);
-  const count = side === 'input' ? node.inputCount : node.outputCount;
 
-  // Get the physical side where this port is located
-  const portSide = getRotatedPortSide(side, rotation);
+  // Get the physical side for this specific port (handles per-port overrides)
+  const portSide = resolvePortSide(node, side, portIndex);
+
+  // Count ports on this same physical side (across both inputs and outputs)
+  const { inputCount: sameInputs, outputCount: sameOutputs } = countPortsOnSide(node, portSide);
+  const totalOnSide = sameInputs + sameOutputs;
+
+  // Get this port's index within ports on this side (inputs first, then outputs)
+  const indexOnSide = side === 'input'
+    ? getPortIndexOnPhysicalSide(node, 'input', portIndex, portSide)
+    : sameInputs + getPortIndexOnPhysicalSide(node, 'output', portIndex, portSide);
 
   // Get the port's offset from node's top-left
-  const offset = getPortOffset(cols, rows, count, portIndex, portSide);
+  const offset = getPortOffset(cols, rows, totalOnSide, indexOnSide, portSide);
 
   // Compute anchor one cell outside the node on the port's side
   const nodeCol = node.position.col;
   const nodeRow = node.position.row;
 
-  // Port offsets are always integers, so anchor positions are on grid lines
   switch (portSide) {
     case 'left':
       return { col: nodeCol - 1, row: nodeRow + offset.row };
@@ -154,18 +216,23 @@ export function getPortGridAnchor(
  * - No margin, meters fill full height (6 rows each, no gaps)
  * - CP row = floor(index * stride + METER_GRID_ROWS / 2)
  */
-function getConnectionPointAnchor(nodeId: string): GridPoint {
-  let isInput: boolean;
+function getConnectionPointAnchor(node: NodeState): GridPoint {
+  let isLeftSide: boolean;
   let index: number;
 
-  if (isCreativeSlotNode(nodeId)) {
+  if (isCreativeSlotNode(node.id)) {
     // Creative slots: 0-2 are left (input side), 3-5 are right (output side)
-    const slotIndex = getCreativeSlotIndex(nodeId);
-    isInput = slotIndex < 3;
-    index = isInput ? slotIndex : slotIndex - 3;
+    const slotIndex = getCreativeSlotIndex(node.id);
+    isLeftSide = slotIndex < 3;
+    index = isLeftSide ? slotIndex : slotIndex - 3;
+  } else if (node.params.physicalSide) {
+    // Custom puzzle: use explicit physical side and meter index
+    isLeftSide = node.params.physicalSide === 'left';
+    index = node.params.meterIndex as number;
   } else {
-    isInput = isConnectionInputNode(nodeId);
-    index = getConnectionPointIndex(nodeId);
+    // Standard puzzle: input→left, output→right
+    isLeftSide = isConnectionInputNode(node.id);
+    index = getConnectionPointIndex(node.id);
   }
 
   // Match meter layout: no margin, meters fill full height
@@ -174,8 +241,8 @@ function getConnectionPointAnchor(nodeId: string): GridPoint {
   const verticalOffset = METER_VERTICAL_OFFSETS[index] ?? 0;
   const row = Math.floor(meterTopMargin + index * meterStride + verticalOffset + METER_GRID_ROWS / 2);
 
-  // Output CPs render at METER_RIGHT_START (PLAYABLE_END + 1), so anchor there
-  const col = isInput ? PLAYABLE_START : PLAYABLE_END + 1;
+  // Left CPs anchor at PLAYABLE_START, right CPs at PLAYABLE_END + 1
+  const col = isLeftSide ? PLAYABLE_START : PLAYABLE_END + 1;
   return { col, row };
 }
 

@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { slotToMeterInfo } from '../../store/slices/creative-slice.ts';
+import { TRIM_WINDOW_WTS } from '../../store/slices/authoring-slice.ts';
 import styles from './TrimDialog.module.css';
-
-/** Samples per WTS (16 subdivisions) */
-const SAMPLES_PER_WTS = 16;
 
 export function TrimDialog() {
   const overlay = useGameStore((s) => s.activeOverlay);
@@ -19,12 +17,15 @@ function TrimDialogInner() {
   const openOverlay = useGameStore((s) => s.openOverlay);
   const trimBufferSnapshot = useGameStore((s) => s.trimBufferSnapshot);
   const trimConfig = useGameStore((s) => s.trimConfig);
-  const setTrimBounds = useGameStore((s) => s.setTrimBounds);
+  const totalWTS = useGameStore((s) => s.trimTotalWTS);
+  const slideTrimWindow = useGameStore((s) => s.slideTrimWindow);
   const creativeSlots = useGameStore((s) => s.creativeSlots);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
-  const [canvasWidth, setCanvasWidth] = useState(600);
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWTSRef = useRef(0);
+  const canvasWidth = 600;
   const canvasHeight = 200;
 
   // Find output slots with data
@@ -32,14 +33,25 @@ function TrimDialogInner() {
     .map((slot, index) => ({ slot, index }))
     .filter(({ slot }) => slot.direction === 'output');
 
-  // Get the first output buffer to determine total duration
-  const firstOutputSlotIndex = outputSlots[0]?.index ?? 3;
-  const firstBuffer = trimBufferSnapshot?.get(firstOutputSlotIndex) ?? [];
-  const totalSamples = firstBuffer.length;
-  const totalWTS = Math.floor(totalSamples / SAMPLES_PER_WTS);
+  // Determine graph direction: right-side outputs → reversed (newest on left)
+  const reversed = outputSlots.length > 0 && slotToMeterInfo(outputSlots[0].index).side === 'right';
 
   const { startWTS, endWTS } = trimConfig;
-  const durationWTS = endWTS - startWTS;
+  const notEnoughData = totalWTS < TRIM_WINDOW_WTS;
+
+  /** Map a WTS position to an x coordinate, respecting reversal */
+  const wtsToX = useCallback((wts: number, width: number): number => {
+    if (totalWTS === 0) return 0;
+    const fraction = wts / totalWTS;
+    return reversed ? width - fraction * width : fraction * width;
+  }, [totalWTS, reversed]);
+
+  /** Map an x coordinate to a WTS position, respecting reversal */
+  const xToWts = useCallback((x: number, width: number): number => {
+    if (totalWTS === 0) return 0;
+    const fraction = x / width;
+    return reversed ? (1 - fraction) * totalWTS : fraction * totalWTS;
+  }, [totalWTS, reversed]);
 
   // Draw waveform
   useEffect(() => {
@@ -61,7 +73,7 @@ function TrimDialogInner() {
     ctx.strokeStyle = '#2a2a4e';
     ctx.lineWidth = 1;
     for (let wts = 0; wts <= totalWTS; wts++) {
-      const x = (wts / totalWTS) * width;
+      const x = wtsToX(wts, width);
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
@@ -88,7 +100,9 @@ function TrimDialogInner() {
       ctx.beginPath();
 
       for (let i = 0; i < buffer.length; i++) {
-        const x = (i / buffer.length) * width;
+        const x = reversed
+          ? width - (i / buffer.length) * width
+          : (i / buffer.length) * width;
         const normalizedValue = buffer[i] / 100; // -1 to 1
         const y = midY - normalizedValue * (height / 2 - 10);
 
@@ -102,69 +116,105 @@ function TrimDialogInner() {
       colorIndex++;
     }
 
+    if (notEnoughData) return; // Don't draw selection if not enough data
+
     // Draw selection region
-    const startX = (startWTS / totalWTS) * width;
-    const endX = (endWTS / totalWTS) * width;
+    const selStartX = wtsToX(startWTS, width);
+    const selEndX = wtsToX(endWTS, width);
+    const leftX = Math.min(selStartX, selEndX);
+    const rightX = Math.max(selStartX, selEndX);
 
     // Dim areas outside selection
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, startX, height);
-    ctx.fillRect(endX, 0, width - endX, height);
+    ctx.fillRect(0, 0, leftX, height);
+    ctx.fillRect(rightX, 0, width - rightX, height);
 
-    // Draw selection handles
-    ctx.fillStyle = '#F5AF28';
-    ctx.fillRect(startX - 3, 0, 6, height);
-    ctx.fillRect(endX - 3, 0, 6, height);
-
-    // Draw selection border
+    // Draw selection border and fill
     ctx.strokeStyle = '#F5AF28';
     ctx.lineWidth = 2;
-    ctx.strokeRect(startX, 0, endX - startX, height);
-  }, [trimBufferSnapshot, startWTS, endWTS, totalWTS, outputSlots, canvasWidth, canvasHeight]);
+    ctx.strokeRect(leftX, 0, rightX - leftX, height);
+    ctx.fillStyle = 'rgba(245, 175, 40, 0.08)';
+    ctx.fillRect(leftX, 0, rightX - leftX, height);
+  }, [trimBufferSnapshot, startWTS, endWTS, totalWTS, outputSlots, canvasWidth, canvasHeight, reversed, wtsToX, notEnoughData]);
+
+  // Store latest values in refs so document-level listeners always see current state
+  const startWTSRef = useRef(startWTS);
+  const endWTSRef = useRef(endWTS);
+  const totalWTSRef = useRef(totalWTS);
+  const reversedRef = useRef(reversed);
+  startWTSRef.current = startWTS;
+  endWTSRef.current = endWTS;
+  totalWTSRef.current = totalWTS;
+  reversedRef.current = reversed;
+
+  // Document-level mousemove/mouseup for drag (fires even when cursor leaves canvas)
+  useEffect(() => {
+    function onDocMouseMove(e: MouseEvent) {
+      if (!isDraggingRef.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const deltaX = x - dragStartXRef.current;
+      const wtsPerPixel = totalWTSRef.current / rect.width;
+      const deltaWTS = reversedRef.current ? -deltaX * wtsPerPixel : deltaX * wtsPerPixel;
+      slideTrimWindow(dragStartWTSRef.current + deltaWTS);
+      canvas.style.cursor = 'grabbing';
+    }
+
+    function onDocMouseUp() {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = 'default';
+    }
+
+    document.addEventListener('mousemove', onDocMouseMove);
+    document.addEventListener('mouseup', onDocMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', onDocMouseMove);
+      document.removeEventListener('mouseup', onDocMouseUp);
+    };
+  }, [slideTrimWindow]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (notEnoughData) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const wts = (x / rect.width) * totalWTS;
+    const clickWTS = xToWts(x, rect.width);
 
-    const startX = (startWTS / totalWTS) * rect.width;
-    const endX = (endWTS / totalWTS) * rect.width;
+    // Check if click is within selection band
+    const withinSelection = clickWTS >= startWTS && clickWTS <= endWTS;
 
-    // Check if clicking on handles (within 10px)
-    if (Math.abs(x - startX) < 10) {
-      setIsDragging('start');
-    } else if (Math.abs(x - endX) < 10) {
-      setIsDragging('end');
+    if (withinSelection) {
+      // Start dragging — document-level listeners handle move/up
+      e.preventDefault();
+      isDraggingRef.current = true;
+      dragStartXRef.current = x;
+      dragStartWTSRef.current = startWTS;
+    } else {
+      // Snap window center to click position
+      const newStart = clickWTS - TRIM_WINDOW_WTS / 2;
+      slideTrimWindow(newStart);
     }
-  }, [startWTS, endWTS, totalWTS]);
+  }, [startWTS, endWTS, xToWts, slideTrimWindow, notEnoughData]);
 
+  // Canvas hover cursor (non-drag)
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging) return;
-
+    if (isDraggingRef.current) return; // Document listener handles drag cursor
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || notEnoughData) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const wts = Math.max(0, Math.min(totalWTS, Math.round((x / rect.width) * totalWTS)));
-
-    if (isDragging === 'start') {
-      if (wts < endWTS - 1) {
-        setTrimBounds(wts, endWTS);
-      }
-    } else if (isDragging === 'end') {
-      if (wts > startWTS + 1) {
-        setTrimBounds(startWTS, wts);
-      }
-    }
-  }, [isDragging, startWTS, endWTS, totalWTS, setTrimBounds]);
-
-  const handleCanvasMouseUp = useCallback(() => {
-    setIsDragging(null);
-  }, []);
+    const hoverWTS = xToWts(x, rect.width);
+    const withinSelection = hoverWTS >= startWTS && hoverWTS <= endWTS;
+    canvas.style.cursor = withinSelection ? 'grab' : 'default';
+  }, [startWTS, endWTS, xToWts, notEnoughData]);
 
   const handleCancel = useCallback(() => {
     cancelAuthoring();
@@ -180,8 +230,17 @@ function TrimDialogInner() {
     if (e.key === 'Escape') {
       e.preventDefault();
       handleCancel();
+      return;
     }
-  }, [handleCancel]);
+    if (notEnoughData) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      slideTrimWindow(startWTS - 1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      slideTrimWindow(startWTS + 1);
+    }
+  }, [handleCancel, slideTrimWindow, startWTS, notEnoughData]);
 
   if (outputSlots.length === 0) {
     return (
@@ -208,7 +267,11 @@ function TrimDialogInner() {
       <div className={styles.panel} onKeyDown={handleKeyDown} tabIndex={-1}>
         <div className={styles.header}>
           <h2 className={styles.title}>Trim Output Recording</h2>
-          <p className={styles.subtitle}>Drag the handles to select the loop region for your puzzle</p>
+          <p className={styles.subtitle}>
+            {notEnoughData
+              ? `Not enough data recorded. Need at least ${TRIM_WINDOW_WTS} WTS (only ${totalWTS} available).`
+              : 'Slide the window to select the 16 WTS loop region'}
+          </p>
         </div>
 
         <div className={styles.content}>
@@ -219,8 +282,6 @@ function TrimDialogInner() {
             className={styles.waveformCanvas}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
-            onMouseUp={handleCanvasMouseUp}
-            onMouseLeave={handleCanvasMouseUp}
           />
 
           <div className={styles.info}>
@@ -228,10 +289,12 @@ function TrimDialogInner() {
               <span className={styles.infoLabel}>Total recorded:</span>
               <span className={styles.infoValue}>{totalWTS} WTS ({(totalWTS).toFixed(1)}s)</span>
             </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Selection:</span>
-              <span className={styles.infoValue}>{durationWTS} WTS ({startWTS} - {endWTS})</span>
-            </div>
+            {!notEnoughData && (
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>Window:</span>
+                <span className={styles.infoValue}>WTS {startWTS}–{endWTS} ({TRIM_WINDOW_WTS} WTS)</span>
+              </div>
+            )}
             <div className={styles.infoItem}>
               <span className={styles.infoLabel}>Active outputs:</span>
               <span className={styles.infoValue}>
@@ -246,7 +309,13 @@ function TrimDialogInner() {
 
         <div className={styles.footer}>
           <button className={styles.cancelButton} onClick={handleCancel}>Cancel</button>
-          <button className={styles.continueButton} onClick={handleContinue}>Continue</button>
+          <button
+            className={styles.continueButton}
+            onClick={handleContinue}
+            disabled={notEnoughData}
+          >
+            Continue
+          </button>
         </div>
       </div>
     </div>

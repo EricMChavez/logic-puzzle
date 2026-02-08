@@ -1,6 +1,6 @@
 import { useGameStore } from '../../store/index.ts';
 import { getThemeTokens } from '../../shared/tokens/theme-manager.ts';
-import { isRunning, getMeterBuffers, getTargetMeterBuffers, getPerSampleMatch } from '../../simulation/simulation-controller.ts';
+import { isRunning, getMeterBuffers, getTargetDisplayBuffers, getPerSampleMatch } from '../../simulation/simulation-controller.ts';
 import { GRID_COLS, GRID_ROWS, METER_LEFT_START, METER_RIGHT_START, gridRectToPixels, pixelToGrid } from '../../shared/grid/index.ts';
 import { drawMeter } from '../meters/render-meter.ts';
 import type { RenderMeterState } from '../meters/render-meter.ts';
@@ -43,7 +43,6 @@ export function startRenderLoop(
 
   let animationId = 0;
   let running = true;
-
   function render(timestamp: number) {
     if (!running) return;
 
@@ -92,7 +91,7 @@ export function startRenderLoop(
 
     // Draw meters in side zones
     const meterBuffers = getMeterBuffers();
-    const targetMeterBuffers = getTargetMeterBuffers();
+    const targetDisplayBuffers = getTargetDisplayBuffers();
     const perSampleMatch = getPerSampleMatch();
     const isSimRunning = isRunning();
 
@@ -113,12 +112,13 @@ export function startRenderLoop(
           cols: METER_GRID_COLS,
           rows: METER_GRID_ROWS,
         }, cellSize);
-        // Derive confirming/mismatch from perPortMatch at render time
-        const meterState = deriveMeterVisualState(leftSlot, i, 'input', state.perPortMatch, isSimRunning);
+        const cpIdx = leftSlot.cpIndex ?? i;
+        const dir = leftSlot.direction;
         const renderState: RenderMeterState = {
-          slot: meterState,
-          signalBuffer: meterBuffers.get(`input:${i}`) ?? null,
-          targetBuffer: null,
+          slot: leftSlot,
+          signalBuffer: meterBuffers.get(`${dir}:${cpIdx}`) ?? null,
+          targetBuffer: dir === 'output' ? (targetDisplayBuffers.get(`target:${cpIdx}`) ?? null) : null,
+          matchStatus: dir === 'output' ? (perSampleMatch.get(`output:${cpIdx}`) ?? null) : undefined,
         };
         drawMeter(ctx!, tokens, renderState, leftRect);
       }
@@ -134,12 +134,13 @@ export function startRenderLoop(
           cols: METER_GRID_COLS,
           rows: METER_GRID_ROWS,
         }, cellSize);
-        const meterState = deriveMeterVisualState(rightSlot, i, 'output', state.perPortMatch, isSimRunning);
+        const cpIdxR = rightSlot.cpIndex ?? i;
+        const dirR = rightSlot.direction;
         const renderState: RenderMeterState = {
-          slot: meterState,
-          signalBuffer: meterBuffers.get(`output:${i}`) ?? null,
-          targetBuffer: targetMeterBuffers.get(`target:${i}`) ?? null,
-          matchStatus: perSampleMatch.get(`output:${i}`) ?? null,
+          slot: rightSlot,
+          signalBuffer: meterBuffers.get(`${dirR}:${cpIdxR}`) ?? null,
+          targetBuffer: dirR === 'output' ? (targetDisplayBuffers.get(`target:${cpIdxR}`) ?? null) : null,
+          matchStatus: dirR === 'output' ? (perSampleMatch.get(`output:${cpIdxR}`) ?? null) : undefined,
         };
         drawMeter(ctx!, tokens, renderState, rightRect);
       }
@@ -147,12 +148,16 @@ export function startRenderLoop(
 
     if (state.activeBoard) {
       drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes);
+      // Compute knob values for all knob-equipped nodes (mixer, amp, etc.)
+      const knobValues = computeKnobValues(state.activeBoard.nodes, state.activeBoard.wires);
+
       drawNodes(ctx!, tokens, {
         puzzleNodes: state.puzzleNodes,
         utilityNodes: state.utilityNodes,
         nodes: state.activeBoard.nodes,
         selectedNodeId: state.selectedNodeId,
         hoveredNodeId: state.hoveredNodeId,
+        knobValues,
       }, cellSize);
 
       // Keyboard focus ring (after nodes, before wire preview)
@@ -161,6 +166,7 @@ export function startRenderLoop(
         state.activeBoard.nodes, state.activeBoard.wires,
         logicalWidth, logicalHeight, cellSize,
         state.interactionMode.type === 'keyboard-wiring' ? state.interactionMode : null,
+        state.activePuzzle?.connectionPoints,
       );
     }
 
@@ -169,6 +175,7 @@ export function startRenderLoop(
       activePuzzle: state.activePuzzle,
       perPortMatch: state.perPortMatch,
       isSimRunning,
+      editingUtilityId: state.editingUtilityId,
     }, cellSize);
 
     // Wire preview during drawing-wire mode (suppressed when overlay is active)
@@ -185,7 +192,7 @@ export function startRenderLoop(
         const sourceNode = state.activeBoard.nodes.get(fromPort.nodeId);
         if (sourceNode) {
           const sourceAnchor = getPortGridAnchor(sourceNode, fromPort.side, fromPort.portIndex);
-          const startDir = getPortWireDirection(sourceNode, fromPort.side);
+          const startDir = getPortWireDirection(sourceNode, fromPort.side, fromPort.portIndex);
           cachedPreviewPath = findPath(sourceAnchor, cursorGrid, state.occupancy, startDir, DIR_E);
         } else {
           cachedPreviewPath = null;
@@ -279,32 +286,9 @@ export function startRenderLoop(
   };
 }
 
-import type { MeterSlotState, MeterVisualState } from '../meters/meter-types.ts';
-
-/**
- * Derive the visual state for a meter at render time.
- * Output meters get confirming/mismatch based on perPortMatch + isSimRunning.
- * Input meters stay as-is from the store.
- */
-function deriveMeterVisualState(
-  slot: MeterSlotState,
-  index: number,
-  direction: 'input' | 'output',
-  perPortMatch: readonly boolean[],
-  isSimRunning: boolean,
-): MeterSlotState {
-  if (slot.visualState !== 'active' || direction !== 'output' || !isSimRunning) {
-    return slot;
-  }
-
-  // perPortMatch is indexed by output port index
-  if (index < perPortMatch.length) {
-    const visualState: MeterVisualState = perPortMatch[index] ? 'confirming' : 'mismatch';
-    return { ...slot, visualState };
-  }
-
-  return slot;
-}
+import type { KnobInfo } from './render-types.ts';
+import type { NodeState, Wire } from '../../shared/types/index.ts';
+import { KNOB_NODES } from '../../shared/constants/index.ts';
 
 /**
  * Handle ceremony completion: add puzzle node, complete level, dismiss ceremony.
@@ -342,4 +326,50 @@ function handleCeremonyCompletion(state: ReturnType<typeof useGameStore.getState
 
   // Clear ceremony data
   state.dismissCeremony();
+}
+
+/**
+ * Compute knob display values for all knob-equipped nodes on the active board.
+ * Checks if the knob port is wired, and reads the value from
+ * either the wire's signal buffer or the port constant / node params.
+ */
+function computeKnobValues(
+  nodes: ReadonlyMap<string, NodeState>,
+  wires: ReadonlyArray<Wire>,
+): ReadonlyMap<string, KnobInfo> {
+  const result = new Map<string, KnobInfo>();
+
+  for (const node of nodes.values()) {
+    const knobConfig = KNOB_NODES[node.type];
+    if (!knobConfig) continue;
+
+    const { portIndex, paramKey } = knobConfig;
+
+    // Check if the knob port is wired
+    const isWired = wires.some(
+      w => w.target.nodeId === node.id && w.target.portIndex === portIndex,
+    );
+
+    if (isWired) {
+      // Read value from wire's signal buffer (latest sample)
+      const wire = wires.find(
+        w => w.target.nodeId === node.id && w.target.portIndex === portIndex,
+      );
+      const buf = wire?.signalBuffer;
+      let value = 0;
+      if (buf && buf.length > 0) {
+        // Read latest written sample (writeHead points to next write position)
+        const head = wire.writeHead ?? 0;
+        const readIdx = (head - 1 + buf.length) % buf.length;
+        value = buf[readIdx];
+      }
+      result.set(node.id, { value, isWired: true });
+    } else {
+      // Use the node's param value
+      const value = Number(node.params[paramKey] ?? 0);
+      result.set(node.id, { value, isWired: false });
+    }
+  }
+
+  return result;
 }

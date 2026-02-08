@@ -88,6 +88,7 @@
 }
 
 .levelCard {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -182,4 +183,114 @@
 
 .emptyHint {
   font-size: 13px;
+}
+
+.exportButton {
+  position: absolute;
+  top: 8px;
+  right: 36px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #9090b0;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.levelCard:hover .exportButton {
+  opacity: 1;
+}
+
+.exportButton:hover {
+  background: rgba(30, 210, 195, 0.15);
+  border-color: rgba(30, 210, 195, 0.4);
+  color: #1ED2C3;
+}
+
+.deleteButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: #9090b0;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.levelCard:hover .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  background: rgba(224, 56, 56, 0.2);
+  border-color: rgba(224, 56, 56, 0.4);
+  color: #E03838;
+}
+
+.confirmCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(224, 56, 56, 0.08);
+  border-color: rgba(224, 56, 56, 0.3);
+  cursor: default;
+}
+
+.confirmText {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e0e0f0;
+  text-align: center;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmYes,
+.confirmNo {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.confirmYes {
+  background: rgba(224, 56, 56, 0.2);
+  border: 1px solid rgba(224, 56, 56, 0.4);
+  color: #E03838;
+}
+
+.confirmYes:hover {
+  background: rgba(224, 56, 56, 0.35);
+}
+
+.confirmNo {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e0e0e0;
+}
+
+.confirmNo:hover {
+  background: rgba(255, 255, 255, 0.15);
 }

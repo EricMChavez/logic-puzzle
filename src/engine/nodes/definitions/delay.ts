@@ -41,7 +41,7 @@ export const delayNode = defineNode<DelayParams>({
       type: 'number',
       default: 1,
       label: 'Delay (WTS)',
-      min: 1,
+      min: 0,
       max: MAX_WTS,
       step: 1,
     },
@@ -54,7 +54,7 @@ export const delayNode = defineNode<DelayParams>({
     const bufferSize = MAX_DELAY_SUBDIVISIONS + 1;
 
     // Convert WTS to subdivisions and clamp to valid range
-    const wts = Math.max(1, Math.min(MAX_WTS, Math.round(params.wts)));
+    const wts = Math.max(0, Math.min(MAX_WTS, Math.round(params.wts)));
     const delay = wts * SUBDIVISIONS_PER_WTS;
 
     // Write current input to buffer

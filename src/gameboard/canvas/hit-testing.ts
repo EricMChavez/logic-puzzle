@@ -1,14 +1,17 @@
 import type { NodeId, NodeState, PortRef, Vec2, Wire } from '../../shared/types/index.ts';
-import { CONNECTION_POINT_CONFIG, NODE_STYLE } from '../../shared/constants/index.ts';
-import { getNodePortPosition, getConnectionPointPosition, getNodeHitRect } from './port-positions.ts';
+import { CONNECTION_POINT_CONFIG, NODE_STYLE, KNOB_NODES } from '../../shared/constants/index.ts';
+import { getNodePortPosition, getConnectionPointPosition, getNodeHitRect, getNodeBodyPixelRect } from './port-positions.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { gridToPixel, getNodeGridSize, METER_LEFT_START, METER_RIGHT_START } from '../../shared/grid/index.ts';
 import type { MeterKey, MeterSlotState } from '../meters/meter-types.ts';
 import { METER_GRID_ROWS, METER_GRID_COLS, METER_GAP_ROWS, CHANNEL_RATIOS } from '../meters/meter-types.ts';
+import type { ConnectionPointConfig } from '../../puzzle/types.ts';
+import { buildConnectionPointConfig } from '../../puzzle/types.ts';
 
 export type HitResult =
   | { type: 'port'; portRef: PortRef; position: Vec2 }
   | { type: 'connection-point'; side: 'input' | 'output'; index: number; position: Vec2 }
+  | { type: 'knob'; nodeId: NodeId; center: Vec2 }
   | { type: 'node'; nodeId: NodeId }
   | { type: 'wire'; wireId: string }
   | { type: 'meter'; side: 'left' | 'right'; index: number; slotIndex: number }
@@ -55,6 +58,7 @@ export function hitTest(
   wires: ReadonlyArray<Wire> = [],
   activeInputs?: number,
   activeOutputs?: number,
+  connectionPointConfig?: ConnectionPointConfig,
 ): HitResult {
   // 1. Check node ports (highest priority — skip virtual CP nodes)
   for (const node of nodes.values()) {
@@ -82,22 +86,46 @@ export function hitTest(
   }
 
   // 2. Check connection points (only active ones)
-  const inputCount = activeInputs ?? CONNECTION_POINT_CONFIG.INPUT_COUNT;
-  const outputCount = activeOutputs ?? CONNECTION_POINT_CONFIG.OUTPUT_COUNT;
-  for (let i = 0; i < inputCount; i++) {
-    const pos = getConnectionPointPosition('input', i, cellSize);
+  const cpConfig = connectionPointConfig
+    ?? buildConnectionPointConfig(
+      activeInputs ?? CONNECTION_POINT_CONFIG.INPUT_COUNT,
+      activeOutputs ?? CONNECTION_POINT_CONFIG.OUTPUT_COUNT,
+    );
+
+  // Left side CPs
+  for (let i = 0; i < cpConfig.left.length; i++) {
+    const slot = cpConfig.left[i];
+    if (!slot.active) continue;
+    const pos = getConnectionPointPosition('left', i, cellSize);
     if (dist(x, y, pos.x, pos.y) <= CP_HIT_RADIUS) {
-      return { type: 'connection-point', side: 'input', index: i, position: pos };
+      return { type: 'connection-point', side: slot.direction, index: slot.cpIndex ?? i, position: pos };
     }
   }
-  for (let i = 0; i < outputCount; i++) {
-    const pos = getConnectionPointPosition('output', i, cellSize);
+  // Right side CPs
+  for (let i = 0; i < cpConfig.right.length; i++) {
+    const slot = cpConfig.right[i];
+    if (!slot.active) continue;
+    const pos = getConnectionPointPosition('right', i, cellSize);
     if (dist(x, y, pos.x, pos.y) <= CP_HIT_RADIUS) {
-      return { type: 'connection-point', side: 'output', index: i, position: pos };
+      return { type: 'connection-point', side: slot.direction, index: slot.cpIndex ?? i, position: pos };
     }
   }
 
-  // 3. Check node bodies (using full grid footprint for hit detection)
+  // 3. Check knobs (before node bodies for priority)
+  for (const node of nodes.values()) {
+    if (isConnectionPointNode(node.id)) continue;
+    if (!(node.type in KNOB_NODES)) continue;
+    const bodyRect = getNodeBodyPixelRect(node, cellSize);
+    const labelFontSize = Math.round(NODE_STYLE.LABEL_FONT_RATIO * cellSize);
+    const centerX = bodyRect.x + bodyRect.width / 2;
+    const centerY = bodyRect.y + bodyRect.height / 2 + labelFontSize * 0.5;
+    const knobRadius = 0.55 * cellSize;
+    if (dist(x, y, centerX, centerY) <= knobRadius) {
+      return { type: 'knob', nodeId: node.id, center: { x: centerX, y: centerY } };
+    }
+  }
+
+  // 4. Check node bodies (using full grid footprint for hit detection)
   const entries = Array.from(nodes.entries()).reverse();
   for (const [id, node] of entries) {
     const rect = getNodeHitRect(node, cellSize);
@@ -111,7 +139,7 @@ export function hitTest(
     }
   }
 
-  // 4. Check wires (path segments at gridline intersections)
+  // 5. Check wires (path segments at gridline intersections)
   for (const wire of wires) {
     if (wire.path.length < 2) continue;
     for (let i = 0; i < wire.path.length - 1; i++) {

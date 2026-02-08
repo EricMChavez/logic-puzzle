@@ -9,8 +9,14 @@ import { analyzeDelays } from './delay-calculator.ts';
 import type { PortSource, OutputMapping } from './delay-calculator.ts';
 import {
   isConnectionPointNode,
+  isConnectionInputNode,
+  isConnectionOutputNode,
   getConnectionPointIndex,
   createConnectionPointNode,
+  isBidirectionalCpNode,
+  getBidirectionalCpIndex,
+  cpInputId,
+  cpOutputId,
 } from '../../puzzle/connection-point-nodes.ts';
 import { createLogger } from '../../shared/logger/index.ts';
 import type { BakeMetadata, BakeResult, BakeError, BakedEdge, BakedNodeConfig } from './types.ts';
@@ -39,6 +45,113 @@ interface NodeSpec {
 }
 
 /**
+ * Classify bidirectional CPs by their wiring:
+ * - Has outgoing wire (from output port) → 'input' (feeds signal into board)
+ * - Has incoming wire (to input port) → 'output' (receives signal from board)
+ * - Both → error
+ * - Neither → 'off'
+ */
+function classifyBidirectionalCps(
+  nodes: ReadonlyMap<NodeId, NodeState>,
+  wires: Wire[],
+): Result<('input' | 'output' | 'off')[], BakeError> {
+  const layout: ('input' | 'output' | 'off')[] = [];
+
+  for (let i = 0; i < 6; i++) {
+    const nodeId = `__cp_bidir_${i}__`;
+    if (!nodes.has(nodeId)) {
+      layout.push('off');
+      continue;
+    }
+
+    const hasOutgoing = wires.some(w => w.source.nodeId === nodeId);
+    const hasIncoming = wires.some(w => w.target.nodeId === nodeId);
+
+    if (hasOutgoing && hasIncoming) {
+      return err({ message: `Bidirectional CP ${i} has both incoming and outgoing wires` });
+    } else if (hasOutgoing) {
+      layout.push('input');  // CP emits signal into the board → acts as input
+    } else if (hasIncoming) {
+      layout.push('output'); // CP receives signal from the board → acts as output
+    } else {
+      layout.push('off');
+    }
+  }
+
+  return ok(layout);
+}
+
+/**
+ * Transform bidirectional CPs into standard input/output CPs for baking.
+ * Returns new nodes map and wires array with bidir CPs replaced.
+ */
+function transformBidirToStandard(
+  nodes: ReadonlyMap<NodeId, NodeState>,
+  wires: Wire[],
+  cpLayout: ('input' | 'output' | 'off')[],
+): { nodes: Map<NodeId, NodeState>; wires: Wire[] } {
+  const newNodes = new Map<NodeId, NodeState>();
+  let inputIndex = 0;
+  let outputIndex = 0;
+
+  // Map from bidir node ID to new standard CP node ID
+  const idMap = new Map<string, string>();
+
+  for (let i = 0; i < 6; i++) {
+    const bidirId = `__cp_bidir_${i}__`;
+    const direction = cpLayout[i];
+
+    if (direction === 'input') {
+      const newId = cpInputId(inputIndex);
+      idMap.set(bidirId, newId);
+      newNodes.set(newId, createConnectionPointNode('input', inputIndex));
+      inputIndex++;
+    } else if (direction === 'output') {
+      const newId = cpOutputId(outputIndex);
+      idMap.set(bidirId, newId);
+      newNodes.set(newId, createConnectionPointNode('output', outputIndex));
+      outputIndex++;
+    }
+    // 'off' CPs are dropped entirely
+  }
+
+  // Copy non-bidir nodes
+  for (const [id, node] of nodes) {
+    if (!isBidirectionalCpNode(id)) {
+      newNodes.set(id, node);
+    }
+  }
+
+  // Remap wires
+  const newWires: Wire[] = wires
+    .filter(w => {
+      // Drop wires connected to 'off' CPs
+      const srcBidir = isBidirectionalCpNode(w.source.nodeId);
+      const tgtBidir = isBidirectionalCpNode(w.target.nodeId);
+      if (srcBidir && !idMap.has(w.source.nodeId)) return false;
+      if (tgtBidir && !idMap.has(w.target.nodeId)) return false;
+      return true;
+    })
+    .map(w => {
+      let source = w.source;
+      let target = w.target;
+
+      if (isBidirectionalCpNode(w.source.nodeId)) {
+        const newId = idMap.get(w.source.nodeId)!;
+        source = { ...source, nodeId: newId };
+      }
+      if (isBidirectionalCpNode(w.target.nodeId)) {
+        const newId = idMap.get(w.target.nodeId)!;
+        target = { ...target, nodeId: newId };
+      }
+
+      return { ...w, source, target };
+    });
+
+  return { nodes: newNodes, wires: newWires };
+}
+
+/**
  * Bake a gameboard graph into a single evaluate closure.
  *
  * The closure captures mutable state (circular buffers for input CPs,
@@ -48,9 +161,26 @@ export function bakeGraph(
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: Wire[],
 ): Result<BakeResult, BakeError> {
+  // Check for bidirectional CPs (utility node editing)
+  const hasBidirCps = Array.from(nodes.keys()).some(id => isBidirectionalCpNode(id));
+  let cpLayout: ('input' | 'output' | 'off')[] | undefined;
+  let bakeNodes = nodes;
+  let bakeWires = wires;
+
+  if (hasBidirCps) {
+    const classifyResult = classifyBidirectionalCps(nodes, wires);
+    if (!classifyResult.ok) {
+      return err({ message: classifyResult.error.message });
+    }
+    cpLayout = classifyResult.value;
+    const transformed = transformBidirToStandard(nodes, wires, cpLayout);
+    bakeNodes = transformed.nodes;
+    bakeWires = transformed.wires;
+  }
+
   // Step 1: Topological sort
-  const nodeIds = Array.from(nodes.keys());
-  const sortResult = topologicalSort(nodeIds, wires);
+  const nodeIds = Array.from(bakeNodes.keys());
+  const sortResult = topologicalSort(nodeIds, bakeWires);
   if (!sortResult.ok) {
     return err({
       message: sortResult.error.message,
@@ -60,13 +190,16 @@ export function bakeGraph(
   const topoOrder = sortResult.value;
 
   // Step 2: Analyze delays
-  const analysis = analyzeDelays(topoOrder, nodes, wires);
+  const analysis = analyzeDelays(topoOrder, bakeNodes, bakeWires);
 
   // Step 3: Build metadata
-  const metadata = buildMetadata(topoOrder, nodes, wires, analysis);
+  const metadata = buildMetadata(topoOrder, bakeNodes, bakeWires, analysis);
+  if (cpLayout) {
+    metadata.cpLayout = cpLayout;
+  }
 
   // Step 4: Build closure
-  const evaluate = buildClosure(nodes, analysis);
+  const evaluate = buildClosure(bakeNodes, analysis);
 
   log.info('Graph baked successfully', {
     inputCount: analysis.inputCount,

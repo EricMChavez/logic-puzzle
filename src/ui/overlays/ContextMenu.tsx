@@ -3,6 +3,8 @@ import { useGameStore } from '../../store/index.ts';
 import { buildContextMenuItems } from './context-menu-items.ts';
 import type { ContextMenuItem } from './context-menu-items.ts';
 import { stopSimulation } from '../../simulation/simulation-controller.ts';
+import { generateId } from '../../shared/generate-id.ts';
+import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
 import styles from './ContextMenu.module.css';
 
 /** Capture the canvas to an OffscreenCanvas and start the lid-open animation. */
@@ -110,16 +112,25 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
       case 'edit':
         if (target.type === 'node') {
           const node = state.activeBoard?.nodes.get(target.nodeId);
-          if (node && node.type.startsWith('utility:')) {
+          if (!node) break;
+
+          if (state.simulationRunning) {
+            stopSimulation();
+            state.setSimulationRunning(false);
+          }
+
+          if (node.type === 'custom-blank') {
+            // Create a fresh utility gameboard for a blank custom node
+            const utilityId = generateId();
+            const board = createUtilityGameboard(utilityId);
+            captureAndStartLidOpen(state);
+            state.startEditingUtility(utilityId, board, target.nodeId);
+          } else if (node.type.startsWith('utility:')) {
             const utilityId = node.type.slice('utility:'.length);
             const entry = state.utilityNodes.get(utilityId);
             if (entry) {
-              if (state.simulationRunning) {
-                stopSimulation();
-                state.setSimulationRunning(false);
-              }
               captureAndStartLidOpen(state);
-              state.startEditingUtility(utilityId, entry.board);
+              state.startEditingUtility(utilityId, entry.board, target.nodeId);
             }
           }
         }

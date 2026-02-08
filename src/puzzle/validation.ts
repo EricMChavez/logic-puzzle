@@ -35,20 +35,29 @@ export interface BufferValidationResult {
 
 /**
  * Compare two circular buffers sample-by-sample within tolerance.
- * Returns per-sample match booleans and overall match status.
- * allMatch is true only when both buffers are full (256 samples) AND all positions match.
+ * Returns per-sample match booleans indexed by the output buffer (len = output count).
+ *
+ * Both renderers draw newest-at-left using `distanceFromNewest = count - 1 - i`,
+ * so when counts differ the visual positions are offset. We align by comparing
+ * output.at(i) against target.at(i + offset) where offset = target.count - output.count.
+ *
+ * allMatch is true only when both buffers are full (capacity) AND all positions match.
  */
 export function validateBuffers(
   outputBuffer: MeterCircularBuffer,
   targetBuffer: MeterCircularBuffer,
   tolerance: number,
 ): BufferValidationResult {
-  const len = Math.min(outputBuffer.count, targetBuffer.count);
+  const outLen = outputBuffer.count;
+  const tgtLen = targetBuffer.count;
+  // Offset aligns newest samples (both drawn at left edge of the meter)
+  const offset = tgtLen - outLen;
+  const len = Math.min(outLen, tgtLen);
   const perSample: boolean[] = new Array(len);
   let matchCount = 0;
 
   for (let i = 0; i < len; i++) {
-    const match = Math.abs(outputBuffer.at(i) - targetBuffer.at(i)) <= tolerance;
+    const match = Math.abs(outputBuffer.at(i) - targetBuffer.at(i + offset)) <= tolerance;
     perSample[i] = match;
     if (match) matchCount++;
   }

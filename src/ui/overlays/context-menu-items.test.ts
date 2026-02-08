@@ -30,6 +30,12 @@ describe('buildContextMenuItems', () => {
     expect(items.find((i) => i.action === 'edit')).toBeTruthy();
   });
 
+  it('returns Edit for custom-blank node', () => {
+    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'custom-blank' });
+    expect(items.find((i) => i.action === 'edit')).toBeTruthy();
+    expect(items.find((i) => i.action === 'delete-node')).toBeTruthy();
+  });
+
   it('omits Set Parameters and Delete in read-only mode', () => {
     const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'mix' }, true);
     expect(items.find((i) => i.action === 'set-params')).toBeFalsy();
@@ -50,11 +56,13 @@ describe('buildContextMenuItems', () => {
 });
 
 describe('hasEditableParams', () => {
-  it('returns true for mix, threshold, delay, constant', () => {
+  it('returns true for mix, threshold, delay, mixer, amp, fader', () => {
     expect(hasEditableParams('mix')).toBe(true);
     expect(hasEditableParams('threshold')).toBe(true);
     expect(hasEditableParams('delay')).toBe(true);
-    expect(hasEditableParams('constant')).toBe(true);
+    expect(hasEditableParams('mixer')).toBe(true);
+    expect(hasEditableParams('amp')).toBe(true);
+    expect(hasEditableParams('fader')).toBe(true);
   });
 
   it('returns false for non-parameterized types', () => {

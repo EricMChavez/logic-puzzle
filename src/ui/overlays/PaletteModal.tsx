@@ -2,9 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { buildPaletteItems, filterPaletteItems } from './palette-items.ts';
 import type { PaletteItem } from './palette-items.ts';
-import { generateId } from '../../shared/generate-id.ts';
-import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
-import { stopSimulation } from '../../simulation/simulation-controller.ts';
 import styles from './PaletteModal.module.css';
 
 export function PaletteModal() {
@@ -45,22 +42,6 @@ function PaletteModalInner() {
     closeOverlay();
     startPlacingNode(item.nodeType);
   }, [closeOverlay, startPlacingNode]);
-
-  const handleCreateCustom = useCallback(() => {
-    closeOverlay();
-    const state = useGameStore.getState();
-    const utilityId = generateId();
-    const board = createUtilityGameboard(utilityId);
-
-    if (state.simulationRunning) {
-      stopSimulation();
-      state.setSimulationRunning(false);
-    }
-
-    const snapshot = document.querySelector('canvas')?.toDataURL() ?? '';
-    state.startZoomTransition('in', snapshot);
-    state.startEditingUtility(utilityId, board);
-  }, [closeOverlay]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -143,12 +124,6 @@ function PaletteModalInner() {
           {filtered.length === 0 && (
             <div className={styles.emptyMsg}>No nodes match your search</div>
           )}
-          <button
-            className={styles.createBtn}
-            onClick={handleCreateCustom}
-          >
-            + Create Custom Node
-          </button>
         </div>
       </div>
     </div>

@@ -38,6 +38,7 @@ export {
   getPortApproachDirection,
   getOppositeDirection,
   getPortOffset,
+  rotateExplicitSide,
   type PortSide,
   type WireDirection,
 } from './rotation';

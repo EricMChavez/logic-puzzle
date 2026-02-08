@@ -2,11 +2,12 @@ import type { NodeState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { RenderNodesState } from './render-types.ts';
 import type { PixelRect } from '../../shared/grid/types.ts';
-import { NODE_STYLE, NODE_TYPE_LABELS } from '../../shared/constants/index.ts';
+import { NODE_STYLE, NODE_TYPE_LABELS, KNOB_NODES } from '../../shared/constants/index.ts';
 import { getNodePortPosition, getNodeBodyPixelRect } from './port-positions.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { gridToPixel, getNodeGridSize } from '../../shared/grid/index.ts';
 import { getDevOverrides } from '../../dev/index.ts';
+import { drawKnob } from './render-knob.ts';
 
 // ---------------------------------------------------------------------------
 // Color utilities
@@ -61,6 +62,10 @@ function getParamDisplay(node: NodeState): string {
       return `thr: ${node.params['threshold'] ?? 0}`;
     case 'delay':
       return `del: ${node.params['wts'] ?? 1} WTS`;
+    case 'mixer':
+    case 'amp':
+    case 'fader':
+      return ''; // Knob renders the value visually
     default:
       return '';
   }
@@ -165,7 +170,9 @@ function drawNodeBody(
   const labelFontSize = Math.round(NODE_STYLE.LABEL_FONT_RATIO * cellSize);
 
   let label = NODE_TYPE_LABELS[node.type] ?? node.type;
-  if (node.type.startsWith('puzzle:')) {
+  if (node.type === 'custom-blank') {
+    label = 'Custom';
+  } else if (node.type.startsWith('puzzle:')) {
     const puzzleId = node.type.slice('puzzle:'.length);
     const entry = state.puzzleNodes.get(puzzleId);
     if (entry) label = entry.title;
@@ -192,8 +199,9 @@ function drawNodeBody(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Offset label up if there's a param sublabel (relative to rotated center)
-  const labelOffsetY = paramText ? -labelFontSize * 0.4 : 0;
+  // Offset label up if there's a param sublabel or knob (relative to rotated center)
+  const hasKnob = node.type in KNOB_NODES;
+  const labelOffsetY = hasKnob ? -cellSize * 0.7 : paramText ? -labelFontSize * 0.4 : 0;
   ctx.fillText(label, 0, labelOffsetY);
 
   // --- Parameter sublabel ---
@@ -205,6 +213,17 @@ function drawNodeBody(
   }
 
   ctx.restore();
+
+  // --- Knob (mixer, amp, etc.) ---
+  if (state.knobValues.has(node.id)) {
+    const knobInfo = state.knobValues.get(node.id);
+    if (knobInfo) {
+      const knobRadius = 0.55 * cellSize;
+      // Place knob below the label
+      const knobY = centerY + labelFontSize * 0.5;
+      drawKnob(ctx, tokens, centerX, knobY, knobRadius, knobInfo.value, knobInfo.isWired);
+    }
+  }
 
   // --- Modified indicator ---
   drawModifiedIndicator(ctx, tokens, state, node, rect);

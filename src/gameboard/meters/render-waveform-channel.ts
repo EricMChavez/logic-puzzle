@@ -20,7 +20,6 @@ export function drawWaveformChannel(
   tokens: ThemeTokens,
   buffer: MeterCircularBuffer,
   rect: PixelRect,
-  matchStatus?: boolean[] | null,
 ): void {
   const sampleCount = buffer.count;
   if (sampleCount === 0) return;
@@ -63,13 +62,64 @@ export function drawWaveformChannel(
     const barHeight = (Math.abs(clamped) / 100) * halfHeight;
 
     ctx.globalAlpha = alpha;
-    const isMatch = matchStatus && i < matchStatus.length && matchStatus[i];
-    ctx.fillStyle = isMatch ? tokens.colorValidationMatch : (clamped >= 0 ? positiveColor : negativeColor);
+    ctx.fillStyle = clamped >= 0 ? positiveColor : negativeColor;
 
     if (clamped >= 0) {
       ctx.fillRect(x, centerY - barHeight, colWidth, barHeight);
     } else {
       ctx.fillRect(x, centerY, colWidth, barHeight);
+    }
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw a semi-transparent green overlay on top of the waveform for matching samples.
+ * Coalesces adjacent matching samples into contiguous spans for fewer draw calls.
+ * Only draws spans of 8+ consecutive matching samples.
+ */
+export function drawMatchOverlay(
+  ctx: CanvasRenderingContext2D,
+  tokens: ThemeTokens,
+  buffer: MeterCircularBuffer,
+  rect: PixelRect,
+  matchStatus: boolean[],
+): void {
+  const sampleCount = buffer.count;
+  if (sampleCount === 0) return;
+
+  const devOverrides = getDevOverrides();
+  const useOverrides = devOverrides.enabled;
+  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
+
+  const centerY = rect.y + rect.height / 2;
+  const halfHeight = (rect.height * verticalHeightRatio) / 2;
+  const colWidth = rect.width / METER_BUFFER_CAPACITY;
+
+  const top = centerY - halfHeight;
+  const height = halfHeight * 2;
+
+  ctx.save();
+  ctx.fillStyle = tokens.colorValidationMatch;
+  ctx.globalAlpha = 0.50;
+
+  // Walk samples, coalescing adjacent matches into spans
+  let spanStart = -1;
+  for (let i = 0; i <= sampleCount; i++) {
+    const isMatch = i < sampleCount && i < matchStatus.length && matchStatus[i];
+    if (isMatch && spanStart === -1) {
+      spanStart = i;
+    } else if (!isMatch && spanStart !== -1) {
+      const spanLength = i - spanStart;
+      if (spanLength >= 8) {
+        const startDistance = sampleCount - 1 - (i - 1);
+        const endDistance = sampleCount - 1 - spanStart;
+        const x = rect.x + startDistance * colWidth;
+        const w = (endDistance - startDistance + 1) * colWidth;
+        ctx.fillRect(x, top, w, height);
+      }
+      spanStart = -1;
     }
   }
 

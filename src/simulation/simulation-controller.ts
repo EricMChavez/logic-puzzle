@@ -14,12 +14,12 @@ import { evaluateInvert } from '../engine/nodes/invert.ts';
 import { evaluateThreshold } from '../engine/nodes/threshold.ts';
 import { evaluateDelay } from '../engine/nodes/delay.ts';
 import { generateWaveformValue } from '../puzzle/waveform-generators.ts';
-import { cpInputId, cpOutputId, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, creativeSlotId } from '../puzzle/connection-point-nodes.ts';
+import { cpInputId, cpOutputId, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, creativeSlotId, isBidirectionalCpNode, getBidirectionalCpIndex, cpBidirectionalId } from '../puzzle/connection-point-nodes.ts';
 import { validateBuffers } from '../puzzle/validation.ts';
 import { bakeGraph, reconstructFromMetadata } from '../engine/baking/index.ts';
 import { MeterCircularBuffer } from '../gameboard/meters/circular-buffer.ts';
 import { METER_BUFFER_CAPACITY } from '../gameboard/meters/meter-types.ts';
-import { buildConnectionPointConfig } from '../puzzle/types.ts';
+import { buildConnectionPointConfig, buildCustomNodeConnectionPointConfig } from '../puzzle/types.ts';
 
 /** Waveform history length (number of ticks to display) */
 const WAVEFORM_CAPACITY = 64;
@@ -39,13 +39,18 @@ const waveformBuffers = new Map<string, WaveformBuffer>();
 
 // Meter circular buffers keyed by "input:0", "output:0", etc.
 const meterSignalBuffers = new Map<string, MeterCircularBuffer>();
-const meterTargetBuffers = new Map<string, MeterCircularBuffer>();
+// Static target buffers for overlay rendering and validation (pre-filled once, never pushed to)
+const meterTargetDisplayBuffers = new Map<string, MeterCircularBuffer>();
 
 // Track graph version for detecting structural mutations during simulation
 let lastGraphVersion = 0;
 
 // Per-sample match arrays keyed by "output:0", "output:1", etc.
 const perSampleMatchArrays = new Map<string, boolean[]>();
+// Per-sample linger counters: ticks remaining for green to persist after a match
+const perSampleLingerCounters = new Map<string, number[]>();
+/** Number of ticks a matched sample stays green after it stops matching (1 second) */
+const MATCH_LINGER_TICKS = 16;
 
 /** Whether the simulation is currently running. */
 export function isRunning(): boolean {
@@ -62,9 +67,9 @@ export function getMeterBuffers(): ReadonlyMap<string, MeterCircularBuffer> {
   return meterSignalBuffers;
 }
 
-/** Get meter target buffers for rendering. */
-export function getTargetMeterBuffers(): ReadonlyMap<string, MeterCircularBuffer> {
-  return meterTargetBuffers;
+/** Get static target display buffers for rendering and validation (pre-filled, never pushed to). */
+export function getTargetDisplayBuffers(): ReadonlyMap<string, MeterCircularBuffer> {
+  return meterTargetDisplayBuffers;
 }
 
 /** Get per-sample match arrays for rendering (keyed by "output:0", etc.). */
@@ -123,12 +128,16 @@ export function startSimulation(): void {
   }
   sourceNodeIds = nodeIds.filter((id) => !nodesWithIncoming.has(id));
 
+  // Determine actual input/output counts (custom puzzles may have more than 3)
+  const actualInputCount = store.activePuzzle?.activeInputs ?? CONNECTION_POINT_CONFIG.INPUT_COUNT;
+  const actualOutputCount = store.activePuzzle?.activeOutputs ?? CONNECTION_POINT_CONFIG.OUTPUT_COUNT;
+
   // Initialize waveform buffers
   waveformBuffers.clear();
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.INPUT_COUNT; i++) {
+  for (let i = 0; i < actualInputCount; i++) {
     waveformBuffers.set(`input:${i}`, new WaveformBuffer(WAVEFORM_CAPACITY));
   }
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
+  for (let i = 0; i < actualOutputCount; i++) {
     waveformBuffers.set(`output:${i}`, new WaveformBuffer(WAVEFORM_CAPACITY));
   }
 
@@ -145,11 +154,11 @@ export function startSimulation(): void {
 
   // Initialize meter circular buffers
   meterSignalBuffers.clear();
-  meterTargetBuffers.clear();
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.INPUT_COUNT; i++) {
+  meterTargetDisplayBuffers.clear();
+  for (let i = 0; i < actualInputCount; i++) {
     meterSignalBuffers.set(`input:${i}`, new MeterCircularBuffer(METER_BUFFER_CAPACITY));
   }
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
+  for (let i = 0; i < actualOutputCount; i++) {
     meterSignalBuffers.set(`output:${i}`, new MeterCircularBuffer(METER_BUFFER_CAPACITY));
   }
   // Pre-fill meter buffers based on mode
@@ -182,14 +191,14 @@ export function startSimulation(): void {
     const testCase = activePuzzle.testCases[activeTestCaseIndex];
     if (testCase) {
       for (let i = 0; i < testCase.expectedOutputs.length; i++) {
-        meterTargetBuffers.set(`target:${i}`, new MeterCircularBuffer(METER_BUFFER_CAPACITY));
+        meterTargetDisplayBuffers.set(`target:${i}`, new MeterCircularBuffer(METER_BUFFER_CAPACITY));
       }
-      // Pre-fill target meter buffers with 256 samples so target is immediately visible
+      // Pre-fill static target buffers with 256 samples so target is immediately visible
       for (let i = 0; i < testCase.expectedOutputs.length; i++) {
-        const tBuf = meterTargetBuffers.get(`target:${i}`);
-        if (tBuf) {
+        const dBuf = meterTargetDisplayBuffers.get(`target:${i}`);
+        if (dBuf) {
           for (let t = 0; t < METER_BUFFER_CAPACITY; t++) {
-            tBuf.push(generateWaveformValue(t, testCase.expectedOutputs[i]));
+            dBuf.push(generateWaveformValue(t, testCase.expectedOutputs[i]));
           }
         }
       }
@@ -204,7 +213,14 @@ export function startSimulation(): void {
       }
     }
     // Initialize meter slice with connection point config
-    const cpConfig = buildConnectionPointConfig(activePuzzle.activeInputs, activePuzzle.activeOutputs);
+    // Use explicit connectionPoints if set (custom puzzles with non-standard layouts),
+    // otherwise derive from input/output counts (standard layout: inputs left, outputs right)
+    const cpConfig = activePuzzle.connectionPoints
+      ?? buildConnectionPointConfig(activePuzzle.activeInputs, activePuzzle.activeOutputs);
+    store.initializeMeters(cpConfig);
+  } else if (store.editingUtilityId) {
+    // Utility editing: initialize with bidirectional CP config
+    const cpConfig = buildCustomNodeConnectionPointConfig();
     store.initializeMeters(cpConfig);
   } else {
     // Fallback: initialize with default config
@@ -240,8 +256,9 @@ export function stopSimulation(): void {
 
   // Clear meter buffers and match state
   meterSignalBuffers.clear();
-  meterTargetBuffers.clear();
+  meterTargetDisplayBuffers.clear();
   perSampleMatchArrays.clear();
+  perSampleLingerCounters.clear();
 
   // Clear signals from wires in the store
   const store = useGameStore.getState();
@@ -368,6 +385,13 @@ function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outpu
     case 'connection-output':
       // Output CPs just receive signals — no evaluation needed
       break;
+    case 'connection-point': {
+      // Bidirectional CP (utility editing): acts as both input and output
+      // Its output port value comes from its constant (portConstants) which is
+      // already applied to runtime.inputs[0] above. Pass it through to output.
+      runtime.outputs[0] = runtime.inputs[0] ?? 0;
+      break;
+    }
     default: {
       // Puzzle and utility nodes use their baked evaluate closure
       if ((node.type.startsWith('puzzle:') || node.type.startsWith('utility:')) && runtime.bakedEvaluate) {
@@ -391,6 +415,7 @@ function tick(): void {
   // Detect structural changes and restart simulation with fresh state
   if (store.graphVersion !== lastGraphVersion) {
     stopSimulation();
+    store.clearOutputBuffers();
     startSimulation();
     return;
   }
@@ -459,7 +484,35 @@ function recordWaveforms(): void {
 
   const currentTick = clock.getTick();
   const store = useGameStore.getState();
-  const { activePuzzle, activeTestCaseIndex, isCreativeMode, creativeSlots } = store;
+  const { activePuzzle, activeTestCaseIndex, isCreativeMode, creativeSlots, editingUtilityId } = store;
+
+  // Utility editing mode: record from bidirectional CP nodes
+  if (editingUtilityId && !isCreativeMode && !activePuzzle) {
+    // Left side CPs (0-2) → meter input:0-2
+    for (let i = 0; i < 3; i++) {
+      const nodeId = cpBidirectionalId(i);
+      const runtime = schedulerState.nodeStates.get(nodeId);
+      if (!runtime) continue;
+      const mBuf = meterSignalBuffers.get(`input:${i}`);
+      if (mBuf) {
+        // For bidirectional CPs, output shows what they emit (output port value)
+        const value = runtime.outputs[0] ?? 0;
+        mBuf.push(value);
+      }
+    }
+    // Right side CPs (3-5) → meter output:0-2
+    for (let i = 0; i < 3; i++) {
+      const nodeId = cpBidirectionalId(i + 3);
+      const runtime = schedulerState.nodeStates.get(nodeId);
+      if (!runtime) continue;
+      const mBuf = meterSignalBuffers.get(`output:${i}`);
+      if (mBuf) {
+        const value = runtime.outputs[0] ?? 0;
+        mBuf.push(value);
+      }
+    }
+    return;
+  }
 
   // Creative mode: record from creative slot nodes
   if (isCreativeMode) {
@@ -510,12 +563,15 @@ function recordWaveforms(): void {
       }
       // 'off' slots: no recording
     }
+    store.advanceRecordingTick();
     return;
   }
 
   // Puzzle mode: record from standard CP nodes
   // Record input CP waveform values (from their output port)
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.INPUT_COUNT; i++) {
+  const puzzleInputCount = activePuzzle?.activeInputs ?? CONNECTION_POINT_CONFIG.INPUT_COUNT;
+  const puzzleOutputCount = activePuzzle?.activeOutputs ?? CONNECTION_POINT_CONFIG.OUTPUT_COUNT;
+  for (let i = 0; i < puzzleInputCount; i++) {
     const nodeId = cpInputId(i);
     const runtime = schedulerState.nodeStates.get(nodeId);
     const value = runtime ? runtime.outputs[0] ?? 0 : 0;
@@ -536,7 +592,7 @@ function recordWaveforms(): void {
   }
 
   // Record output CP waveform values (from their input port)
-  for (let i = 0; i < CONNECTION_POINT_CONFIG.OUTPUT_COUNT; i++) {
+  for (let i = 0; i < puzzleOutputCount; i++) {
     const nodeId = cpOutputId(i);
     const runtime = schedulerState.nodeStates.get(nodeId);
     const value = runtime ? runtime.inputs[0] ?? 0 : 0;
@@ -546,7 +602,7 @@ function recordWaveforms(): void {
     if (mBuf) mBuf.push(value);
   }
 
-  // Record target waveform values when in puzzle mode (legacy waveform buffers only)
+  // Record target waveform values when in puzzle mode
   if (activePuzzle) {
     const testCase = activePuzzle.testCases[activeTestCaseIndex];
     if (testCase) {
@@ -554,8 +610,6 @@ function recordWaveforms(): void {
         const targetValue = generateWaveformValue(currentTick, testCase.expectedOutputs[i]);
         const buf = waveformBuffers.get(`target:${i}`);
         if (buf) buf.push(targetValue);
-        // Target meter buffers are NOT pushed here — they are pre-filled at
-        // startSimulation() and stay static so the target waveform doesn't scroll.
       }
     }
   }
@@ -586,10 +640,28 @@ function validateTick(): void {
 
   for (let i = 0; i < testCase.expectedOutputs.length; i++) {
     const outputBuf = meterSignalBuffers.get(`output:${i}`);
-    const targetBuf = meterTargetBuffers.get(`target:${i}`);
+    const targetBuf = meterTargetDisplayBuffers.get(`target:${i}`);
     if (outputBuf && targetBuf) {
       const result = validateBuffers(outputBuf, targetBuf, VALIDATION_CONFIG.MATCH_TOLERANCE);
-      perSampleMatchArrays.set(`output:${i}`, result.perSample);
+
+      // Update linger counters: reset to MATCH_LINGER_TICKS on match, decrement otherwise
+      const key = `output:${i}`;
+      let linger = perSampleLingerCounters.get(key);
+      if (!linger || linger.length !== result.perSample.length) {
+        linger = new Array(result.perSample.length).fill(0);
+        perSampleLingerCounters.set(key, linger);
+      }
+      const displayMatch = new Array(result.perSample.length);
+      for (let j = 0; j < result.perSample.length; j++) {
+        if (result.perSample[j]) {
+          linger[j] = MATCH_LINGER_TICKS;
+        } else if (linger[j] > 0) {
+          linger[j]--;
+        }
+        displayMatch[j] = linger[j] > 0;
+      }
+
+      perSampleMatchArrays.set(key, displayMatch);
       perPortMatch.push(result.allMatch);
       if (!result.allMatch) allBuffersMatch = false;
     } else {

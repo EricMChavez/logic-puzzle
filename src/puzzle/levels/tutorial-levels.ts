@@ -1,5 +1,51 @@
 import type { PuzzleDefinition } from '../types.ts';
 
+export const LEVEL_1_POLARIZE: PuzzleDefinition = {
+  id: 'level-1-polarize',
+  title: 'Level 1: Polarize',
+  description: 'Use the Polarizer node to change a sine wave into a square wave.',
+  activeInputs: 1,
+  activeOutputs: 1,
+  allowedNodes: null,
+  testCases: [
+    {
+      name: 'Level 1: Polarize',
+      inputs: [
+        {
+          shape: 'sine',
+          amplitude: 100,
+          period: 64,
+          phase: 0,
+          offset: 0,
+        }
+      ],
+      expectedOutputs: [
+        {
+          shape: 'samples',
+          amplitude: 100,
+          period: 256,
+          phase: 0,
+          offset: 0,
+          samples: [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100],
+        }
+      ],
+    },
+  ],
+  connectionPoints: {
+    left: [
+      { active: false, direction: 'input' },
+      { active: true, direction: 'input', cpIndex: 0 },
+      { active: false, direction: 'input' },
+    ],
+    right: [
+      { active: false, direction: 'input' },
+      { active: true, direction: 'output', cpIndex: 0 },
+      { active: false, direction: 'input' },
+    ],
+  },
+};
+
+
 /** Tutorial 1: Rectifier — max(input, 0) using Mix Max with constant 0 */
 export const TUTORIAL_RECTIFIER: PuzzleDefinition = {
   id: 'tutorial-rectifier',

@@ -6,6 +6,8 @@ const CP_INPUT_PREFIX = '__cp_input_';
 const CP_OUTPUT_PREFIX = '__cp_output_';
 /** ID prefix for creative mode slot virtual nodes */
 const CP_CREATIVE_PREFIX = '__cp_creative_';
+/** ID prefix for bidirectional connection point virtual nodes (utility editing) */
+const CP_BIDIR_PREFIX = '__cp_bidir_';
 /** ID suffix */
 const CP_SUFFIX = '__';
 
@@ -24,9 +26,26 @@ export function creativeSlotId(slotIndex: number): string {
   return `${CP_CREATIVE_PREFIX}${slotIndex}${CP_SUFFIX}`;
 }
 
+/** Build the virtual node ID for a bidirectional connection point */
+export function cpBidirectionalId(index: number): string {
+  return `${CP_BIDIR_PREFIX}${index}${CP_SUFFIX}`;
+}
+
+/** Check if a node ID is a bidirectional connection point virtual node */
+export function isBidirectionalCpNode(nodeId: string): boolean {
+  return nodeId.startsWith(CP_BIDIR_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+}
+
+/** Extract the bidirectional CP index from a virtual node ID. Returns -1 if not a bidir CP node. */
+export function getBidirectionalCpIndex(nodeId: string): number {
+  if (!isBidirectionalCpNode(nodeId)) return -1;
+  const num = nodeId.slice(CP_BIDIR_PREFIX.length, -CP_SUFFIX.length);
+  return parseInt(num, 10);
+}
+
 /** Check if a node ID belongs to any connection point virtual node */
 export function isConnectionPointNode(nodeId: string): boolean {
-  return isConnectionInputNode(nodeId) || isConnectionOutputNode(nodeId) || isCreativeSlotNode(nodeId);
+  return isConnectionInputNode(nodeId) || isConnectionOutputNode(nodeId) || isCreativeSlotNode(nodeId) || isBidirectionalCpNode(nodeId);
 }
 
 /** Check if a node ID is a creative mode slot virtual node */
@@ -68,10 +87,14 @@ export function getConnectionPointIndex(nodeId: string): number {
  * Create a virtual NodeState for a connection point.
  * Input CPs emit signals (0 inputs, 1 output).
  * Output CPs receive signals (1 input, 0 outputs).
+ *
+ * Optional extraParams stores physical side and meter index for custom puzzles
+ * where input/output direction doesn't always match left/right placement.
  */
 export function createConnectionPointNode(
   side: 'input' | 'output',
   index: number,
+  extraParams?: { physicalSide: 'left' | 'right'; meterIndex: number },
 ): NodeState {
   const id = side === 'input' ? cpInputId(index) : cpOutputId(index);
   const type = side === 'input' ? 'connection-input' : 'connection-output';
@@ -82,9 +105,26 @@ export function createConnectionPointNode(
     // Position is irrelevant — virtual nodes aren't rendered as boxes.
     // Wire rendering resolves their positions via getConnectionPointPosition.
     position: { col: 0, row: 0 },
-    params: {},
+    params: extraParams ? { physicalSide: extraParams.physicalSide, meterIndex: extraParams.meterIndex } : {},
     inputCount: side === 'input' ? 0 : 1,
     outputCount: side === 'input' ? 1 : 0,
+  };
+}
+
+/**
+ * Create a virtual NodeState for a bidirectional connection point.
+ * Has both an input port (receives signal from internal graph) and an output port
+ * (emits signal into internal graph). Used inside utility node gameboards.
+ * Indices 0-2 map to left side, 3-5 map to right side.
+ */
+export function createBidirectionalConnectionPointNode(index: number): NodeState {
+  return {
+    id: cpBidirectionalId(index),
+    type: 'connection-point',
+    position: { col: 0, row: 0 },
+    params: { cpIndex: index },
+    inputCount: 1,  // receives signal (acts as utility node output)
+    outputCount: 1, // emits signal (acts as utility node input)
   };
 }
 

@@ -5,6 +5,7 @@ import {
   TUTORIAL_DC_OFFSET,
   TUTORIAL_CLIPPER,
   TUTORIAL_SQUARE_GEN,
+  LEVEL_1_POLARIZE,
 } from './tutorial-levels.ts';
 import {
   SIGNAL_INVERTER,
@@ -21,10 +22,13 @@ import {
   ADVANCED_SPLITTER,
   ADVANCED_GAIN_STAGE,
   ADVANCED_QUADRUPLER,
+  SEGREGATION,
 } from './advanced-levels.ts';
 
 /** All available puzzle levels in order */
 export const PUZZLE_LEVELS: PuzzleDefinition[] = [
+  SEGREGATION,
+  LEVEL_1_POLARIZE,
   TUTORIAL_RECTIFIER,
   TUTORIAL_AMPLIFIER,
   TUTORIAL_DC_OFFSET,

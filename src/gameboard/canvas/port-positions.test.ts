@@ -83,13 +83,13 @@ describe('getNodePortPosition', () => {
 describe('getConnectionPointPosition', () => {
   const cellSize = 40;
 
-  it('input CPs are positioned at PLAYABLE_START gridline', () => {
-    const pos = getConnectionPointPosition('input', 0, cellSize);
+  it('left CPs are positioned at PLAYABLE_START gridline', () => {
+    const pos = getConnectionPointPosition('left', 0, cellSize);
     expect(pos.x).toBe(PLAYABLE_START * cellSize);
   });
 
-  it('output CPs are positioned at METER_RIGHT_START gridline', () => {
-    const pos = getConnectionPointPosition('output', 0, cellSize);
+  it('right CPs are positioned at METER_RIGHT_START gridline', () => {
+    const pos = getConnectionPointPosition('right', 0, cellSize);
     expect(pos.x).toBe(METER_RIGHT_START * cellSize);
   });
 
@@ -99,7 +99,7 @@ describe('getConnectionPointPosition', () => {
     const meterTopMargin = 0;
     const meterStride = METER_GRID_ROWS + METER_GAP_ROWS; // 12 + 0 = 12
     for (let i = 0; i < 3; i++) {
-      const pos = getConnectionPointPosition('input', i, cellSize);
+      const pos = getConnectionPointPosition('left', i, cellSize);
       const verticalOffset = METER_VERTICAL_OFFSETS[i];
       const expectedY = (meterTopMargin + i * meterStride + verticalOffset + METER_GRID_ROWS / 2) * cellSize;
       expect(pos.y).toBe(expectedY);
@@ -107,8 +107,8 @@ describe('getConnectionPointPosition', () => {
   });
 
   it('scales with cellSize', () => {
-    const pos32 = getConnectionPointPosition('input', 1, 32);
-    const pos64 = getConnectionPointPosition('input', 1, 64);
+    const pos32 = getConnectionPointPosition('left', 1, 32);
+    const pos64 = getConnectionPointPosition('left', 1, 64);
     expect(pos64.x).toBe(pos32.x * 2);
     expect(pos64.y).toBe(pos32.y * 2);
   });

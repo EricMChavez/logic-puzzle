@@ -15,19 +15,28 @@ export interface ZoomTransition {
   snapshot: string;
 }
 
+export interface NodeSwap {
+  nodeId: NodeId;
+  newType: string;
+  inputCount: number;
+  outputCount: number;
+  cpLayout?: ('input' | 'output' | 'off')[];
+}
+
 export interface NavigationSlice {
   boardStack: BoardStackEntry[];
   activeBoardReadOnly: boolean;
   navigationDepth: number;
   zoomTransition: ZoomTransition | null;
   editingUtilityId: string | null;
+  editingNodeIdInParent: NodeId | null;
 
   zoomIntoNode: (nodeId: NodeId) => void;
   zoomOut: () => void;
   startZoomTransition: (direction: 'in' | 'out', snapshot: string) => void;
   endZoomTransition: () => void;
-  startEditingUtility: (utilityId: string, board: GameboardState) => void;
-  finishEditingUtility: () => void;
+  startEditingUtility: (utilityId: string, board: GameboardState, nodeIdInParent?: NodeId) => void;
+  finishEditingUtility: (nodeSwap?: NodeSwap) => void;
 }
 
 export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSlice> = (
@@ -39,6 +48,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
   navigationDepth: 0,
   zoomTransition: null,
   editingUtilityId: null,
+  editingNodeIdInParent: null,
 
   startZoomTransition: (direction, snapshot) => {
     set({ zoomTransition: { direction, snapshot } });
@@ -109,14 +119,14 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
     });
   },
 
-  startEditingUtility: (utilityId, board) => {
+  startEditingUtility: (utilityId, board, nodeIdInParent?) => {
     const state = get();
     if (!state.activeBoard) return;
 
     const stackEntry: BoardStackEntry = {
       board: state.activeBoard,
       portConstants: state.portConstants,
-      nodeIdInParent: '' as NodeId,
+      nodeIdInParent: (nodeIdInParent ?? '') as NodeId,
       readOnly: state.activeBoardReadOnly,
     };
 
@@ -131,25 +141,45 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       navigationDepth: newStack.length,
       selectedNodeId: null,
       editingUtilityId: utilityId,
+      editingNodeIdInParent: (nodeIdInParent ?? null) as NodeId | null,
     });
   },
 
-  finishEditingUtility: () => {
+  finishEditingUtility: (nodeSwap?) => {
     const state = get();
     if (state.boardStack.length === 0) return;
 
     const newStack = state.boardStack.slice(0, -1);
     const entry = state.boardStack[state.boardStack.length - 1];
 
+    let parentBoard = entry.board;
+
+    // Apply node swap if provided (e.g., custom-blank → utility:id)
+    if (nodeSwap) {
+      const nodes = new Map(parentBoard.nodes);
+      const existing = nodes.get(nodeSwap.nodeId);
+      if (existing) {
+        nodes.set(nodeSwap.nodeId, {
+          ...existing,
+          type: nodeSwap.newType,
+          inputCount: nodeSwap.inputCount,
+          outputCount: nodeSwap.outputCount,
+          params: { ...existing.params, ...(nodeSwap.cpLayout ? { cpLayout: nodeSwap.cpLayout } : {}) },
+        });
+        parentBoard = { ...parentBoard, nodes };
+      }
+    }
+
     set({
       boardStack: newStack,
-      activeBoard: entry.board,
-      activeBoardId: entry.board.id,
+      activeBoard: parentBoard,
+      activeBoardId: parentBoard.id,
       portConstants: entry.portConstants,
       activeBoardReadOnly: entry.readOnly,
       navigationDepth: newStack.length,
       selectedNodeId: null,
       editingUtilityId: null,
+      editingNodeIdInParent: null,
     });
   },
 });

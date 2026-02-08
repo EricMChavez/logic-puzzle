@@ -8,7 +8,6 @@ import { ZoomTransition } from './ui/puzzle/ZoomTransition.tsx'
 import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, LevelSelectOverlay, TrimDialog, SavePuzzleDialog } from './ui/overlays/index.ts'
 import { PortConstantInput } from './ui/controls/PortConstantInput.tsx'
 import { useGameStore } from './store/index.ts'
-import { DevTools } from './dev/index.ts'
 import type { GameboardState, NodeState } from './shared/types/index.ts'
 import { createCreativeSlotNode } from './puzzle/connection-point-nodes.ts'
 import { startSimulation } from './simulation/simulation-controller.ts'
@@ -106,7 +105,6 @@ function App() {
       <StartScreen />
       <ZoomTransition />
       <CompletionCeremony />
-      {import.meta.env.DEV && <DevTools />}
     </div>
   )
 }

@@ -26,6 +26,8 @@ export interface BakeMetadata {
   inputDelays: number[];
   inputCount: number;
   outputCount: number;
+  /** For utility nodes: per-CP direction. CPs 0-2 = left, 3-5 = right. */
+  cpLayout?: ('input' | 'output' | 'off')[];
 }
 
 /** Result of baking a graph: an evaluate closure plus serializable metadata. */

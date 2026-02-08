@@ -154,14 +154,14 @@ describe('analyzeDelays', () => {
     expect(analysis.outputMappings[0].sourceNodeId).toBe('inv');
   });
 
-  it('two-input node: 2 CP_ins → Merger → CP_out', () => {
+  it('two-input node: 2 CP_ins → Shifter → CP_out', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mrg1', 'merger', 2, 1)],
+      [makeNode('shft1', 'shifter', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shft1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
     const sortResult = topologicalSort(Array.from(nodes.keys()), wires);
@@ -171,7 +171,7 @@ describe('analyzeDelays', () => {
     const analysis = analyzeDelays(sortResult.value, nodes, wires);
     expect(analysis.inputCount).toBe(2);
     expect(analysis.outputCount).toBe(1);
-    expect(analysis.processingOrder).toEqual(['mrg1']);
+    expect(analysis.processingOrder).toEqual(['shft1']);
   });
 
   it('asymmetric delays: one path has more wire delay', () => {
@@ -180,16 +180,16 @@ describe('analyzeDelays', () => {
       [
         makeNode('inv1', 'inverter', 1, 1),
         makeNode('inv2', 'inverter', 1, 1),
-        makeNode('mrg1', 'merger', 2, 1),
+        makeNode('shft1', 'shifter', 2, 1),
       ],
       [
-        // Short path: CP0 → inv1 → mrg1 port 0
+        // Short path: CP0 → inv1 → shft1 port 0
         { from: cpInputId(0), fromPort: 0, to: 'inv1', toPort: 0 },
-        { from: 'inv1', fromPort: 0, to: 'mrg1', toPort: 0 },
-        // Long path: CP0 → inv2 → mrg1 port 1
+        { from: 'inv1', fromPort: 0, to: 'shft1', toPort: 0 },
+        // Long path: CP0 → inv2 → shft1 port 1
         { from: cpInputId(0), fromPort: 0, to: 'inv2', toPort: 0 },
-        { from: 'inv2', fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'inv2', fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
     const sortResult = topologicalSort(Array.from(nodes.keys()), wires);
@@ -358,14 +358,14 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('two-input Merger', () => {
+  it('two-input Shifter', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mrg1', 'merger', 2, 1)],
+      [makeNode('shft1', 'shifter', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shft1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -381,7 +381,7 @@ describe('steady-state equivalence', () => {
 
     const liveOutput = runLiveSimulation(nodes, wires, [30, 40], 100);
 
-    // Merger: 30 + 40 = 70
+    // Shifter: 30 + 40 = 70
     expect(bakedOutput[0]).toBe(70);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
@@ -414,14 +414,14 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('Scaler node: 50 * (1 + 40/100) = 70', () => {
+  it('Amp node: 50 * (1 + 40/100) = 70', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('scl', 'scaler', 2, 1)],
+      [makeNode('amp1', 'amp', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'scl', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 1 },
-        { from: 'scl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'amp1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'amp1', toPort: 1 },
+        { from: 'amp1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -437,19 +437,18 @@ describe('steady-state equivalence', () => {
 
     const liveOutput = runLiveSimulation(nodes, wires, [50, 40], 100);
 
-    // Scaler: 50 * (1 + 40/100) = 50 * 1.4 = 70
+    // Amp: 50 * (1 + 40/100) = 50 * 1.4 = 70
     expect(bakedOutput[0]).toBe(70);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
-  it('Shaper node with polarization (B=-100)', () => {
+  it('Polarizer node saturates positive input to +100', () => {
     const { nodes, wires } = buildGraph(
-      2, 1,
-      [makeNode('shp', 'shaper', 2, 1)],
+      1, 1,
+      [makeNode('pol', 'polarizer', 1, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'shp', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'shp', toPort: 1 },
-        { from: 'shp', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'pol', toPort: 0 },
+        { from: 'pol', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -458,15 +457,14 @@ describe('steady-state equivalence', () => {
     if (!result.ok) return;
 
     const { evaluate } = result.value;
-    // Warm up with constant inputs
     for (let i = 0; i < 100; i++) {
-      evaluate([50, -100]);
+      evaluate([50]);
     }
-    const bakedOutput = evaluate([50, -100]);
+    const bakedOutput = evaluate([50]);
 
-    const liveOutput = runLiveSimulation(nodes, wires, [50, -100], 200);
+    const liveOutput = runLiveSimulation(nodes, wires, [50], 200);
 
-    // Shaper with B=-100 polarizes: positive input → +100
+    // Polarizer: positive input → +100
     expect(bakedOutput[0]).toBe(100);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
@@ -504,37 +502,26 @@ describe('steady-state equivalence', () => {
     expect(bakedOutput[1]).toBe(liveOutput[1]);
   });
 
-  it('all v2 node types in one graph', () => {
-    // CP0 → Inverter → Merger(port0)
-    // CP1 → Scaler(port0), Constant → Scaler(port1) → Merger(port1)
-    // Merger → Splitter
-    // Splitter(port0) → Switch(port0)
-    // Splitter(port1) → Switch(port1)
-    // CP2 → Delay → Switch(control port2)
-    // Switch(port0) → Out0
+  it('all remaining node types in one graph', () => {
+    // CP0 → Inverter → Shifter(port0)
+    // CP1 → Amp(port0), CP2 → Amp(port1) → Shifter(port1)
+    // Shifter → Polarizer → Out0
     const { nodes, wires } = buildGraph(
       3, 1,
       [
         makeNode('inv', 'inverter', 1, 1),
-        makeNode('const', 'constant', 0, 1, { value: 5 }),
-        makeNode('scl', 'scaler', 2, 1),
-        makeNode('mrg', 'merger', 2, 1),
-        makeNode('spl', 'splitter', 1, 2),
-        makeNode('dly', 'delay', 1, 1, { wts: 1 }),
-        makeNode('swt', 'switch', 3, 2),
+        makeNode('amp1', 'amp', 2, 1),
+        makeNode('shft', 'shifter', 2, 1),
+        makeNode('pol', 'polarizer', 1, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'scl', toPort: 0 },
-        { from: 'const', fromPort: 0, to: 'scl', toPort: 1 },
-        { from: 'inv', fromPort: 0, to: 'mrg', toPort: 0 },
-        { from: 'scl', fromPort: 0, to: 'mrg', toPort: 1 },
-        { from: 'mrg', fromPort: 0, to: 'spl', toPort: 0 },
-        { from: 'spl', fromPort: 0, to: 'swt', toPort: 0 },
-        { from: 'spl', fromPort: 1, to: 'swt', toPort: 1 },
-        { from: cpInputId(2), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: 'swt', toPort: 2 },
-        { from: 'swt', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'amp1', toPort: 0 },
+        { from: cpInputId(2), fromPort: 0, to: 'amp1', toPort: 1 },
+        { from: 'inv', fromPort: 0, to: 'shft', toPort: 0 },
+        { from: 'amp1', fromPort: 0, to: 'shft', toPort: 1 },
+        { from: 'shft', fromPort: 0, to: 'pol', toPort: 0 },
+        { from: 'pol', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -543,7 +530,7 @@ describe('steady-state equivalence', () => {
     if (!result.ok) return;
 
     const { evaluate } = result.value;
-    // inputs: CP0=40, CP1=20, CP2=50 (positive control → straight through)
+    // inputs: CP0=40, CP1=20, CP2=50
     const inputs = [40, 20, 50];
     for (let i = 0; i < 50; i++) {
       evaluate(inputs);
@@ -553,13 +540,10 @@ describe('steady-state equivalence', () => {
     const liveOutput = runLiveSimulation(nodes, wires, inputs, 200);
 
     // Inverter(40) = -40
-    // Constant(value=5) = 5*10 = 50
-    // Scaler(20, 50) = 20 * (1 + 50/100) = 20 * 1.5 = 30
-    // Merger(-40, 30) = -10
-    // Splitter(-10) = -5, -5
-    // Delay(50, wts=1) = 50 (steady state)
-    // Switch(-5, -5, 50): control >= 0 → straight → Out0 = -5
-    expect(bakedOutput[0]).toBe(-5);
+    // Amp(20, 50) = 20 * (1 + 50/100) = 20 * 1.5 = 30
+    // Shifter(-40, 30) = -10
+    // Polarizer(-10) = -100 (negative input → -100)
+    expect(bakedOutput[0]).toBe(-100);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 });
@@ -568,19 +552,19 @@ describe('steady-state equivalence', () => {
 
 describe('metadata serialization roundtrip', () => {
   it('JSON roundtrip produces identical outputs', () => {
-    // Chain: CP0 → Inverter → Merger(port0), CP1 → Merger(port1) → Out
+    // Chain: CP0 → Inverter → Shifter(port0), CP1 → Shifter(port1) → Out
     // Result: -CP0 + CP1
     const { nodes, wires } = buildGraph(
       2, 1,
       [
         makeNode('inv', 'inverter', 1, 1),
-        makeNode('mrg1', 'merger', 2, 1),
+        makeNode('shft1', 'shifter', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
-        { from: 'inv', fromPort: 0, to: 'mrg1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'inv', fromPort: 0, to: 'shft1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -644,14 +628,14 @@ describe('metadata serialization roundtrip', () => {
 
 describe('edge cases', () => {
   it('unconnected input ports default to 0', () => {
-    // Merger with only one input connected
+    // Shifter with only one input connected
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('mrg1', 'merger', 2, 1)],
+      [makeNode('shft1', 'shifter', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shft1', toPort: 0 },
         // Port 1 is unconnected
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -665,7 +649,7 @@ describe('edge cases', () => {
     }
     const output = evaluate([50]);
 
-    // Merger(50, 0) = 50 (unconnected port defaults to 0)
+    // Shifter(50, 0) = 50 (unconnected port defaults to 0)
     expect(output[0]).toBe(50);
   });
 
@@ -674,7 +658,7 @@ describe('edge cases', () => {
       1, 1,
       [
         makeNode('inv', 'inverter', 1, 1),
-        makeNode('orphan', 'scaler', 2, 1),
+        makeNode('orphan', 'amp', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'inv', toPort: 0 },
@@ -759,14 +743,15 @@ describe('edge cases', () => {
     expect(output).toEqual([]);
   });
 
-  it('Splitter node produces two half-value outputs', () => {
+  it('Fader node produces two split outputs', () => {
     const { nodes, wires } = buildGraph(
       1, 2,
-      [makeNode('spl', 'splitter', 1, 2)],
+      [makeNode('fdr', 'fader', 2, 2)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'spl', toPort: 0 },
-        { from: 'spl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-        { from: 'spl', fromPort: 1, to: cpOutputId(1), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'fdr', toPort: 0 },
+        // Port 1 (fade control) unconnected → defaults to 0 → 50/50 split
+        { from: 'fdr', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: 'fdr', fromPort: 1, to: cpOutputId(1), toPort: 0 },
       ],
     );
 
@@ -780,19 +765,19 @@ describe('edge cases', () => {
     }
     const output = evaluate([80]);
 
-    // Splitter: 80 / 2 = 40 on each output
+    // Fader at X=0: Y = 80 * 50/100 = 40, Z = 80 * 50/100 = 40
     expect(output[0]).toBe(40);
     expect(output[1]).toBe(40);
   });
 
-  it('clamping: Merger with values exceeding range', () => {
+  it('clamping: Shifter with values exceeding range', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('mrg1', 'merger', 2, 1)],
+      [makeNode('shft1', 'shifter', 2, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'mrg1', toPort: 0 },
-        { from: cpInputId(1), fromPort: 0, to: 'mrg1', toPort: 1 },
-        { from: 'mrg1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'shft1', toPort: 0 },
+        { from: cpInputId(1), fromPort: 0, to: 'shft1', toPort: 1 },
+        { from: 'shft1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
@@ -806,7 +791,7 @@ describe('edge cases', () => {
     }
     const output = evaluate([80, 80]);
 
-    // Merger: 80 + 80 = 160, clamped to 100
+    // Shifter: 80 + 80 = 160, clamped to 100
     expect(output[0]).toBe(100);
   });
 });

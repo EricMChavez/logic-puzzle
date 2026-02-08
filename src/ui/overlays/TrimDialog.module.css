@@ -53,7 +53,7 @@
   height: 200px;
   border-radius: 8px;
   border: 1px solid #3a3a5a;
-  cursor: ew-resize;
+  cursor: default;
 }
 
 .info {
@@ -122,7 +122,12 @@
   transition: all 0.2s;
 }
 
-.continueButton:hover {
+.continueButton:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(245, 175, 40, 0.3);
+}
+
+.continueButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

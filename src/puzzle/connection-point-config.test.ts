@@ -8,13 +8,13 @@ describe('buildConnectionPointConfig', () => {
   it('1 input, 1 output → 1 active left input, 1 active right output', () => {
     const config = buildConnectionPointConfig(1, 1);
 
-    expect(config.left[0]).toEqual({ active: true, direction: 'input' });
-    expect(config.left[1]).toEqual({ active: false, direction: 'input' });
-    expect(config.left[2]).toEqual({ active: false, direction: 'input' });
+    expect(config.left[0]).toEqual({ active: true, direction: 'input', cpIndex: 0 });
+    expect(config.left[1]).toEqual({ active: false, direction: 'input', cpIndex: 1 });
+    expect(config.left[2]).toEqual({ active: false, direction: 'input', cpIndex: 2 });
 
-    expect(config.right[0]).toEqual({ active: true, direction: 'output' });
-    expect(config.right[1]).toEqual({ active: false, direction: 'output' });
-    expect(config.right[2]).toEqual({ active: false, direction: 'output' });
+    expect(config.right[0]).toEqual({ active: true, direction: 'output', cpIndex: 0 });
+    expect(config.right[1]).toEqual({ active: false, direction: 'output', cpIndex: 1 });
+    expect(config.right[2]).toEqual({ active: false, direction: 'output', cpIndex: 2 });
   });
 
   it('3 inputs, 2 outputs → all left active, 2 right active', () => {
@@ -42,15 +42,22 @@ describe('buildConnectionPointConfig', () => {
 });
 
 describe('buildCustomNodeConnectionPointConfig', () => {
-  it('all 6 slots active with direction output', () => {
+  it('all 6 slots active, left=input right=output with cpIndex', () => {
     const config = buildCustomNodeConnectionPointConfig();
 
     expect(config.left).toHaveLength(3);
     expect(config.right).toHaveLength(3);
 
-    for (const slot of [...config.left, ...config.right]) {
+    for (const slot of config.left) {
+      expect(slot.active).toBe(true);
+      expect(slot.direction).toBe('input');
+      expect(slot.cpIndex).toBeDefined();
+    }
+
+    for (const slot of config.right) {
       expect(slot.active).toBe(true);
       expect(slot.direction).toBe('output');
+      expect(slot.cpIndex).toBeDefined();
     }
   });
 });

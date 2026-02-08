@@ -8,7 +8,8 @@ export type InteractionMode =
   | { type: 'placing-node'; nodeType: string; rotation: NodeRotation }
   | { type: 'drawing-wire'; fromPort: PortRef; fromPosition: Vec2 }
   | { type: 'keyboard-wiring'; fromPort: PortRef; validTargets: PortRef[]; targetIndex: number }
-  | { type: 'dragging-node'; draggedNode: NodeState; offset: Vec2; originalPosition: GridPoint; rotation: NodeRotation };
+  | { type: 'dragging-node'; draggedNode: NodeState; offset: Vec2; originalPosition: GridPoint; rotation: NodeRotation }
+  | { type: 'adjusting-knob'; nodeId: NodeId; startY: number; startValue: number };
 
 /** Port currently being edited for a constant value */
 export interface EditingPort {
@@ -61,6 +62,10 @@ export interface InteractionSlice {
   cancelKeyboardWiring: () => void;
   /** Set the keyboard ghost position for arrow-key placement */
   setKeyboardGhostPosition: (pos: GridPoint | null) => void;
+  /** Start adjusting a mixer knob */
+  startKnobAdjust: (nodeId: NodeId, startY: number, startValue: number) => void;
+  /** Commit knob adjustment and return to idle */
+  commitKnobAdjust: () => void;
   /** Start dragging a node */
   startDragging: (node: NodeState, mousePos: Vec2) => void;
   /** Update drag position */
@@ -155,6 +160,15 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
 
   setKeyboardGhostPosition: (pos) =>
     set({ keyboardGhostPosition: pos }),
+
+  startKnobAdjust: (nodeId, startY, startValue) =>
+    set({
+      interactionMode: { type: 'adjusting-knob', nodeId, startY, startValue },
+      selectedNodeId: nodeId,
+    }),
+
+  commitKnobAdjust: () =>
+    set({ interactionMode: { type: 'idle' } }),
 
   startDragging: (node, mousePos) => {
     // Calculate offset from mouse position to node position
