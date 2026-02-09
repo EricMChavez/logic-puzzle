@@ -1,7 +1,7 @@
 import type { Wire, NodeState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
-import { isConnectionPointNode, isConnectionInputNode, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex } from '../../puzzle/connection-point-nodes.ts';
+import { isConnectionPointNode, isConnectionInputNode, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, isBidirectionalCpNode, getBidirectionalCpIndex } from '../../puzzle/connection-point-nodes.ts';
 import { getDevOverrides } from '../../dev/index.ts';
 
 // ── Colour helpers ──────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ export function signalToColor(value: number, tokens: ThemeTokens): string {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
 
-  const colorRampEnd = useOverrides ? devOverrides.wireStyle.colorRampEnd : 75;
+  const colorRampEnd = useOverrides ? devOverrides.wireStyle.colorRampEnd : 100;
   const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
   const positiveColor = useOverrides ? devOverrides.colors.signalPositive : tokens.signalPositive;
   const negativeColor = useOverrides ? devOverrides.colors.signalNegative : tokens.signalNegative;
@@ -60,7 +60,7 @@ export function signalToGlow(value: number): number {
   const useOverrides = devOverrides.enabled;
 
   const glowThreshold = useOverrides ? devOverrides.wireStyle.glowThreshold : 75;
-  const glowMaxRadius = useOverrides ? devOverrides.wireStyle.glowMaxRadius : 12;
+  const glowMaxRadius = useOverrides ? devOverrides.wireStyle.glowMaxRadius : 30;
 
   const abs = Math.abs(value);
   if (abs <= glowThreshold) return 0;
@@ -113,6 +113,11 @@ function getPortPixelPosition(
       const slotIndex = getCreativeSlotIndex(nodeId);
       physicalSide = slotIndex < 3 ? 'left' : 'right';
       meterIndex = slotIndex < 3 ? slotIndex : slotIndex - 3;
+    } else if (isBidirectionalCpNode(nodeId)) {
+      // Bidirectional CPs (utility editing): 0-2 are left, 3-5 are right
+      const cpIndex = getBidirectionalCpIndex(nodeId);
+      physicalSide = cpIndex < 3 ? 'left' : 'right';
+      meterIndex = cpIndex < 3 ? cpIndex : cpIndex - 3;
     } else {
       // Standard CP nodes: check for physicalSide in params (custom puzzles),
       // fall back to direction-based mapping (standard puzzles)
@@ -146,8 +151,8 @@ export function drawWires(
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
 
-  const wireWidth = useOverrides ? devOverrides.wireStyle.baseWidth : (Number(tokens.wireWidthBase) || 2);
-  const baseOpacity = useOverrides ? devOverrides.wireStyle.baseOpacity : 0.4;
+  const wireWidth = useOverrides ? devOverrides.wireStyle.baseWidth : (Number(tokens.wireWidthBase) || 6);
+  const baseOpacity = useOverrides ? devOverrides.wireStyle.baseOpacity : 1;
   const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
 
   for (const wire of wires) {

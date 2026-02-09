@@ -29,7 +29,7 @@ const mockTokens: ThemeTokens = {
   portFill: '#36b',
   portStroke: '#59f',
   portConnected: '#5c8',
-  gridLine: '#1e1e38',
+  gridLine: '#16161a',
   animZoomDuration: '500ms',
   animNodeScaleDuration: '300ms',
   animWireDrawDuration: '200ms',
@@ -75,10 +75,10 @@ describe('drawMeter', () => {
     const state: RenderMeterState = { slot, signalBuffer: null, targetBuffer: null };
     drawMeter(ctx, mockTokens, state, testRect);
 
-    // Should have fillRect calls for interior and overlay
+    // Should have fillRect calls for housing + interior + dimmed overlay
     const fillRectCalls = ctx._calls.filter((c) => c.startsWith('fillRect'));
-    expect(fillRectCalls.length).toBe(2); // interior + dimmed overlay
-    // Interior drawing uses beginPath for cutout clipping, but no channel drawing
+    expect(fillRectCalls.length).toBe(3); // housing + interior + dimmed overlay
+    // Interior drawing uses beginPath for cutout clipping
     const beginPathCalls = ctx._calls.filter((c) => c.startsWith('beginPath'));
     expect(beginPathCalls).toHaveLength(1); // interior cutout clip path only
   });
@@ -92,12 +92,11 @@ describe('drawMeter', () => {
     const state: RenderMeterState = { slot, signalBuffer: buf, targetBuffer: null };
     drawMeter(ctx, mockTokens, state, testRect);
 
-    // Should have at least: interior fill, centerline (beginPath+moveTo+lineTo+stroke),
-    // and channel fills
+    // Should have housing + interior fill + channel fills (waveform bars, level bar)
     const fillRectCalls = ctx._calls.filter((c) => c.startsWith('fillRect'));
-    expect(fillRectCalls.length).toBeGreaterThanOrEqual(2); // interior + at least 1 channel fill
+    expect(fillRectCalls.length).toBeGreaterThanOrEqual(3); // housing + interior + at least 1 channel fill
     const beginPathCalls = ctx._calls.filter((c) => c.startsWith('beginPath'));
-    expect(beginPathCalls.length).toBeGreaterThanOrEqual(1); // centerline + needle
+    expect(beginPathCalls.length).toBeGreaterThanOrEqual(1); // interior cutout + centerline + needle
   });
 
   it('does not import useGameStore or COLORS', async () => {

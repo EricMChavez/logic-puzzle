@@ -20,6 +20,9 @@
   --token-color-target: #404050;
   --token-color-validation-match: #16A34A;
   --token-meter-needle: #cc3030;
+  --token-color-error: #C43030;
+  --token-meter-border: #b0acaa;
+  --token-board-border: #b0aca8;
 
   --token-depth-raised: rgba(0, 0, 0, 0.12);
   --token-depth-sunken: rgba(0, 0, 0, 0.18);

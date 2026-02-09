@@ -1,7 +1,8 @@
 /** Supported waveform shapes for puzzle inputs/outputs */
-export type WaveformShape = 'sine' | 'square' | 'triangle' | 'sawtooth' | 'constant'
+export type WaveformShape = 'sine' | 'square' | 'triangle' | 'sawtooth'
   | 'rectified-sine' | 'rectified-triangle' | 'clipped-sine'
   | 'fullwave-rectified-sine' | 'fullwave-rectified-triangle'
+  | 'dual-wave' | 'long-wave' | 'positive-sine' | 'overtone'
   | 'samples';
 
 /** Definition of a single waveform signal */

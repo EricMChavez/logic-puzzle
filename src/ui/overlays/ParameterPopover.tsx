@@ -78,8 +78,8 @@ function ParameterPopoverInner({ nodeId }: { nodeId: string }) {
         {node.type === 'amp' && (
           <AmpControls node={node} updateNodeParams={updateNodeParams} />
         )}
-        {node.type === 'fader' && (
-          <FaderControls node={node} updateNodeParams={updateNodeParams} />
+        {node.type === 'diverter' && (
+          <DiverterControls node={node} updateNodeParams={updateNodeParams} />
         )}
       </div>
     </>
@@ -181,7 +181,7 @@ function MixerControls({ node, updateNodeParams }: ControlProps) {
   );
 }
 
-function FaderControls({ node, updateNodeParams }: ControlProps) {
+function DiverterControls({ node, updateNodeParams }: ControlProps) {
   const setPortConstant = useGameStore((s) => s.setPortConstant);
   const current = Number(node.params['fade'] ?? 0);
   return (

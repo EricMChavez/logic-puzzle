@@ -1,41 +1,41 @@
 import { describe, it, expect } from 'vitest';
-import { faderNode } from './fader';
+import { diverterNode } from './diverter';
 import { clamp } from '../../../shared/math';
 
-describe('Fader Node', () => {
+describe('Diverter Node', () => {
   describe('metadata', () => {
     it('has correct type', () => {
-      expect(faderNode.type).toBe('fader');
+      expect(diverterNode.type).toBe('diverter');
     });
 
     it('has correct category', () => {
-      expect(faderNode.category).toBe('routing');
+      expect(diverterNode.category).toBe('routing');
     });
 
     it('has 2 inputs (A, X)', () => {
-      expect(faderNode.inputs).toHaveLength(2);
-      expect(faderNode.inputs[0].name).toBe('A');
-      expect(faderNode.inputs[1].name).toBe('X');
+      expect(diverterNode.inputs).toHaveLength(2);
+      expect(diverterNode.inputs[0].name).toBe('A');
+      expect(diverterNode.inputs[1].name).toBe('X');
     });
 
     it('has X on bottom side', () => {
-      expect(faderNode.inputs[1].side).toBe('bottom');
+      expect(diverterNode.inputs[1].side).toBe('bottom');
     });
 
     it('has 2 outputs (Y, Z)', () => {
-      expect(faderNode.outputs).toHaveLength(2);
-      expect(faderNode.outputs[0].name).toBe('Y');
-      expect(faderNode.outputs[1].name).toBe('Z');
+      expect(diverterNode.outputs).toHaveLength(2);
+      expect(diverterNode.outputs[0].name).toBe('Y');
+      expect(diverterNode.outputs[1].name).toBe('Z');
     });
 
     it('has 3x3 size', () => {
-      expect(faderNode.size).toEqual({ width: 3, height: 3 });
+      expect(diverterNode.size).toEqual({ width: 3, height: 3 });
     });
   });
 
   describe('evaluate', () => {
     const evaluate = (a: number, x: number) =>
-      faderNode.evaluate({ inputs: [a, x], params: { fade: 0 } });
+      diverterNode.evaluate({ inputs: [a, x], params: { fade: 0 } });
 
     it('X=0 splits evenly: Y=50%A, Z=50%A', () => {
       const [y, z] = evaluate(100, 0);
@@ -100,7 +100,7 @@ describe('Fader Node', () => {
     });
 
     it('Y + Z = A for any X in [-100, 100]', () => {
-      // Signal conservation: the fader redistributes but doesn't create/destroy
+      // Signal conservation: the diverter redistributes but doesn't create/destroy
       const [y, z] = evaluate(60, 30);
       expect(y + z).toBe(60);
     });
@@ -108,12 +108,12 @@ describe('Fader Node', () => {
 
   describe('params', () => {
     it('has fade param with correct config', () => {
-      expect(faderNode.params).toHaveLength(1);
-      expect(faderNode.params[0].key).toBe('fade');
-      expect(faderNode.params[0].default).toBe(0);
-      expect(faderNode.params[0].min).toBe(-100);
-      expect(faderNode.params[0].max).toBe(100);
-      expect(faderNode.params[0].step).toBe(25);
+      expect(diverterNode.params).toHaveLength(1);
+      expect(diverterNode.params[0].key).toBe('fade');
+      expect(diverterNode.params[0].default).toBe(0);
+      expect(diverterNode.params[0].min).toBe(-100);
+      expect(diverterNode.params[0].max).toBe(100);
+      expect(diverterNode.params[0].step).toBe(25);
     });
   });
 });

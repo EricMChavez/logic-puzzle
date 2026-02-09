@@ -6,20 +6,23 @@
  */
 
 [data-theme="dark"] {
-  --token-surface-page-background: #0a0a14;
+  --token-surface-page-background: #0a0a0a;
   --token-surface-gameboard: #0e0e18;
-  --token-surface-grid-area: #141422;
-  --token-surface-meter-housing: #0a0a14;
-  --token-surface-meter-interior: #0a0a14;
-  --token-surface-node: #2d2d44;
-  --token-surface-node-bottom: #222238;
+  --token-surface-grid-area: #000000;
+  --token-surface-meter-housing: #000000;
+  --token-surface-meter-interior: #000000;
+  --token-surface-node: #44484e;
+  --token-surface-node-bottom: #2a2a2a;
 
-  --token-signal-positive: #e8a838;
-  --token-signal-negative: #38b8a0;
-  --token-color-neutral: #3a3a4a;
+  --token-signal-positive: #ff9200;
+  --token-signal-negative: #0782e0;
+  --token-color-neutral: #242424;
   --token-color-target: #c8c8d8;
-  --token-color-validation-match: #22C55E;
-  --token-meter-needle: #e03838;
+  --token-color-validation-match: #22c55e;
+  --token-meter-needle: #f5f5f5;
+  --token-color-error: #e04040;
+  --token-meter-border: #6c6666;
+  --token-board-border: #3d3e42;
 
   --token-depth-raised: rgba(0, 0, 0, 0.4);
   --token-depth-sunken: rgba(0, 0, 0, 0.6);
@@ -33,5 +36,5 @@
   --token-port-stroke: #5a9bf5;
   --token-port-connected: #50c878;
 
-  --token-grid-line: #1e1e38;
+  --token-grid-line: #16161a;
 }

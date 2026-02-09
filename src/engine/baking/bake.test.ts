@@ -743,10 +743,10 @@ describe('edge cases', () => {
     expect(output).toEqual([]);
   });
 
-  it('Fader node produces two split outputs', () => {
+  it('Diverter node produces two split outputs', () => {
     const { nodes, wires } = buildGraph(
       1, 2,
-      [makeNode('fdr', 'fader', 2, 2)],
+      [makeNode('fdr', 'diverter', 2, 2)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'fdr', toPort: 0 },
         // Port 1 (fade control) unconnected → defaults to 0 → 50/50 split
@@ -765,7 +765,7 @@ describe('edge cases', () => {
     }
     const output = evaluate([80]);
 
-    // Fader at X=0: Y = 80 * 50/100 = 40, Z = 80 * 50/100 = 40
+    // Diverter at X=0: Y = 80 * 50/100 = 40, Z = 80 * 50/100 = 40
     expect(output[0]).toBe(40);
     expect(output[1]).toBe(40);
   });

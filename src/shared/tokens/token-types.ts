@@ -20,6 +20,9 @@ export const TOKEN_KEYS = [
   'colorTarget',
   'colorValidationMatch',
   'meterNeedle',
+  'colorError',
+  'meterBorder',
+  'boardBorder',
 
   // Depth
   'depthRaised',
@@ -78,6 +81,9 @@ export const TOKEN_CSS_MAP: Record<TokenKey, string> = {
   colorTarget: '--token-color-target',
   colorValidationMatch: '--token-color-validation-match',
   meterNeedle: '--token-meter-needle',
+  colorError: '--token-color-error',
+  meterBorder: '--token-meter-border',
+  boardBorder: '--token-board-border',
 
   depthRaised: '--token-depth-raised',
   depthSunken: '--token-depth-sunken',

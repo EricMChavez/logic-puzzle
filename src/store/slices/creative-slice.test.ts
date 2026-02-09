@@ -124,10 +124,10 @@ describe('creative-slice', () => {
       const originalAmplitude = useGameStore.getState().creativeSlots[0].waveform.amplitude;
       const originalPeriod = useGameStore.getState().creativeSlots[0].waveform.period;
 
-      useGameStore.getState().setCreativeSlotWaveformShape(0, 'constant');
+      useGameStore.getState().setCreativeSlotWaveformShape(0, 'overtone');
 
       const slot = useGameStore.getState().creativeSlots[0];
-      expect(slot.waveform.shape).toBe('constant');
+      expect(slot.waveform.shape).toBe('overtone');
       expect(slot.waveform.amplitude).toBe(originalAmplitude);
       expect(slot.waveform.period).toBe(originalPeriod);
     });

@@ -104,7 +104,7 @@ describe('exportCustomPuzzleAsSource', () => {
         { direction: 'input', waveform: { shape: 'sine', amplitude: 100, period: 256, phase: 0, offset: 0 } },
         { direction: 'output' },
         { direction: 'off' },
-        { direction: 'input', waveform: { shape: 'constant', amplitude: 50, period: 16, phase: 0, offset: 0 } },
+        { direction: 'input', waveform: { shape: 'positive-sine', amplitude: 50, period: 16, phase: 0, offset: 0 } },
         { direction: 'output' },
         { direction: 'off' },
       ],

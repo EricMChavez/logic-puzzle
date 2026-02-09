@@ -12,10 +12,10 @@ import type { Wire } from '../../shared/types/index';
 
 /** Minimal tokens for signal colour tests (dark theme values) */
 const tokens: Pick<ThemeTokens, 'signalPositive' | 'signalNegative' | 'colorNeutral' | 'wireWidthBase'> = {
-  signalPositive: '#e8a838',
-  signalNegative: '#38b8a0',
-  colorNeutral: '#3a3a4a',
-  wireWidthBase: '2.5',
+  signalPositive: '#ff9200',
+  signalNegative: '#0782e0',
+  colorNeutral: '#242424',
+  wireWidthBase: '6',
 };
 
 // ── hexToRgb ────────────────────────────────────────────────────────────────
@@ -87,25 +87,13 @@ describe('signalToColor', () => {
     expect(result).toBe(`rgb(${r},${g},${b})`);
   });
 
-  it('signal +75 → full positive', () => {
-    const result = signalToColor(75, tokens as ThemeTokens);
-    const [r, g, b] = hexToRgb(tokens.signalPositive);
-    expect(result).toBe(`rgb(${r},${g},${b})`);
-  });
-
-  it('signal +100 → clamped at full positive', () => {
+  it('signal +100 → full positive (colorRampEnd=100)', () => {
     const result = signalToColor(100, tokens as ThemeTokens);
     const [r, g, b] = hexToRgb(tokens.signalPositive);
     expect(result).toBe(`rgb(${r},${g},${b})`);
   });
 
-  it('signal -75 → full negative', () => {
-    const result = signalToColor(-75, tokens as ThemeTokens);
-    const [r, g, b] = hexToRgb(tokens.signalNegative);
-    expect(result).toBe(`rgb(${r},${g},${b})`);
-  });
-
-  it('signal -100 → clamped at full negative', () => {
+  it('signal -100 → full negative (colorRampEnd=100)', () => {
     const result = signalToColor(-100, tokens as ThemeTokens);
     const [r, g, b] = hexToRgb(tokens.signalNegative);
     expect(result).toBe(`rgb(${r},${g},${b})`);
@@ -113,10 +101,10 @@ describe('signalToColor', () => {
 
   it('signal +50 → intermediate between neutral and positive', () => {
     const result = signalToColor(50, tokens as ThemeTokens);
-    // t = 50/75 ≈ 0.667
+    // t = 50/100 = 0.5
     const neutral = hexToRgb(tokens.colorNeutral);
     const pos = hexToRgb(tokens.signalPositive);
-    const t = 50 / 75;
+    const t = 50 / 100;
     const expected = `rgb(${Math.round(neutral[0] + (pos[0] - neutral[0]) * t)},${Math.round(neutral[1] + (pos[1] - neutral[1]) * t)},${Math.round(neutral[2] + (pos[2] - neutral[2]) * t)})`;
     expect(result).toBe(expected);
   });
@@ -141,20 +129,20 @@ describe('signalToGlow', () => {
     expect(signalToGlow(-75)).toBe(0);
   });
 
-  it('87.5 → 6 (midpoint of ramp)', () => {
-    expect(signalToGlow(87.5)).toBe(6);
+  it('87.5 → 15 (midpoint of ramp)', () => {
+    expect(signalToGlow(87.5)).toBe(15);
   });
 
-  it('-87.5 → 6 (negative midpoint)', () => {
-    expect(signalToGlow(-87.5)).toBe(6);
+  it('-87.5 → 15 (negative midpoint)', () => {
+    expect(signalToGlow(-87.5)).toBe(15);
   });
 
-  it('100 → 12 (max glow)', () => {
-    expect(signalToGlow(100)).toBe(12);
+  it('100 → 30 (max glow)', () => {
+    expect(signalToGlow(100)).toBe(30);
   });
 
-  it('-100 → 12 (max glow, negative)', () => {
-    expect(signalToGlow(-100)).toBe(12);
+  it('-100 → 30 (max glow, negative)', () => {
+    expect(signalToGlow(-100)).toBe(30);
   });
 });
 
@@ -221,10 +209,10 @@ describe('drawWires', () => {
   }
 
   const fullTokens = {
-    signalPositive: '#e8a838',
-    signalNegative: '#38b8a0',
-    colorNeutral: '#3a3a4a',
-    wireWidthBase: '2.5',
+    signalPositive: '#ff9200',
+    signalNegative: '#0782e0',
+    colorNeutral: '#242424',
+    wireWidthBase: '6',
   } as ThemeTokens;
 
   it('skips wires with empty path', () => {

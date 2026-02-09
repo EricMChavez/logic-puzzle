@@ -1,13 +1,19 @@
+/** Gameboard layout styling */
+export const GAMEBOARD_STYLE = {
+  /** Corner radius ratio (multiplied by cellSize at render time) */
+  CORNER_RADIUS_RATIO: 0.5,
+} as const;
+
 /** Ratio-based node styling (multiplied by cellSize at render time) */
 export const NODE_STYLE = {
-  BORDER_RADIUS_RATIO: 0.12,
-  PORT_RADIUS_RATIO: 0.12,
-  LABEL_FONT_RATIO: 0.32,
+  BORDER_RADIUS_RATIO: 0.1,
+  PORT_RADIUS_RATIO: 0.25,
+  LABEL_FONT_RATIO: 0.40,
   PARAM_FONT_RATIO: 0.22,
   LABEL_FONT_FAMILY: "'Inter', 'Segoe UI', system-ui, sans-serif",
   PARAM_FONT_FAMILY: "'Consolas', 'JetBrains Mono', monospace",
-  SHADOW_BLUR_RATIO: 0.2,
-  SHADOW_OFFSET_Y_RATIO: 0.06,
+  SHADOW_BLUR_RATIO: 0.29,
+  SHADOW_OFFSET_Y_RATIO: 0.12,
   FOCUS_RING_WIDTH: 2,
   SELECTION_PAD: 3,
   /** Half-cell offset so ports sit on grid lines while body is offset */
@@ -45,7 +51,7 @@ export const VALIDATION_CONFIG = {
 /** Color palette for rendering */
 export const COLORS = {
   BACKGROUND: '#1a1a2e',
-  NODE_FILL: '#2d2d44',
+  NODE_FILL: '#44484e',
   NODE_STROKE: '#4a4a6a',
   NODE_LABEL: '#e0e0f0',
   NODE_PARAM: '#9090b0',
@@ -54,10 +60,10 @@ export const COLORS = {
   PORT_CONNECTED: '#50c878',
   WIRE: '#5a9bf5',
   WIRE_SIGNAL: '#50c878',
-  CONNECTION_POINT_FILL: '#e8a838',
+  CONNECTION_POINT_FILL: '#ff9200',
   CONNECTION_POINT_STROKE: '#f0c868',
-  CONNECTION_POINT_LABEL: '#e8a838',
-  GRID_LINE: '#1e1e38',
+  CONNECTION_POINT_LABEL: '#ff9200',
+  GRID_LINE: '#16161a',
   TARGET_WAVEFORM: '#c8c8d8',
 } as const;
 
@@ -68,7 +74,7 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
   delay: 'Delay',
   mixer: 'Mixer',
   amp: 'Amp',
-  fader: 'Fader',
+  diverter: 'Diverter',
   polarizer: 'Polarizer',
   shifter: 'Shifter',
   // Custom blank (unsaved utility node)
@@ -84,6 +90,6 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
 export const KNOB_NODES: Record<string, { portIndex: number; paramKey: string }> = {
   mixer: { portIndex: 2, paramKey: 'mix' },
   amp: { portIndex: 1, paramKey: 'gain' },
-  fader: { portIndex: 1, paramKey: 'fade' },
+  diverter: { portIndex: 1, paramKey: 'fade' },
   shifter: { portIndex: 1, paramKey: 'shift' },
 };

@@ -32,20 +32,18 @@ export interface GridStyleOverrides {
 }
 
 export interface MeterStyleOverrides {
-  waveformRatio: number;
-  levelBarRatio: number;
-  needleRatio: number;
-  verticalHeightRatio: number;
   needleGlow: number;
 }
 
 export interface ColorOverrides {
   pageBackground: string;
+  pageBackgroundCenter: string;
   signalPositive: string;
   signalNegative: string;
   colorNeutral: string;
   gridArea: string;
-  meterHousing: string;
+  gridAreaEdge: string;
+  gridAreaCenter: string;
   meterInterior: string;
   surfaceNode: string;
   surfaceNodeBottom: string;
@@ -54,6 +52,11 @@ export interface ColorOverrides {
   gridLine: string;
   meterNeedle: string;
   textPrimary: string;
+  colorError: string;
+  meterBorder: string;
+  boardBorder: string;
+  colorValidationMatch: string;
+  colorTarget: string;
 }
 
 export interface DevOverrides {
@@ -69,52 +72,55 @@ export interface DevOverrides {
 export const DEFAULT_DEV_OVERRIDES: DevOverrides = {
   enabled: false,
   nodeStyle: {
-    shadowBlur: 0.2,
-    shadowOffsetY: 0.06,
-    borderRadius: 0.12,
+    shadowBlur: 0.29,
+    shadowOffsetY: 0.12,
+    borderRadius: 0.1,
     gradientIntensity: 1.0,
     hoverBrightness: 0.15,
-    borderWidth: 1.5,
-    portRadius: 0.12,
+    borderWidth: 0,
+    portRadius: 0.25,
   },
   wireStyle: {
-    baseWidth: 2,
-    baseOpacity: 0.4,
+    baseWidth: 6,
+    baseOpacity: 1,
     glowThreshold: 75,
-    glowMaxRadius: 12,
-    colorRampEnd: 75,
+    glowMaxRadius: 30,
+    colorRampEnd: 100,
   },
   gridStyle: {
-    lineOpacity: 1.0,
-    shadowDepth: 0.4,
-    borderHighlight: 0.06,
-    borderShadow: 0.4,
-    insetDepthTop: 0.4,
-    insetDepthSide: 0.3,
+    lineOpacity: 0.8,
+    shadowDepth: 1,
+    borderHighlight: 0.3,
+    borderShadow: 1,
+    insetDepthTop: 1,
+    insetDepthSide: 1,
     showGridLabels: false,
   },
   meterStyle: {
-    waveformRatio: 0.59,
-    levelBarRatio: 0.30,
-    needleRatio: 0.10,
-    verticalHeightRatio: 0.35,
-    needleGlow: 8,
+    needleGlow: 10,
   },
   colors: {
-    pageBackground: '#0a0a14',
-    signalPositive: '#e8a838',
-    signalNegative: '#38b8a0',
-    colorNeutral: '#3a3a4a',
-    gridArea: '#141422',
-    meterHousing: '#0a0a14',
-    meterInterior: '#0a0a14',
-    surfaceNode: '#2d2d44',
-    surfaceNodeBottom: '#222238',
+    pageBackground: '#0a0a0a',
+    pageBackgroundCenter: '#282a2e',
+    signalPositive: '#ff9200',
+    signalNegative: '#0782e0',
+    colorNeutral: '#242424',
+    gridArea: '#000000',
+    gridAreaEdge: '#000000',
+    gridAreaCenter: '#0a0b0d',
+    meterInterior: '#000000',
+    surfaceNode: '#44484e',
+    surfaceNodeBottom: '#2a2a2a',
     portFill: '#3a7bd5',
     portStroke: '#5a9bf5',
-    gridLine: '#1e1e38',
-    meterNeedle: '#e03838',
+    gridLine: '#16161a',
+    meterNeedle: '#f5f5f5',
     textPrimary: '#e0e0f0',
+    colorError: '#e04040',
+    meterBorder: '#6c6666',
+    boardBorder: '#3d3e42',
+    colorValidationMatch: '#22c55e',
+    colorTarget: '#c8c8d8',
   },
 };
 

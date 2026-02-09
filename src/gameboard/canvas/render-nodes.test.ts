@@ -14,7 +14,7 @@ import {
 
 function makeTokens(overrides: Partial<ThemeTokens> = {}): ThemeTokens {
   return {
-    surfaceNode: '#2d2d44',
+    surfaceNode: '#44484e',
     surfaceNodeBottom: '#1e1e30',
     depthRaised: '#00000040',
     depthSunken: '',
@@ -59,6 +59,7 @@ function makeState(overrides: Partial<RenderNodesState> = {}): RenderNodesState 
     selectedNodeId: null,
     hoveredNodeId: null,
     knobValues: new Map(),
+    portSignals: new Map(),
     ...overrides,
   };
 }

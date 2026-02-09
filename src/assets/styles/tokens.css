@@ -12,20 +12,21 @@
 
 :root {
   /* ── Surfaces ────────────────────────────────────── */
-  --token-surface-page-background: #050508;
+  --token-surface-page-background: #0a0a0a;
   --token-surface-gameboard: #0e0e18;
-  --token-surface-grid-area: #141422;
-  --token-surface-meter-housing: #0a0a14;
-  --token-surface-meter-interior: #060610;
-  --token-surface-node: #2d2d44;
-  --token-surface-node-bottom: #222238;
+  --token-surface-grid-area: #000000;
+  --token-surface-meter-housing: #000000;
+  --token-surface-meter-interior: #000000;
+  --token-surface-node: #44484e;
+  --token-surface-node-bottom: #2a2a2a;
 
   /* ── Signals / Polarity ──────────────────────────── */
-  --token-signal-positive: #e8a838;
-  --token-signal-negative: #38b8a0;
-  --token-color-neutral: #3a3a4a;
+  --token-signal-positive: #ff9200;
+  --token-signal-negative: #0782e0;
+  --token-color-neutral: #242424;
   --token-color-target: #c8c8d8;
-  --token-meter-needle: #e03838;
+  --token-board-border: #3d3e42;
+  --token-meter-needle: #f5f5f5;
 
   /* ── Depth ───────────────────────────────────────── */
   --token-depth-raised: rgba(0, 0, 0, 0.4);
@@ -39,7 +40,7 @@
   --token-color-selection: #5a9bf5;
 
   /* ── Wire ────────────────────────────────────────── */
-  --token-wire-width-base: 2.5;
+  --token-wire-width-base: 6;
 
   /* ── Port ────────────────────────────────────────── */
   --token-port-fill: #3a7bd5;
@@ -47,5 +48,5 @@
   --token-port-connected: #50c878;
 
   /* ── Grid ────────────────────────────────────────── */
-  --token-grid-line: #1e1e38;
+  --token-grid-line: #16161a;
 }

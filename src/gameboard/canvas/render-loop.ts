@@ -16,9 +16,36 @@ import { drawLidAnimation, computeProgress, parseDurationMs, drawVictoryBurst, d
 import { generateId } from '../../shared/generate-id.ts';
 import { drawKeyboardFocus } from './render-focus.ts';
 import { getFocusTarget, isFocusVisible } from '../interaction/keyboard-focus.ts';
+import { getRejectedKnobNodeId } from './rejected-knob.ts';
 import { getPortGridAnchor, getPortWireDirection, findPath, DIR_E } from '../../shared/routing/index.ts';
 import type { GridPoint } from '../../shared/grid/types.ts';
+import type { MeterCircularBuffer } from '../meters/circular-buffer.ts';
 
+const WIRE_BUFFER_SIZE = 16;
+
+/** Build a map of latest signal value per CP, from meter circular buffers. */
+function computeCpSignals(meterBuffers: ReadonlyMap<string, MeterCircularBuffer>): ReadonlyMap<string, number> {
+  const result = new Map<string, number>();
+  for (const [key, buffer] of meterBuffers) {
+    result.set(key, buffer.latest());
+  }
+  return result;
+}
+
+/** Build a map of signal value per node port, from wire buffers. */
+function computePortSignals(wires: ReadonlyArray<Wire>): ReadonlyMap<string, number> {
+  const result = new Map<string, number>();
+  for (const wire of wires) {
+    if (!wire.signalBuffer || wire.signalBuffer.length === 0) continue;
+    // Source output port: newest sample (matches first wire segment)
+    const newest = wire.signalBuffer[(wire.writeHead - 1 + WIRE_BUFFER_SIZE) % WIRE_BUFFER_SIZE];
+    result.set(`${wire.source.nodeId}:output:${wire.source.portIndex}`, newest);
+    // Target input port: oldest sample (matches last wire segment)
+    const oldest = wire.signalBuffer[wire.writeHead];
+    result.set(`${wire.target.nodeId}:input:${wire.target.portIndex}`, oldest);
+  }
+  return result;
+}
 
 // Module-scope cache for wire preview A* path (avoid recomputing every frame)
 let lastPreviewGridCol = -1;
@@ -55,9 +82,8 @@ export function startRenderLoop(
     const logicalWidth = GRID_COLS * cellSize;
     const logicalHeight = GRID_ROWS * cellSize;
 
-    // Clear
-    ctx!.fillStyle = tokens.gameboardSurface;
-    ctx!.fillRect(0, 0, logicalWidth, logicalHeight);
+    // Clear canvas with opaque base (meter zones need an opaque backing)
+    ctx!.clearRect(0, 0, logicalWidth, logicalHeight);
 
     // During legacy zoom transition, keep canvas cleared and skip drawing
     // so the snapshot overlay is the only thing visible.
@@ -146,6 +172,10 @@ export function startRenderLoop(
       }
     }
 
+    // Compute signal values for port/CP coloring
+    const cpSignals = computeCpSignals(meterBuffers);
+    const portSignals = state.activeBoard ? computePortSignals(state.activeBoard.wires) : new Map<string, number>();
+
     if (state.activeBoard) {
       drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes);
       // Compute knob values for all knob-equipped nodes (mixer, amp, etc.)
@@ -158,6 +188,8 @@ export function startRenderLoop(
         selectedNodeId: state.selectedNodeId,
         hoveredNodeId: state.hoveredNodeId,
         knobValues,
+        portSignals,
+        rejectedKnobNodeId: getRejectedKnobNodeId(),
       }, cellSize);
 
       // Keyboard focus ring (after nodes, before wire preview)
@@ -176,6 +208,7 @@ export function startRenderLoop(
       perPortMatch: state.perPortMatch,
       isSimRunning,
       editingUtilityId: state.editingUtilityId,
+      cpSignals,
     }, cellSize);
 
     // Wire preview during drawing-wire mode (suppressed when overlay is active)
@@ -351,17 +384,16 @@ function computeKnobValues(
     );
 
     if (isWired) {
-      // Read value from wire's signal buffer (latest sample)
+      // Read value from wire's signal buffer (oldest arrived sample, with WTS delay)
       const wire = wires.find(
         w => w.target.nodeId === node.id && w.target.portIndex === portIndex,
       );
       const buf = wire?.signalBuffer;
       let value = 0;
       if (buf && buf.length > 0) {
-        // Read latest written sample (writeHead points to next write position)
+        // Read oldest sample at writeHead — same index the tick scheduler delivers
         const head = wire.writeHead ?? 0;
-        const readIdx = (head - 1 + buf.length) % buf.length;
-        value = buf[readIdx];
+        value = buf[head];
       }
       result.set(node.id, { value, isWired: true });
     } else {

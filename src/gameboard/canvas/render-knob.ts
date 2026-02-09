@@ -26,7 +26,8 @@ function valueToAngle(value: number): number {
  * @param centerY - Center Y in pixel coords
  * @param radius - Outer arc radius in pixels
  * @param value - Current value in [-100, +100]
- * @param isWired - Whether the X port is wired (dimmed, non-interactive)
+ * @param isWired - Whether the knob port is wired (non-interactive)
+ * @param isRejected - Whether a disabled-knob click was just attempted (shows error overlay)
  */
 export function drawKnob(
   ctx: CanvasRenderingContext2D,
@@ -36,6 +37,7 @@ export function drawKnob(
   radius: number,
   value: number,
   isWired: boolean,
+  isRejected: boolean,
 ): void {
   const arcWidth = Math.max(2, radius * 0.18);
   const innerRadius = radius * 0.55;
@@ -47,7 +49,7 @@ export function drawKnob(
   ctx.beginPath();
   ctx.arc(centerX, centerY, radius, START_ANGLE, END_ANGLE, false);
   ctx.strokeStyle = tokens.textSecondary;
-  ctx.globalAlpha = isWired ? 0.3 : 0.4;
+  ctx.globalAlpha = 0.4;
   ctx.lineWidth = arcWidth;
   ctx.lineCap = 'round';
   ctx.stroke();
@@ -63,7 +65,7 @@ export function drawKnob(
       ctx.arc(centerX, centerY, radius, valueAngle, centerAngle, false);
     }
     ctx.strokeStyle = value > 0 ? tokens.signalPositive : tokens.signalNegative;
-    ctx.globalAlpha = isWired ? 0.4 : 0.9;
+    ctx.globalAlpha = 0.9;
     ctx.lineWidth = arcWidth;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -73,7 +75,7 @@ export function drawKnob(
   ctx.beginPath();
   ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
   ctx.fillStyle = tokens.surfaceNode;
-  ctx.globalAlpha = isWired ? 0.5 : 0.85;
+  ctx.globalAlpha = 0.85;
   ctx.fill();
 
   // --- Indicator line ---
@@ -87,10 +89,19 @@ export function drawKnob(
   ctx.moveTo(fromX, fromY);
   ctx.lineTo(toX, toY);
   ctx.strokeStyle = tokens.textPrimary;
-  ctx.globalAlpha = isWired ? 0.4 : 1.0;
+  ctx.globalAlpha = 1.0;
   ctx.lineWidth = Math.max(1.5, arcWidth * 0.6);
   ctx.lineCap = 'round';
   ctx.stroke();
+
+  // --- Error overlay when disabled knob click attempted ---
+  if (isRejected) {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius + arcWidth * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = tokens.colorError;
+    ctx.globalAlpha = 0.25;
+    ctx.fill();
+  }
 
   ctx.restore();
 }

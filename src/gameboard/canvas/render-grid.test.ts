@@ -4,23 +4,19 @@ import type { ThemeTokens } from '../../shared/tokens/index.ts';
 import type { RenderGridState } from './render-types.ts';
 import {
   GRID_ROWS,
-  METER_LEFT_START,
-  METER_LEFT_END,
   PLAYABLE_START,
   PLAYABLE_END,
-  METER_RIGHT_START,
-  METER_RIGHT_END,
 } from '../../shared/grid/index.ts';
 
 /** Minimal ThemeTokens stub with the keys drawGrid uses */
 function makeTokens(overrides: Partial<ThemeTokens> = {}): ThemeTokens {
   return {
-    gridArea: '#141422',
-    meterHousing: '#0a0a14',
-    gridLine: '#1e1e38',
+    gridArea: '#000000',
+    gridLine: '#16161a',
     // Fill remaining required keys with empty strings
     pageBackground: '',
     gameboardSurface: '',
+    meterHousing: '',
     meterInterior: '',
     surfaceNode: '',
     surfaceNodeBottom: '',
@@ -53,7 +49,8 @@ function createMockCtx() {
   const mockGradient = {
     addColorStop: vi.fn(),
   };
-  return {
+  const alphaStack: number[] = [];
+  const ctx = {
     fillStyle: '' as string,
     strokeStyle: '' as string,
     lineWidth: 0,
@@ -65,10 +62,19 @@ function createMockCtx() {
     stroke: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
+    save: vi.fn(() => { alphaStack.push(ctx.globalAlpha); }),
+    restore: vi.fn(() => { if (alphaStack.length) ctx.globalAlpha = alphaStack.pop()!; }),
+    clip: vi.fn(),
+    roundRect: vi.fn(),
     createLinearGradient: vi.fn(() => mockGradient),
+    font: '',
+    textAlign: '',
+    textBaseline: '',
+    fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 0 })),
+    setLineDash: vi.fn(),
   } as unknown as CanvasRenderingContext2D;
+  return ctx;
 }
 
 describe('drawGrid', () => {
@@ -81,13 +87,16 @@ describe('drawGrid', () => {
   });
 
   describe('zone backgrounds', () => {
-    it('fills playable area with gridArea color', () => {
+    it('fills playable area with gradient using rounded rectangle', () => {
       const cellSize = 40;
       drawGrid(ctx, tokens, {}, cellSize);
 
-      const fillRectCalls = (ctx.fillRect as ReturnType<typeof vi.fn>).mock.calls;
-      // First fillRect call is the playable area
-      const playableCall = fillRectCalls[0];
+      // Background uses a linear gradient
+      expect(ctx.createLinearGradient).toHaveBeenCalled();
+
+      const roundRectCalls = (ctx.roundRect as ReturnType<typeof vi.fn>).mock.calls;
+      // First roundRect call is the playable area background
+      const playableCall = roundRectCalls[0];
       expect(ctx.fillStyle).toBeDefined();
 
       // Check the playable area rectangle
@@ -96,45 +105,29 @@ describe('drawGrid', () => {
       const expectedWidth = expectedCols * cellSize;
       const expectedHeight = GRID_ROWS * cellSize;
 
-      expect(playableCall).toEqual([expectedX, 0, expectedWidth, expectedHeight]);
+      expect(playableCall[0]).toBe(expectedX);
+      expect(playableCall[1]).toBe(0);
+      expect(playableCall[2]).toBe(expectedWidth);
+      expect(playableCall[3]).toBe(expectedHeight);
+      // Corner radius should be defined
+      expect(playableCall[4]).toBeGreaterThan(0);
     });
 
-    it('fills left meter zone with meterHousing color', () => {
+    it('meter zones are transparent (no fill in drawGrid)', () => {
       const cellSize = 40;
       drawGrid(ctx, tokens, {}, cellSize);
 
       const fillRectCalls = (ctx.fillRect as ReturnType<typeof vi.fn>).mock.calls;
-      // Second fillRect call is the left meter zone
-      const leftMeterCall = fillRectCalls[1];
-
-      const expectedX = METER_LEFT_START * cellSize;
-      const expectedCols = METER_LEFT_END - METER_LEFT_START + 1;
-      const expectedWidth = expectedCols * cellSize;
-      const expectedHeight = GRID_ROWS * cellSize;
-
-      expect(leftMeterCall).toEqual([expectedX, 0, expectedWidth, expectedHeight]);
+      // Shadow gradients only (4 calls), no meter zone fills
+      expect(fillRectCalls.length).toBe(4);
     });
 
-    it('fills right meter zone with meterHousing color', () => {
-      const cellSize = 40;
-      drawGrid(ctx, tokens, {}, cellSize);
-
-      const fillRectCalls = (ctx.fillRect as ReturnType<typeof vi.fn>).mock.calls;
-      // Third fillRect call is the right meter zone
-      const rightMeterCall = fillRectCalls[2];
-
-      const expectedX = METER_RIGHT_START * cellSize;
-      const expectedCols = METER_RIGHT_END - METER_RIGHT_START + 1;
-      const expectedWidth = expectedCols * cellSize;
-      const expectedHeight = GRID_ROWS * cellSize;
-
-      expect(rightMeterCall).toEqual([expectedX, 0, expectedWidth, expectedHeight]);
-    });
-
-    it('renders zone backgrounds plus depth shadow effects', () => {
+    it('renders playable area background with rounded corners plus depth shadow effects', () => {
       drawGrid(ctx, tokens, {}, 40);
-      // 3 zone backgrounds + 4 shadow gradients = 7 fillRect calls
-      expect(ctx.fillRect).toHaveBeenCalledTimes(7);
+      // Playable area uses roundRect + fill
+      expect(ctx.roundRect).toHaveBeenCalled();
+      // Shadow gradients still use fillRect (4 calls)
+      expect(ctx.fillRect).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -165,14 +158,15 @@ describe('drawGrid', () => {
       expect(y).toBe(1 * cellSize);
     });
 
-    it('uses a single fill call for all dots', () => {
+    it('uses fill calls for background and dots', () => {
       drawGrid(ctx, tokens, {}, 40);
-      expect(ctx.fill).toHaveBeenCalledTimes(1);
+      // 1 fill for playable area background + 1 fill for all dots = 2 total
+      expect(ctx.fill).toHaveBeenCalledTimes(2);
     });
 
-    it('does not use stroke for dot matrix', () => {
+    it('stroke is only called once for the board border', () => {
       drawGrid(ctx, tokens, {}, 40);
-      expect(ctx.stroke).not.toHaveBeenCalled();
+      expect(ctx.stroke).toHaveBeenCalledTimes(1);
     });
 
     it('uses gridLine color as fill style', () => {

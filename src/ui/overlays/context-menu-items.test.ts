@@ -56,13 +56,13 @@ describe('buildContextMenuItems', () => {
 });
 
 describe('hasEditableParams', () => {
-  it('returns true for mix, threshold, delay, mixer, amp, fader', () => {
+  it('returns true for mix, threshold, delay, mixer, amp, diverter', () => {
     expect(hasEditableParams('mix')).toBe(true);
     expect(hasEditableParams('threshold')).toBe(true);
     expect(hasEditableParams('delay')).toBe(true);
     expect(hasEditableParams('mixer')).toBe(true);
     expect(hasEditableParams('amp')).toBe(true);
-    expect(hasEditableParams('fader')).toBe(true);
+    expect(hasEditableParams('diverter')).toBe(true);
   });
 
   it('returns false for non-parameterized types', () => {

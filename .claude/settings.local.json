@@ -46,7 +46,9 @@
       "Bash(/c/nvm4w/nodejs/npm.cmd run dev --prefix \"/c/Users/emcha/OneDrive/Documents/Code/logic-puzzle\")",
       "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/emcha/AppData/Roaming/npm\")",
       "Bash(C:\\\\nvm4w\\\\nodejs\\\\node.exe:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(cd:*)"
     ]
   }
 }

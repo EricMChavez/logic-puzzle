@@ -154,7 +154,7 @@ function renderPlacingNodeGhost(
   if (valid) {
     ctx.fillStyle = tokens.surfaceNode;
   } else {
-    ctx.fillStyle = '#cc3333';
+    ctx.fillStyle = tokens.colorError;
   }
 
   ctx.beginPath();
@@ -224,7 +224,7 @@ function renderDraggingNodeGhost(
   if (valid) {
     ctx.fillStyle = tokens.surfaceNode;
   } else {
-    ctx.fillStyle = '#cc3333';
+    ctx.fillStyle = tokens.colorError;
   }
 
   ctx.beginPath();

@@ -12,7 +12,10 @@ const WAVEFORM_OPTIONS: Array<{ shape: WaveformShape; label: string }> = [
   { shape: 'square', label: 'Square' },
   { shape: 'triangle', label: 'Triangle' },
   { shape: 'sawtooth', label: 'Sawtooth' },
-  { shape: 'constant', label: 'Constant' },
+  { shape: 'dual-wave', label: 'Dual Wave' },
+  { shape: 'long-wave', label: 'Long Wave' },
+  { shape: 'positive-sine', label: 'Positive Sine' },
+  { shape: 'overtone', label: 'Overtone' },
   { shape: 'rectified-sine', label: 'Rectified Sine' },
   { shape: 'rectified-triangle', label: 'Rectified Triangle' },
   { shape: 'clipped-sine', label: 'Clipped Sine' },
@@ -72,8 +75,21 @@ function WaveformIcon({ shape }: { shape: WaveformShape | 'output' | 'off' }) {
     case 'sawtooth':
       path = `M2,${mid + amp} L${width / 2},${mid - amp} L${width / 2},${mid + amp} L${width - 2},${mid - amp}`;
       break;
-    case 'constant':
-      path = `M2,${mid - amp / 2} H${width - 2}`;
+    case 'dual-wave':
+      // Triangle hump then flat negative
+      path = `M2,${mid} L${width / 4},${mid - amp} L${width / 2},${mid} V${mid + amp} H${width - 2}`;
+      break;
+    case 'long-wave':
+      // Gentle sine curve (quarter cycle visible)
+      path = `M2,${mid} Q${width / 2},${mid - amp * 1.5} ${width - 2},${mid}`;
+      break;
+    case 'positive-sine':
+      // Sine shifted up (all above center)
+      path = `M2,${mid} Q${width / 4},${mid - amp * 2} ${width / 2},${mid} Q${(3 * width) / 4},${mid} ${width - 2},${mid}`;
+      break;
+    case 'overtone':
+      // Fundamental + harmonic (wobbly sine)
+      path = `M2,${mid} Q${width / 8},${mid - amp * 0.6} ${width / 4},${mid - amp} Q${(3 * width) / 8},${mid - amp * 0.4} ${width / 2},${mid} Q${(5 * width) / 8},${mid + amp * 0.4} ${(3 * width) / 4},${mid + amp} Q${(7 * width) / 8},${mid + amp * 0.6} ${width - 2},${mid}`;
       break;
     case 'rectified-sine':
       path = `M2,${mid} Q${width / 4},${mid - amp} ${width / 2},${mid} H${width - 2}`;

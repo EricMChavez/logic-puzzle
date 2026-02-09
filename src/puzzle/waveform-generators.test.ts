@@ -14,11 +14,81 @@ function makeDef(overrides: Partial<WaveformDef> = {}): WaveformDef {
 }
 
 describe('generateWaveformValue', () => {
-  describe('constant shape', () => {
-    it('returns amplitude + offset at any tick', () => {
-      const def = makeDef({ shape: 'constant', amplitude: 30, offset: 10 });
-      expect(generateWaveformValue(0, def)).toBe(40);
-      expect(generateWaveformValue(99, def)).toBe(40);
+  describe('dual-wave shape', () => {
+    it('rises to +amplitude at quarter period (triangle peak)', () => {
+      const def = makeDef({ shape: 'dual-wave', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(4, def)).toBeCloseTo(50, 5);
+    });
+
+    it('returns 0 at tick 0 and half period', () => {
+      const def = makeDef({ shape: 'dual-wave', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(0, def)).toBeCloseTo(0, 5);
+      expect(generateWaveformValue(8, def)).toBeCloseTo(0, 5);
+    });
+
+    it('returns -amplitude in second half (square negative)', () => {
+      const def = makeDef({ shape: 'dual-wave', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(10, def)).toBeCloseTo(-50, 5);
+      expect(generateWaveformValue(15, def)).toBeCloseTo(-50, 5);
+    });
+  });
+
+  describe('long-wave shape', () => {
+    it('returns 0 at tick 0', () => {
+      const def = makeDef({ shape: 'long-wave', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(0, def)).toBeCloseTo(0, 5);
+    });
+
+    it('is positive at quarter period (only 1/16 through the long cycle)', () => {
+      const def = makeDef({ shape: 'long-wave', amplitude: 50, period: 16 });
+      const val = generateWaveformValue(4, def);
+      expect(val).toBeGreaterThan(0);
+      expect(val).toBeLessThan(50); // Not yet at peak
+    });
+  });
+
+  describe('positive-sine shape', () => {
+    it('returns half amplitude at tick 0 (midpoint of positive range)', () => {
+      const def = makeDef({ shape: 'positive-sine', amplitude: 100, period: 16 });
+      expect(generateWaveformValue(0, def)).toBeCloseTo(50, 5);
+    });
+
+    it('returns full amplitude at quarter period (peak)', () => {
+      const def = makeDef({ shape: 'positive-sine', amplitude: 100, period: 16 });
+      expect(generateWaveformValue(4, def)).toBeCloseTo(100, 5);
+    });
+
+    it('returns 0 at three-quarter period (trough)', () => {
+      const def = makeDef({ shape: 'positive-sine', amplitude: 100, period: 16 });
+      expect(generateWaveformValue(12, def)).toBeCloseTo(0, 5);
+    });
+
+    it('never goes negative across a full period', () => {
+      const def = makeDef({ shape: 'positive-sine', amplitude: 100, period: 32 });
+      for (let t = 0; t < 32; t++) {
+        expect(generateWaveformValue(t, def)).toBeGreaterThanOrEqual(0);
+      }
+    });
+  });
+
+  describe('overtone shape', () => {
+    it('returns 0 at tick 0', () => {
+      const def = makeDef({ shape: 'overtone', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(0, def)).toBeCloseTo(0, 5);
+    });
+
+    it('returns 0 at half period', () => {
+      const def = makeDef({ shape: 'overtone', amplitude: 50, period: 16 });
+      expect(generateWaveformValue(8, def)).toBeCloseTo(0, 5);
+    });
+
+    it('stays within [-amplitude, +amplitude]', () => {
+      const def = makeDef({ shape: 'overtone', amplitude: 50, period: 32 });
+      for (let t = 0; t < 32; t++) {
+        const val = generateWaveformValue(t, def);
+        expect(val).toBeGreaterThanOrEqual(-50);
+        expect(val).toBeLessThanOrEqual(50);
+      }
     });
   });
 
@@ -237,8 +307,9 @@ describe('generateWaveformValue', () => {
 
   describe('clamping', () => {
     it('clamps to +100', () => {
-      const def = makeDef({ shape: 'constant', amplitude: 80, offset: 50 });
-      expect(generateWaveformValue(0, def)).toBe(100);
+      // positive-sine returns +1 at peak (quarter period), 1 * 80 + 50 = 130 → clamped to 100
+      const def = makeDef({ shape: 'positive-sine', amplitude: 80, offset: 50, period: 16 });
+      expect(generateWaveformValue(4, def)).toBe(100);
     });
 
     it('clamps to -100', () => {

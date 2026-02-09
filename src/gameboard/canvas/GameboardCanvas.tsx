@@ -28,6 +28,7 @@ import {
 } from '../../shared/grid/index.ts';
 import { KNOB_NODES } from '../../shared/constants/index.ts';
 import { hasEditableParams } from '../../ui/overlays/context-menu-items.ts';
+import { rejectKnob } from './rejected-knob.ts';
 
 function getCanvasLogicalSize(canvas: HTMLCanvasElement) {
   const cellSize = parseInt(canvas.dataset.cellSize || '0', 10);
@@ -202,11 +203,12 @@ export function GameboardCanvas() {
     function updateParentBackground(parent: HTMLElement) {
       const devOverrides = getDevOverrides();
       if (devOverrides.enabled) {
-        parent.style.backgroundColor = devOverrides.colors.pageBackground;
+        const edge = devOverrides.colors.pageBackground;
+        const center = devOverrides.colors.pageBackgroundCenter;
+        parent.style.background = `linear-gradient(to right, ${edge}, ${center}, ${edge})`;
       } else {
-        parent.style.backgroundColor = getComputedStyle(document.documentElement)
-          .getPropertyValue('--token-surface-page-background')
-          .trim();
+        parent.style.background =
+          'linear-gradient(to right, #121216, #2b2c2f, #3d3e42, #2b2c2f, #121216)';
       }
     }
 
@@ -666,6 +668,8 @@ export function GameboardCanvas() {
             state.startKnobAdjust(hit.nodeId, y, currentValue);
             return;
           }
+          // Wired knob clicked — flash error overlay
+          rejectKnob(hit.nodeId);
         }
       }
     }
@@ -695,9 +699,9 @@ export function GameboardCanvas() {
           const rect = canvas.getBoundingClientRect();
           const y = e.clientY - rect.top;
           const deltaY = startY - y; // Up = positive
-          const sensitivity = 32; // pixels per 25-unit step
-          const rawDelta = (deltaY / sensitivity) * 25;
-          const newValue = Math.round((startValue + rawDelta) / 25) * 25;
+          const sensitivity = 32; // pixels per 50-unit step
+          const rawDelta = (deltaY / sensitivity) * 50;
+          const newValue = Math.round((startValue + rawDelta) / 50) * 50;
           const clampedValue = Math.max(-100, Math.min(100, newValue));
           state.updateNodeParams(nodeId, { [knobConfig.paramKey]: clampedValue });
           state.setPortConstant(nodeId, knobConfig.portIndex, clampedValue);
@@ -762,9 +766,9 @@ export function GameboardCanvas() {
       const knobConfig = node ? KNOB_NODES[node.type] : undefined;
       if (knobConfig) {
         const deltaY = startY - y;
-        const sensitivity = 32; // pixels per 25-unit step
-        const rawDelta = (deltaY / sensitivity) * 25;
-        const newValue = Math.round((startValue + rawDelta) / 25) * 25;
+        const sensitivity = 32; // pixels per 50-unit step
+        const rawDelta = (deltaY / sensitivity) * 50;
+        const newValue = Math.round((startValue + rawDelta) / 50) * 50;
         const clampedValue = Math.max(-100, Math.min(100, newValue));
         state.updateNodeParams(nodeId, { [knobConfig.paramKey]: clampedValue });
         state.setPortConstant(nodeId, knobConfig.portIndex, clampedValue);

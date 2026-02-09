@@ -12,7 +12,7 @@ import {
   delayNode,
   mixerNode,
   ampNode,
-  faderNode,
+  diverterNode,
   polarizerNode,
   shifterNode,
 } from './definitions';
@@ -30,7 +30,7 @@ const NODE_DEFINITIONS: readonly NodeDefinition<Record<string, ParamValue>>[] = 
   delayNode as NodeDefinition<Record<string, ParamValue>>,
   mixerNode as NodeDefinition<Record<string, ParamValue>>,
   ampNode as NodeDefinition<Record<string, ParamValue>>,
-  faderNode as NodeDefinition<Record<string, ParamValue>>,
+  diverterNode as NodeDefinition<Record<string, ParamValue>>,
   polarizerNode,
   shifterNode as NodeDefinition<Record<string, ParamValue>>,
 ] as const;

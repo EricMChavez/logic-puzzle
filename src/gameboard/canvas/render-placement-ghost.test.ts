@@ -6,7 +6,7 @@ import { GRID_COLS, GRID_ROWS, PLAYABLE_START, PLAYABLE_END } from '../../shared
 
 // Minimal mock tokens
 const tokens = {
-  surfaceNode: '#2d2d44',
+  surfaceNode: '#44484e',
   textPrimary: '#e0e0f0',
   textSecondary: '#9090b0',
 } as ThemeTokens;

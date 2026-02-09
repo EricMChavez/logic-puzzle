@@ -5,29 +5,32 @@ import { buildThemeTokens } from './build-theme-tokens';
 
 // --- Dark theme test values (matching tokens.css / theme-dark.css) ---
 const DARK_VALUES: Record<string, string> = {
-  '--token-surface-page-background': '#050508',
+  '--token-surface-page-background': '#0a0a0a',
   '--token-surface-gameboard': '#0e0e18',
-  '--token-surface-grid-area': '#141422',
-  '--token-surface-meter-housing': '#0a0a14',
-  '--token-surface-meter-interior': '#060610',
-  '--token-surface-node': '#2d2d44',
-  '--token-surface-node-bottom': '#222238',
-  '--token-signal-positive': '#e8a838',
-  '--token-signal-negative': '#38b8a0',
-  '--token-color-neutral': '#3a3a4a',
+  '--token-surface-grid-area': '#000000',
+  '--token-surface-meter-housing': '#000000',
+  '--token-surface-meter-interior': '#000000',
+  '--token-surface-node': '#44484e',
+  '--token-surface-node-bottom': '#2a2a2a',
+  '--token-signal-positive': '#ff9200',
+  '--token-signal-negative': '#0782e0',
+  '--token-color-neutral': '#242424',
   '--token-color-target': '#c8c8d8',
-  '--token-color-validation-match': '#22C55E',
-  '--token-meter-needle': '#e03838',
+  '--token-color-validation-match': '#22c55e',
+  '--token-meter-needle': '#f5f5f5',
+  '--token-color-error': '#e04040',
+  '--token-meter-border': '#6c6666',
+  '--token-board-border': '#3d3e42',
   '--token-depth-raised': 'rgba(0, 0, 0, 0.4)',
   '--token-depth-sunken': 'rgba(0, 0, 0, 0.6)',
   '--token-text-primary': '#e0e0f0',
   '--token-text-secondary': '#9090b0',
   '--token-color-selection': '#5a9bf5',
-  '--token-wire-width-base': '2.5',
+  '--token-wire-width-base': '6',
   '--token-port-fill': '#3a7bd5',
   '--token-port-stroke': '#5a9bf5',
   '--token-port-connected': '#50c878',
-  '--token-grid-line': '#1e1e38',
+  '--token-grid-line': '#16161a',
   '--token-anim-zoom-duration': '500ms',
   '--token-anim-node-scale-duration': '200ms',
   '--token-anim-wire-draw-duration': '300ms',
@@ -160,17 +163,17 @@ describe('buildThemeTokens', () => {
 
   it('reads correct values for surface tokens', () => {
     const tokens = buildThemeTokens();
-    expect(tokens.pageBackground).toBe('#050508');
-    expect(tokens.surfaceNode).toBe('#2d2d44');
+    expect(tokens.pageBackground).toBe('#0a0a0a');
+    expect(tokens.surfaceNode).toBe('#44484e');
     expect(tokens.gameboardSurface).toBe('#0e0e18');
   });
 
   it('reads correct values for signal tokens', () => {
     const tokens = buildThemeTokens();
-    expect(tokens.signalPositive).toBe('#e8a838');
-    expect(tokens.signalNegative).toBe('#38b8a0');
+    expect(tokens.signalPositive).toBe('#ff9200');
+    expect(tokens.signalNegative).toBe('#0782e0');
     expect(tokens.colorTarget).toBe('#c8c8d8');
-    expect(tokens.meterNeedle).toBe('#e03838');
+    expect(tokens.meterNeedle).toBe('#f5f5f5');
   });
 
   it('reads animation duration values', () => {
@@ -182,8 +185,8 @@ describe('buildThemeTokens', () => {
 
   it('reads wire width as a numeric string', () => {
     const tokens = buildThemeTokens();
-    expect(tokens.wireWidthBase).toBe('2.5');
-    expect(Number(tokens.wireWidthBase)).toBe(2.5);
+    expect(tokens.wireWidthBase).toBe('6');
+    expect(Number(tokens.wireWidthBase)).toBe(6);
   });
 
   it('reads depth tokens as rgba values', () => {
@@ -209,7 +212,7 @@ describe('buildThemeTokens', () => {
     const customEl = createMockElement(DARK_VALUES);
     vi.stubGlobal('getComputedStyle', (_el: Element) => mockGetComputedStyle(DARK_VALUES));
     const tokens = buildThemeTokens(customEl);
-    expect(tokens.pageBackground).toBe('#050508');
+    expect(tokens.pageBackground).toBe('#0a0a0a');
   });
 });
 

@@ -15,6 +15,8 @@ import {
   getConnectionPointIndex,
   isCreativeSlotNode,
   getCreativeSlotIndex,
+  isBidirectionalCpNode,
+  getBidirectionalCpIndex,
 } from '../../puzzle/connection-point-nodes.ts';
 import { METER_GRID_ROWS, METER_GAP_ROWS, METER_VERTICAL_OFFSETS } from '../../gameboard/meters/meter-types.ts';
 import {
@@ -68,12 +70,27 @@ export function portSideToWireDirection(portSide: PortSide): number {
  */
 /**
  * Resolve the physical side for a specific port, accounting for per-port side overrides.
+ * For utility nodes with cpLayout, ports are placed on the side of their originating CP.
  */
 function resolvePortSide(
   node: NodeState,
   side: 'input' | 'output',
   portIndex: number,
 ): PortSide {
+  // Utility nodes with cpLayout: port side derives from CP position
+  if ((node.type.startsWith('utility:') || node.type === 'custom-blank') && node.params?.cpLayout) {
+    const cpLayout = node.params.cpLayout as string[];
+    let count = 0;
+    for (let i = 0; i < cpLayout.length; i++) {
+      if (cpLayout[i] === side) {
+        if (count === portIndex) return i < 3 ? 'left' : 'right';
+        count++;
+      }
+    }
+    // Fallback
+    return side === 'input' ? 'left' : 'right';
+  }
+
   const rotation: NodeRotation = node.rotation ?? 0;
   const def = getNodeDefinition(node.type);
   if (def) {
@@ -130,6 +147,8 @@ export function getPortWireDirection(
     let isLeftPhysical: boolean;
     if (isCreativeSlotNode(node.id)) {
       isLeftPhysical = getCreativeSlotIndex(node.id) < 3;
+    } else if (isBidirectionalCpNode(node.id)) {
+      isLeftPhysical = getBidirectionalCpIndex(node.id) < 3;
     } else if (node.params.physicalSide) {
       isLeftPhysical = node.params.physicalSide === 'left';
     } else {
@@ -178,6 +197,27 @@ export function getPortGridAnchor(
 
   const { cols, rows } = getNodeGridSize(node);
 
+  // Utility nodes with cpLayout: use fixed slot positions to match render
+  if ((node.type.startsWith('utility:') || node.type === 'custom-blank') && node.params?.cpLayout) {
+    const cpLayout = node.params.cpLayout as string[];
+    let count = 0;
+    for (let i = 0; i < cpLayout.length; i++) {
+      if (cpLayout[i] === side) {
+        if (count === portIndex) {
+          const isLeft = i < 3;
+          const slotOnSide = i < 3 ? i : i - 3; // 0, 1, or 2 within the side
+          return {
+            col: isLeft ? node.position.col : node.position.col + cols,
+            row: node.position.row + Math.floor(slotOnSide * rows / 3),
+          };
+        }
+        count++;
+      }
+    }
+    // Fallback (shouldn't reach here)
+    return { col: node.position.col, row: node.position.row };
+  }
+
   // Get the physical side for this specific port (handles per-port overrides)
   const portSide = resolvePortSide(node, side, portIndex);
 
@@ -224,6 +264,11 @@ function getConnectionPointAnchor(node: NodeState): GridPoint {
     const slotIndex = getCreativeSlotIndex(node.id);
     isLeftSide = slotIndex < 3;
     index = isLeftSide ? slotIndex : slotIndex - 3;
+  } else if (isBidirectionalCpNode(node.id)) {
+    // Bidirectional CPs (utility editing): 0-2 are left, 3-5 are right
+    const cpIndex = getBidirectionalCpIndex(node.id);
+    isLeftSide = cpIndex < 3;
+    index = isLeftSide ? cpIndex : cpIndex - 3;
   } else if (node.params.physicalSide) {
     // Custom puzzle: use explicit physical side and meter index
     isLeftSide = node.params.physicalSide === 'left';

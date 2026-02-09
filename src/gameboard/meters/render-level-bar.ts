@@ -32,10 +32,9 @@ export function drawLevelBar(
 ): void {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
-  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
 
   const centerY = rect.y + rect.height / 2;
-  const halfHeight = (rect.height * verticalHeightRatio) / 2;
+  const halfHeight = (rect.height * VERTICAL_HEIGHT_RATIO) / 2;
 
   // Clamp to -100..+100 and normalize to -1..+1
   const clamped = Math.max(-100, Math.min(100, currentValue));

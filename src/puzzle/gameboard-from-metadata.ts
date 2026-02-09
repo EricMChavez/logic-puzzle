@@ -1,7 +1,7 @@
 import type { GameboardState, NodeState, Wire } from '../shared/types/index.ts';
 import { createWire } from '../shared/types/index.ts';
 import type { BakeMetadata } from '../engine/baking/index.ts';
-import { createConnectionPointNode } from './connection-point-nodes.ts';
+import { createConnectionPointNode, createBidirectionalConnectionPointNode, isBidirectionalCpNode, getBidirectionalCpIndex } from './connection-point-nodes.ts';
 import { isConnectionPointNode } from './connection-point-nodes.ts';
 import { PLAYABLE_START, PLAYABLE_END } from '../shared/grid/index.ts';
 
@@ -20,16 +20,37 @@ export function gameboardFromBakeMetadata(
 ): GameboardState {
   const nodes = new Map<string, NodeState>();
 
-  // Create input CP nodes
-  for (let i = 0; i < metadata.inputCount; i++) {
-    const cp = createConnectionPointNode('input', i);
-    nodes.set(cp.id, cp);
-  }
+  // Detect if edges reference bidirectional CP nodes (utility nodes use these)
+  const usesBidirectionalCps = metadata.edges.some(
+    edge => isBidirectionalCpNode(edge.fromNodeId) || isBidirectionalCpNode(edge.toNodeId)
+  );
 
-  // Create output CP nodes
-  for (let i = 0; i < metadata.outputCount; i++) {
-    const cp = createConnectionPointNode('output', i);
-    nodes.set(cp.id, cp);
+  if (usesBidirectionalCps) {
+    // Create bidirectional CP nodes to match the edge references
+    // Collect all unique bidirectional CP indices from edges
+    const bidirIndices = new Set<number>();
+    for (const edge of metadata.edges) {
+      if (isBidirectionalCpNode(edge.fromNodeId)) {
+        bidirIndices.add(getBidirectionalCpIndex(edge.fromNodeId));
+      }
+      if (isBidirectionalCpNode(edge.toNodeId)) {
+        bidirIndices.add(getBidirectionalCpIndex(edge.toNodeId));
+      }
+    }
+    for (const idx of bidirIndices) {
+      const cp = createBidirectionalConnectionPointNode(idx);
+      nodes.set(cp.id, cp);
+    }
+  } else {
+    // Create standard input/output CP nodes
+    for (let i = 0; i < metadata.inputCount; i++) {
+      const cp = createConnectionPointNode('input', i);
+      nodes.set(cp.id, cp);
+    }
+    for (let i = 0; i < metadata.outputCount; i++) {
+      const cp = createConnectionPointNode('output', i);
+      nodes.set(cp.id, cp);
+    }
   }
 
   // Create processing nodes from nodeConfigs, laid out in topo order

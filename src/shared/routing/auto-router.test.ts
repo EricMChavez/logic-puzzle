@@ -635,3 +635,83 @@ describe('findPath stem enforcement', () => {
     expect(path![1].row).toBe(18); // same row as source
   });
 });
+
+// ---------------------------------------------------------------------------
+// Utility nodes with cpLayout
+// ---------------------------------------------------------------------------
+
+describe('getPortGridAnchor with cpLayout utility nodes', () => {
+  function makeUtilityNode(
+    id: string,
+    col: number,
+    row: number,
+    cpLayout: string[],
+  ): NodeState {
+    // Count inputs and outputs from cpLayout
+    const inputCount = cpLayout.filter(c => c === 'input').length;
+    const outputCount = cpLayout.filter(c => c === 'output').length;
+    return {
+      id,
+      type: 'utility:test',
+      position: { col, row },
+      params: { cpLayout },
+      inputCount,
+      outputCount,
+    };
+  }
+
+  it('uses fixed slot positions for inputs when cpLayout has gaps', () => {
+    // cpLayout: [off, input, input, output, off, off]
+    // Inputs are at slots 1 and 2 on left side (not 0 and 1)
+    const node = makeUtilityNode('u1', 20, 10, ['off', 'input', 'input', 'output', 'off', 'off']);
+    const { rows } = getNodeGridSize(node);
+
+    const anchor0 = getPortGridAnchor(node, 'input', 0);
+    const anchor1 = getPortGridAnchor(node, 'input', 1);
+
+    // Slot 1 on left: row = 10 + floor(1 * 3 / 3) = 10 + 1 = 11
+    expect(anchor0.col).toBe(20);
+    expect(anchor0.row).toBe(10 + Math.floor(1 * rows / 3));
+
+    // Slot 2 on left: row = 10 + floor(2 * 3 / 3) = 10 + 2 = 12
+    expect(anchor1.col).toBe(20);
+    expect(anchor1.row).toBe(10 + Math.floor(2 * rows / 3));
+  });
+
+  it('uses fixed slot positions for outputs on right side', () => {
+    // cpLayout: [input, off, off, output, output, off]
+    // Outputs are at slots 0 and 1 on right side
+    const node = makeUtilityNode('u2', 20, 10, ['input', 'off', 'off', 'output', 'output', 'off']);
+    const { cols, rows } = getNodeGridSize(node);
+
+    const anchor0 = getPortGridAnchor(node, 'output', 0);
+    const anchor1 = getPortGridAnchor(node, 'output', 1);
+
+    // Slot 0 on right: col = 20 + 5 = 25, row = 10 + floor(0 * 3 / 3) = 10
+    expect(anchor0.col).toBe(20 + cols);
+    expect(anchor0.row).toBe(10 + Math.floor(0 * rows / 3));
+
+    // Slot 1 on right: col = 25, row = 10 + floor(1 * 3 / 3) = 11
+    expect(anchor1.col).toBe(20 + cols);
+    expect(anchor1.row).toBe(10 + Math.floor(1 * rows / 3));
+  });
+
+  it('matches rendering position for utility nodes with cpLayout', () => {
+    // This test ensures routing anchors match render positions
+    // cpLayout: [input, input, off, off, output, off]
+    const node = makeUtilityNode('u3', 20, 10, ['input', 'input', 'off', 'off', 'output', 'off']);
+    const { cols, rows } = getNodeGridSize(node);
+
+    // Input 0 at slot 0: row offset = floor(0 * rows / 3)
+    const input0 = getPortGridAnchor(node, 'input', 0);
+    expect(input0).toEqual({ col: 20, row: 10 + Math.floor(0 * rows / 3) });
+
+    // Input 1 at slot 1: row offset = floor(1 * rows / 3)
+    const input1 = getPortGridAnchor(node, 'input', 1);
+    expect(input1).toEqual({ col: 20, row: 10 + Math.floor(1 * rows / 3) });
+
+    // Output 0 at slot 1 (index 4 in cpLayout, 4-3=1): row offset = floor(1 * rows / 3)
+    const output0 = getPortGridAnchor(node, 'output', 0);
+    expect(output0).toEqual({ col: 20 + cols, row: 10 + Math.floor(1 * rows / 3) });
+  });
+});

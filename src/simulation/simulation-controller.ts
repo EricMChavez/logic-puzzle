@@ -231,13 +231,10 @@ export function startSimulation(): void {
   // Reset validation state for new simulation run
   lastGraphVersion = store.graphVersion;
 
-  // Initial evaluation: apply constants, evaluate all nodes, emit outputs
-  const seededWires = initialEvaluation(nodes, wires, store.portConstants);
-
-  // Write seeded wires to the store
-  if (seededWires) {
-    store.updateWires(seededWires);
-  }
+  // Initial evaluation: apply constants, evaluate all nodes to initialize runtime state.
+  // Does NOT write to wire buffers — the first tick() handles that naturally,
+  // ensuring correct 16-tick (1 WTS) propagation delay with no early blip.
+  initialEvaluation(nodes, wires, store.portConstants);
 
   // Start ticking
   intervalId = setInterval(tick, TICK_INTERVAL_MS);
@@ -273,27 +270,22 @@ export function stopSimulation(): void {
 }
 
 /**
- * Apply port constants, evaluate all nodes in topo order, and emit outputs.
- * Returns a cloned wire array with initial signals placed on it.
+ * Apply port constants and evaluate all nodes in topo order to initialize runtime state.
+ * Does NOT write to wire buffers — the first tick() writes values naturally via advanceTick,
+ * ensuring correct 16-tick (1 WTS) propagation delay without an early blip artifact.
  */
 function initialEvaluation(
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: ReadonlyArray<Wire>,
   portConstants: Map<string, number>,
-): Wire[] | null {
-  if (!schedulerState) return null;
+): void {
+  if (!schedulerState) return;
 
   // Build set of connected input ports
   const connectedInputs = new Set<string>();
   for (const wire of wires) {
     connectedInputs.add(`${wire.target.nodeId}:${wire.target.portIndex}`);
   }
-
-  // Clone wires for mutation
-  const mutableWires: Wire[] = wires.map((w) => ({
-    ...w,
-    signalBuffer: [...w.signalBuffer],
-  }));
 
   // Apply port constants to unconnected inputs
   for (const [nodeId, runtime] of schedulerState.nodeStates) {
@@ -307,26 +299,15 @@ function initialEvaluation(
     }
   }
 
-  // Evaluate all nodes in topo order and emit outputs
+  // Evaluate all nodes in topo order to initialize runtime outputs.
+  // Wire buffers are left at zero — first tick() will write values naturally.
   for (const nodeId of topoOrder) {
     const node = nodes.get(nodeId);
     const runtime = schedulerState.nodeStates.get(nodeId);
     if (!node || !runtime) continue;
 
     evaluateNodeForInit(node, runtime, 0);
-
-    // Emit outputs onto outgoing wires
-    for (const wire of mutableWires) {
-      if (wire.source.nodeId === nodeId) {
-        const value = runtime.outputs[wire.source.portIndex] ?? 0;
-        if (value !== 0) {
-          wire.signalBuffer[wire.writeHead] = value;
-        }
-      }
-    }
   }
-
-  return mutableWires;
 }
 
 /** Evaluate a node for initial seeding. Mirrors tick-scheduler's evaluateNode. */

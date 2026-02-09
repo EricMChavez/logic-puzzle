@@ -6,7 +6,6 @@ import { clamp } from '../shared/math/index.ts';
  * The shape completes one cycle every `period` ticks, offset by `phase`.
  */
 function generateShape(shape: WaveformShape, tick: number, period: number, phase: number): number {
-  if (shape === 'constant') return 1;
   if (period <= 0) return 0;
 
   // Normalized position within the cycle [0, 1)
@@ -38,6 +37,20 @@ function generateShape(shape: WaveformShape, tick: number, period: number, phase
       const triVal = t < 0.5 ? -1 + 4 * t : 3 - 4 * t;
       return Math.abs(triVal);
     }
+    case 'dual-wave':
+      // Triangle positive hump in first half, square negative in second half
+      if (t < 0.25) return 4 * t;        // 0 → +1
+      if (t <= 0.5) return 2 - 4 * t;    // +1 → 0
+      return -1;                           // flat at -1
+    case 'long-wave':
+      // Sine at 1/4 frequency: one full cycle spans 4 standard periods
+      return Math.sin(2 * Math.PI * t * 0.25);
+    case 'positive-sine':
+      // Sine shifted to [0, +1] range (all positive)
+      return (Math.sin(2 * Math.PI * t) + 1) / 2;
+    case 'overtone':
+      // Fundamental + 2nd harmonic, normalized to [-1, +1]
+      return (Math.sin(2 * Math.PI * t) + Math.sin(4 * Math.PI * t)) / 2;
     default:
       return 0;
   }

@@ -1,10 +1,10 @@
 import { defineNode } from '../framework';
 import { clamp } from '../../../shared/math';
 
-export type FaderParams = { fade: number };
+export type DiverterParams = { fade: number };
 
-export const faderNode = defineNode<FaderParams>({
-  type: 'fader',
+export const diverterNode = defineNode<DiverterParams>({
+  type: 'diverter',
   category: 'routing',
 
   inputs: [

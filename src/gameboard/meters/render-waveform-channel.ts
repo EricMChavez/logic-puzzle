@@ -26,12 +26,11 @@ export function drawWaveformChannel(
 
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
-  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
   const positiveColor = useOverrides ? devOverrides.colors.signalPositive : tokens.signalPositive;
   const negativeColor = useOverrides ? devOverrides.colors.signalNegative : tokens.signalNegative;
 
   const centerY = rect.y + rect.height / 2;
-  const halfHeight = (rect.height * verticalHeightRatio) / 2;
+  const halfHeight = (rect.height * VERTICAL_HEIGHT_RATIO) / 2;
   // Fixed column width based on buffer capacity - no compression as samples fill in
   const colWidth = rect.width / METER_BUFFER_CAPACITY;
 
@@ -89,12 +88,8 @@ export function drawMatchOverlay(
   const sampleCount = buffer.count;
   if (sampleCount === 0) return;
 
-  const devOverrides = getDevOverrides();
-  const useOverrides = devOverrides.enabled;
-  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
-
   const centerY = rect.y + rect.height / 2;
-  const halfHeight = (rect.height * verticalHeightRatio) / 2;
+  const halfHeight = (rect.height * VERTICAL_HEIGHT_RATIO) / 2;
   const colWidth = rect.width / METER_BUFFER_CAPACITY;
 
   const top = centerY - halfHeight;

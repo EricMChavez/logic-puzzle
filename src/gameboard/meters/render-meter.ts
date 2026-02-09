@@ -47,8 +47,16 @@ export function drawMeter(
   // Compute cutout for level bar (circular arc near connection point)
   const cutout = computeLevelBarCutout(rect, needleRect, slot.side);
 
-  // Draw meter interior background (only behind waveform + levelBar, respecting cutout)
   const devOverrides = getDevOverrides();
+
+  // Opaque backing behind the meter (matches border bounds exactly)
+  // Needed because canvas is transparent — without this, meter content is invisible
+  const housingColor = devOverrides.enabled
+    ? devOverrides.colors.meterInterior
+    : tokens.meterHousing;
+  drawMeterHousing(ctx, housingColor, waveformRect, levelBarRect, slot.side);
+
+  // Draw meter interior background (behind waveform + levelBar, respecting cutout)
   const meterInteriorColor = devOverrides.enabled
     ? devOverrides.colors.meterInterior
     : tokens.meterInterior;
@@ -107,6 +115,55 @@ export function drawMeter(
 
   ctx.restore();
 
+  // Draw meter border (3 sides, not facing gameboard) - uses same constrained height as interior
+  drawMeterBorder(ctx, tokens, waveformRect, levelBarRect, VERTICAL_HEIGHT_RATIO, slot.side);
+}
+
+/**
+ * Draw a border on three sides of the meter (not the gameboard-facing side).
+ * Uses the same constrained vertical height as the meter interior.
+ */
+function drawMeterBorder(
+  ctx: CanvasRenderingContext2D,
+  tokens: ThemeTokens,
+  waveformRect: PixelRect,
+  levelBarRect: PixelRect,
+  verticalHeightRatio: number,
+  side: 'left' | 'right',
+): void {
+  const devOverrides = getDevOverrides();
+  const borderColor = devOverrides.enabled
+    ? devOverrides.colors.meterBorder
+    : tokens.meterBorder;
+
+  // Compute the same constrained bounds as drawMeterInterior
+  const left = Math.min(waveformRect.x, levelBarRect.x);
+  const right = Math.max(waveformRect.x + waveformRect.width, levelBarRect.x + levelBarRect.width);
+  const width = right - left;
+  const centerY = waveformRect.y + waveformRect.height / 2;
+  const halfHeight = (waveformRect.height * verticalHeightRatio) / 2;
+  const top = centerY - halfHeight;
+  const height = halfHeight * 2;
+
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  if (side === 'left') {
+    // Draw top, left, bottom (skip right edge facing gameboard)
+    ctx.moveTo(left + width, top);
+    ctx.lineTo(left, top);
+    ctx.lineTo(left, top + height);
+    ctx.lineTo(left + width, top + height);
+  } else {
+    // Draw top, right, bottom (skip left edge facing gameboard)
+    ctx.moveTo(left, top);
+    ctx.lineTo(left + width, top);
+    ctx.lineTo(left + width, top + height);
+    ctx.lineTo(left, top + height);
+  }
+
+  ctx.stroke();
 }
 
 /**
@@ -122,13 +179,9 @@ function computeChannelRects(rect: PixelRect, side: 'left' | 'right'): {
   levelBarRect: PixelRect;
   needleRect: PixelRect;
 } {
-  const devOverrides = getDevOverrides();
-  const useOverrides = devOverrides.enabled;
-
-  // Get ratios from dev overrides or defaults
-  const waveformRatio = useOverrides ? devOverrides.meterStyle.waveformRatio : CHANNEL_RATIOS.waveform;
-  const levelBarRatio = useOverrides ? devOverrides.meterStyle.levelBarRatio : CHANNEL_RATIOS.levelBar;
-  const needleRatio = useOverrides ? devOverrides.meterStyle.needleRatio : CHANNEL_RATIOS.needle;
+  const waveformRatio = CHANNEL_RATIOS.waveform;
+  const levelBarRatio = CHANNEL_RATIOS.levelBar;
+  const needleRatio = CHANNEL_RATIOS.needle;
 
   // Normalize ratios to ensure they sum to ~1.0 (with small gaps)
   const totalRatio = waveformRatio + levelBarRatio + needleRatio + CHANNEL_RATIOS.gapA + CHANNEL_RATIOS.gapB;
@@ -170,9 +223,7 @@ function computeLevelBarCutout(
   needleRect: PixelRect,
   side: 'left' | 'right',
 ): LevelBarCutout {
-  const devOverrides = getDevOverrides();
-  const useOverrides = devOverrides.enabled;
-  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
+  const verticalHeightRatio = VERTICAL_HEIGHT_RATIO;
 
   // Eye (connection point) is at the gameboard-side edge of the needle rect
   const eyeX = side === 'left'
@@ -205,9 +256,7 @@ function drawMeterInterior(
   cutout: LevelBarCutout,
   _side: 'left' | 'right',
 ): void {
-  const devOverrides = getDevOverrides();
-  const useOverrides = devOverrides.enabled;
-  const verticalHeightRatio = useOverrides ? devOverrides.meterStyle.verticalHeightRatio : VERTICAL_HEIGHT_RATIO;
+  const verticalHeightRatio = VERTICAL_HEIGHT_RATIO;
 
   // Compute combined rect spanning waveform and levelBar
   const left = Math.min(waveformRect.x, levelBarRect.x);
@@ -252,5 +301,26 @@ function drawMeterInterior(
   ctx.restore();
 }
 
+/**
+ * Draw opaque housing behind the meter, matching the border bounds exactly.
+ * Provides an opaque backing so meter content is visible on the transparent canvas.
+ */
+function drawMeterHousing(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  waveformRect: PixelRect,
+  levelBarRect: PixelRect,
+  side: 'left' | 'right',
+): void {
+  const left = Math.min(waveformRect.x, levelBarRect.x);
+  const right = Math.max(waveformRect.x + waveformRect.width, levelBarRect.x + levelBarRect.width);
+  const width = right - left;
+  const centerY = waveformRect.y + waveformRect.height / 2;
+  const halfHeight = (waveformRect.height * VERTICAL_HEIGHT_RATIO) / 2;
+  const top = centerY - halfHeight;
+  const height = halfHeight * 2;
 
+  ctx.fillStyle = color;
+  ctx.fillRect(left, top, width, height);
+}
 

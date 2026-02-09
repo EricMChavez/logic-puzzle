@@ -11,15 +11,15 @@ import {
   METER_RIGHT_END,
 } from '../../shared/grid/index.ts';
 import { getDevOverrides } from '../../dev/index.ts';
+import { GAMEBOARD_STYLE } from '../../shared/constants/index.ts';
 
 /**
  * Draw the gameboard grid zones and grid lines.
  * Called first in the render loop (lowest z-order).
  *
  * Zones:
- * - Left meter zone (cols 0-2): tokens.meterHousing background
- * - Playable area (cols 3-28): tokens.gridArea background + grid lines
- * - Right meter zone (cols 29-31): tokens.meterHousing background
+ * - Left/right meter zones: transparent (gradient background shows through)
+ * - Playable area (cols 10-55): tokens.gridArea background + grid lines
  */
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
@@ -31,12 +31,12 @@ export function drawGrid(
   const useOverrides = devOverrides.enabled;
 
   // Get style values (use dev overrides if enabled)
-  const gridAreaColor = useOverrides ? devOverrides.colors.gridArea : tokens.gridArea;
-  const meterHousingColor = useOverrides ? devOverrides.colors.meterHousing : tokens.meterHousing;
+  const gridAreaEdge = useOverrides ? devOverrides.colors.gridAreaEdge : '#000000';
+  const gridAreaCenter = useOverrides ? devOverrides.colors.gridAreaCenter : '#0a0b0d';
   const gridLineColor = useOverrides ? devOverrides.colors.gridLine : tokens.gridLine;
-  const lineOpacity = useOverrides ? devOverrides.gridStyle.lineOpacity : 1.0;
-  const insetDepthTop = useOverrides ? devOverrides.gridStyle.insetDepthTop : 0.4;
-  const insetDepthSide = useOverrides ? devOverrides.gridStyle.insetDepthSide : 0.3;
+  const lineOpacity = useOverrides ? devOverrides.gridStyle.lineOpacity : 0.8;
+  const insetDepthTop = useOverrides ? devOverrides.gridStyle.insetDepthTop : 1;
+  const insetDepthSide = useOverrides ? devOverrides.gridStyle.insetDepthSide : 1;
 
   const prevAlpha = ctx.globalAlpha;
   if (state.gridOpacity !== undefined) {
@@ -44,27 +44,32 @@ export function drawGrid(
   }
 
   const totalHeight = GRID_ROWS * cellSize;
+  const cornerRadius = cellSize * GAMEBOARD_STYLE.CORNER_RADIUS_RATIO;
 
-  // 1. Playable area background
+  // 1. Playable area gradient background
   const playableX = PLAYABLE_START * cellSize;
   const playableCols = PLAYABLE_END - PLAYABLE_START + 1;
-  ctx.fillStyle = gridAreaColor;
-  ctx.fillRect(playableX, 0, playableCols * cellSize, totalHeight);
+  const playableWidth = playableCols * cellSize;
+  const bgGradient = ctx.createLinearGradient(playableX, 0, playableX + playableWidth, 0);
+  bgGradient.addColorStop(0, gridAreaEdge);
+  bgGradient.addColorStop(0.5, gridAreaCenter);
+  bgGradient.addColorStop(1, gridAreaEdge);
+  ctx.fillStyle = bgGradient;
+  ctx.beginPath();
+  ctx.roundRect(playableX, 0, playableWidth, totalHeight, cornerRadius);
+  ctx.fill();
 
-  // 2. Left meter zone background (cols 0-2)
-  const leftMeterCols = METER_LEFT_END - METER_LEFT_START + 1;
-  ctx.fillStyle = meterHousingColor;
-  ctx.fillRect(METER_LEFT_START * cellSize, 0, leftMeterCols * cellSize, totalHeight);
+  // Meter zones are transparent — each meter draws its own opaque backing
 
-  // 3. Right meter zone background (cols 29-31)
-  const rightMeterX = METER_RIGHT_START * cellSize;
-  const rightMeterCols = METER_RIGHT_END - METER_RIGHT_START + 1;
-  ctx.fillRect(rightMeterX, 0, rightMeterCols * cellSize, totalHeight);
-
-  // 4. Recessed depth effect for grid area (inset shadow)
+  // 2. Recessed depth effect for grid area (inset shadow)
   const gridX = PLAYABLE_START * cellSize;
   const gridWidth = playableCols * cellSize;
   ctx.save();
+  // Clip to rounded rect so shadows don't spill outside
+  ctx.beginPath();
+  ctx.roundRect(gridX, 0, gridWidth, totalHeight, cornerRadius);
+  ctx.clip();
+
   // Top shadow (darker, stronger)
   const topGradient = ctx.createLinearGradient(0, 0, 0, cellSize * 1.5);
   topGradient.addColorStop(0, `rgba(0, 0, 0, ${insetDepthTop})`);
@@ -96,6 +101,11 @@ export function drawGrid(
 
   // 5. Dot matrix at grid intersections in the playable area
   ctx.save();
+  // Clip to rounded rect so dots don't appear in corners
+  ctx.beginPath();
+  ctx.roundRect(playableX, 0, playableCols * cellSize, totalHeight, cornerRadius);
+  ctx.clip();
+
   if (lineOpacity !== 1.0) {
     ctx.globalAlpha = ctx.globalAlpha * lineOpacity;
   }
@@ -115,7 +125,26 @@ export function drawGrid(
   ctx.fill();
   ctx.restore();
 
-  // 6. Debug grid labels (dev override only)
+  // 6. Board border (stroke around the playable area)
+  // Left/right: extends outward into meter zone. Top/bottom: extends inward.
+  const borderColor = useOverrides ? devOverrides.colors.boardBorder : tokens.boardBorder;
+  const borderWidth = cellSize * 0.5 + 2;
+  const halfBW = borderWidth / 2;
+  ctx.save();
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = borderWidth;
+  ctx.beginPath();
+  ctx.roundRect(
+    playableX - halfBW,
+    halfBW,
+    playableWidth + borderWidth,
+    totalHeight - borderWidth,
+    cornerRadius,
+  );
+  ctx.stroke();
+  ctx.restore();
+
+  // 7. Debug grid labels (dev override only)
   const showLabels = devOverrides.enabled && devOverrides.gridStyle.showGridLabels;
   if (showLabels) {
     ctx.save();

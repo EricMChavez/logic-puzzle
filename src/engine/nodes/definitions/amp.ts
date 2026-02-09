@@ -17,9 +17,11 @@ export const ampNode = defineNode<AmpParams>({
     { key: 'gain', type: 'number', default: 0, label: 'Gain', min: -100, max: 100, step: 25 },
   ],
 
-  evaluate: ({ inputs }) => {
+  evaluate: ({ inputs, params }) => {
     const [a, x] = inputs;
-    return [clamp(a * (1 + x / 100))];
+    const gain = typeof params.gain === 'number' ? params.gain : 0;
+    const effectiveGain = x + gain;
+    return [clamp(a * (1 + effectiveGain / 100))];
   },
 
   size: { width: 3, height: 3 },

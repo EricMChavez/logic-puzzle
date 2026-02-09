@@ -8,6 +8,7 @@ import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { gridToPixel, getNodeGridSize } from '../../shared/grid/index.ts';
 import { getDevOverrides } from '../../dev/index.ts';
 import { drawKnob } from './render-knob.ts';
+import { signalToColor, signalToGlow } from './render-wires.ts';
 
 // ---------------------------------------------------------------------------
 // Color utilities
@@ -64,7 +65,7 @@ function getParamDisplay(node: NodeState): string {
       return `del: ${node.params['wts'] ?? 1} WTS`;
     case 'mixer':
     case 'amp':
-    case 'fader':
+    case 'diverter':
       return ''; // Knob renders the value visually
     default:
       return '';
@@ -86,7 +87,7 @@ export function drawNodes(
   for (const node of state.nodes.values()) {
     if (isConnectionPointNode(node.id)) continue;
     drawNodeBody(ctx, tokens, state, node, cellSize);
-    drawNodePorts(ctx, tokens, node, cellSize);
+    drawNodePorts(ctx, tokens, node, cellSize, state.portSignals);
   }
 
   // Second pass: draw selection highlight on top of all nodes
@@ -113,7 +114,7 @@ function drawNodeBody(
   const borderRadiusRatio = useOverrides ? devOverrides.nodeStyle.borderRadius : NODE_STYLE.BORDER_RADIUS_RATIO;
   const shadowBlurRatio = useOverrides ? devOverrides.nodeStyle.shadowBlur : NODE_STYLE.SHADOW_BLUR_RATIO;
   const shadowOffsetYRatio = useOverrides ? devOverrides.nodeStyle.shadowOffsetY : NODE_STYLE.SHADOW_OFFSET_Y_RATIO;
-  const borderWidth = useOverrides ? devOverrides.nodeStyle.borderWidth : 1.5;
+  const borderWidth = useOverrides ? devOverrides.nodeStyle.borderWidth : 0;
   const hoverBrightness = useOverrides ? devOverrides.nodeStyle.hoverBrightness : 0.15;
   const gradientIntensity = useOverrides ? devOverrides.nodeStyle.gradientIntensity : 1.0;
 
@@ -221,7 +222,8 @@ function drawNodeBody(
       const knobRadius = 0.55 * cellSize;
       // Place knob below the label
       const knobY = centerY + labelFontSize * 0.5;
-      drawKnob(ctx, tokens, centerX, knobY, knobRadius, knobInfo.value, knobInfo.isWired);
+      const isRejected = state.rejectedKnobNodeId === node.id;
+      drawKnob(ctx, tokens, centerX, knobY, knobRadius, knobInfo.value, knobInfo.isWired, isRejected);
     }
   }
 
@@ -259,6 +261,7 @@ function drawNodePorts(
   tokens: ThemeTokens,
   node: NodeState,
   cellSize: number,
+  portSignals: ReadonlyMap<string, number>,
 ): void {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
@@ -267,12 +270,14 @@ function drawNodePorts(
 
   for (let i = 0; i < node.inputCount; i++) {
     const pos = getNodePortPosition(node, 'input', i, cellSize);
-    drawPort(ctx, tokens, pos.x, pos.y, portRadius);
+    const signalValue = portSignals.get(`${node.id}:input:${i}`) ?? 0;
+    drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue);
   }
 
   for (let i = 0; i < node.outputCount; i++) {
     const pos = getNodePortPosition(node, 'output', i, cellSize);
-    drawPort(ctx, tokens, pos.x, pos.y, portRadius);
+    const signalValue = portSignals.get(`${node.id}:output:${i}`) ?? 0;
+    drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue);
   }
 }
 
@@ -282,12 +287,26 @@ function drawPort(
   x: number,
   y: number,
   radius: number,
+  signalValue: number,
 ): void {
-  const devOverrides = getDevOverrides();
-  const useOverrides = devOverrides.enabled;
+  const color = signalToColor(signalValue, tokens);
+  const glow = signalToGlow(signalValue);
 
-  ctx.fillStyle = useOverrides ? devOverrides.colors.portFill : tokens.portFill;
-  ctx.strokeStyle = useOverrides ? devOverrides.colors.portStroke : tokens.portStroke;
+  // Glow for strong signals (mirrors wire glow behavior)
+  if (glow > 0) {
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = glow;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.fillStyle = color;
+  ctx.strokeStyle = tokens.depthRaised;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);

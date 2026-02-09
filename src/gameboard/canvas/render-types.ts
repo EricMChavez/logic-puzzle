@@ -26,6 +26,10 @@ export interface RenderNodesState {
   selectedNodeId: string | null;
   hoveredNodeId: string | null;
   knobValues: ReadonlyMap<string, KnobInfo>;
+  /** Signal value per port, keyed by `${nodeId}:input:${portIndex}` or `${nodeId}:output:${portIndex}`. */
+  portSignals: ReadonlyMap<string, number>;
+  /** Node ID whose knob is showing a rejected-click flash (wired knob was clicked) */
+  rejectedKnobNodeId: string | null;
 }
 
 /** State needed by renderConnectionPoints */
@@ -35,6 +39,8 @@ export interface RenderConnectionPointsState {
   isSimRunning: boolean;
   /** Non-null when editing a utility node (bidirectional CPs) */
   editingUtilityId?: string | null;
+  /** Latest signal value per CP, keyed by `${direction}:${cpIndex}` (e.g. "input:0", "output:1"). */
+  cpSignals: ReadonlyMap<string, number>;
 }
 
 /** State needed by drawGrid */

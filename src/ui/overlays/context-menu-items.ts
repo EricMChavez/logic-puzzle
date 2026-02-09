@@ -52,5 +52,5 @@ export function buildContextMenuItems(
 
 /** Returns true for node types that have user-editable parameters */
 export function hasEditableParams(nodeType: string): boolean {
-  return nodeType === 'mix' || nodeType === 'threshold' || nodeType === 'delay' || nodeType === 'mixer' || nodeType === 'amp' || nodeType === 'fader';
+  return nodeType === 'mix' || nodeType === 'threshold' || nodeType === 'delay' || nodeType === 'mixer' || nodeType === 'amp' || nodeType === 'diverter';
 }

@@ -58,7 +58,7 @@
 }
 
 .paletteMessage {
-  color: #e8a838;
+  color: #ff9200;
   font-size: 13px;
   margin: 0;
 }
@@ -85,7 +85,7 @@
 }
 
 .buttonSecondary {
-  background: #2d2d44;
+  background: #44484e;
 }
 
 .buttonSecondary:hover {

@@ -4,11 +4,11 @@ import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 
 // Minimal mock tokens for ceremony draw functions
 const mockTokens: ThemeTokens = {
-  signalPositive: '#e8a838',
-  signalNegative: '#38b8a0',
+  signalPositive: '#ff9200',
+  signalNegative: '#0782e0',
   textPrimary: '#e0e0f0',
   textSecondary: '#9090b0',
-  colorNeutral: '#3a3a4a',
+  colorNeutral: '#242424',
 } as ThemeTokens;
 
 function createMockCtx() {
