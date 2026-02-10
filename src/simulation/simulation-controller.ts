@@ -24,15 +24,22 @@ import { buildConnectionPointConfig, buildCustomNodeConnectionPointConfig } from
 /** Waveform history length (number of ticks to display) */
 const WAVEFORM_CAPACITY = 64;
 
-/** Tick interval in ms. 1 WTS = 16 subdivisions = 1 second → 62.5ms per tick */
-const TICK_INTERVAL_MS = 63;
+/** Exact tick interval in ms. 1 WTS = 16 subdivisions = 1 second → 62.5ms per tick */
+const TICK_MS = 62.5;
+
+/** Maximum catch-up ticks per frame to prevent frame-budget blowout after long pauses */
+const MAX_CATCHUP_TICKS = 4;
 
 // Module-level simulation state
 let clock: WtsClock | null = null;
 let schedulerState: SchedulerState | null = null;
 let topoOrder: NodeId[] = [];
 let sourceNodeIds: NodeId[] = []; // Nodes with no incoming wires — emit every tick
-let intervalId: ReturnType<typeof setInterval> | null = null;
+let simulationActive = false;
+
+// rAF-driven time accumulator (replaces setInterval for drift-free timing)
+let lastFrameTimestamp = 0;
+let tickAccumulator = 0;
 
 // Waveform buffers keyed by "input:0", "input:1", "output:0", etc.
 const waveformBuffers = new Map<string, WaveformBuffer>();
@@ -54,7 +61,7 @@ const MATCH_LINGER_TICKS = 16;
 
 /** Whether the simulation is currently running. */
 export function isRunning(): boolean {
-  return intervalId !== null;
+  return simulationActive;
 }
 
 /** Get waveform buffers for rendering. */
@@ -79,7 +86,7 @@ export function getPerSampleMatch(): ReadonlyMap<string, boolean[]> {
 
 /** Start the simulation loop. */
 export function startSimulation(): void {
-  if (intervalId !== null) return;
+  if (simulationActive) return;
 
   const store = useGameStore.getState();
   if (!store.activeBoard) return;
@@ -236,16 +243,17 @@ export function startSimulation(): void {
   // ensuring correct 16-tick (1 WTS) propagation delay with no early blip.
   initialEvaluation(nodes, wires, store.portConstants);
 
-  // Start ticking
-  intervalId = setInterval(tick, TICK_INTERVAL_MS);
+  // Mark simulation as active — ticks are driven by rAF via tickSimulation()
+  lastFrameTimestamp = 0;
+  tickAccumulator = 0;
+  simulationActive = true;
 }
 
 /** Stop the simulation loop. */
 export function stopSimulation(): void {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
+  simulationActive = false;
+  lastFrameTimestamp = 0;
+  tickAccumulator = 0;
   clock = null;
   schedulerState = null;
   topoOrder = [];
@@ -386,9 +394,39 @@ function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outpu
   }
 }
 
-/** Advance one simulation tick. */
-function tick(): void {
-  if (!clock || !schedulerState) return;
+/**
+ * Drive simulation ticks from the rAF render loop.
+ * Uses a time accumulator for drift-free 62.5ms tick intervals.
+ * Runs 0-N ticks per frame (capped at MAX_CATCHUP_TICKS).
+ *
+ * Called by render-loop.ts BEFORE rendering each frame, guaranteeing
+ * wires and meters are consistent when draw functions read them.
+ */
+export function tickSimulation(timestamp: number): void {
+  if (!simulationActive || !clock || !schedulerState) return;
+
+  // First frame after start — seed timestamp, no ticks yet
+  if (lastFrameTimestamp === 0) {
+    lastFrameTimestamp = timestamp;
+    return;
+  }
+
+  const delta = timestamp - lastFrameTimestamp;
+  lastFrameTimestamp = timestamp;
+  tickAccumulator += delta;
+
+  // Calculate how many ticks to run, capped to prevent frame-budget blowout
+  let ticksToRun = 0;
+  while (tickAccumulator >= TICK_MS && ticksToRun < MAX_CATCHUP_TICKS) {
+    tickAccumulator -= TICK_MS;
+    ticksToRun++;
+  }
+  // If we hit the cap, discard excess accumulated time (simulation slows gracefully)
+  if (ticksToRun >= MAX_CATCHUP_TICKS) {
+    tickAccumulator = 0;
+  }
+
+  if (ticksToRun === 0) return;
 
   const store = useGameStore.getState();
   if (!store.activeBoard) return;
@@ -401,61 +439,60 @@ function tick(): void {
     return;
   }
 
-  clock.tick();
-
   const boardNodes = store.activeBoard.nodes;
   const { portConstants } = store;
 
-  // Deep clone wires for mutation (advanceTick mutates in-place)
+  // Clone wires once for the entire frame's ticks (advanceTick mutates in-place)
   const wires: Wire[] = store.activeBoard.wires.map((w) => ({
     ...w,
     signalBuffer: [...w.signalBuffer],
   }));
 
-  // Build set of connected input ports
+  // Build set of connected input ports (stable across ticks within a frame)
   const connectedInputs = new Set<string>();
   for (const wire of wires) {
     connectedInputs.add(`${wire.target.nodeId}:${wire.target.portIndex}`);
   }
 
-  // Apply port constants to unconnected inputs before each tick
-  for (const [nodeId, runtime] of schedulerState.nodeStates) {
-    const node = boardNodes.get(nodeId);
-    if (!node) continue;
-    for (let i = 0; i < node.inputCount; i++) {
-      const key = `${nodeId}:${i}`;
-      if (!connectedInputs.has(key)) {
-        const constValue = portConstants.get(key) ?? 0;
-        if (runtime.inputs[i] !== constValue) {
-          runtime.inputs[i] = constValue;
+  // Run each tick sequentially on the local wire copy
+  for (let t = 0; t < ticksToRun; t++) {
+    clock.tick();
+
+    // Apply port constants to unconnected inputs before each tick
+    for (const [nodeId, runtime] of schedulerState.nodeStates) {
+      const node = boardNodes.get(nodeId);
+      if (!node) continue;
+      for (let i = 0; i < node.inputCount; i++) {
+        const key = `${nodeId}:${i}`;
+        if (!connectedInputs.has(key)) {
+          const constValue = portConstants.get(key) ?? 0;
+          if (runtime.inputs[i] !== constValue) {
+            runtime.inputs[i] = constValue;
+          }
         }
       }
     }
+
+    // Evaluate source nodes so their outputs are current before advanceTick
+    const currentTick = clock.getTick();
+    for (const nodeId of sourceNodeIds) {
+      const node = boardNodes.get(nodeId);
+      const runtime = schedulerState.nodeStates.get(nodeId);
+      if (!node || !runtime) continue;
+      evaluateNodeForInit(node, runtime, currentTick);
+    }
+
+    // Advance signals, deliver arrivals, evaluate downstream nodes
+    advanceTick(wires, boardNodes, topoOrder, schedulerState, currentTick);
+
+    // Record waveform/meter data after each tick (one sample per tick)
+    recordWaveforms();
   }
 
-  // Evaluate source nodes (nodes with no incoming wires) so their outputs are
-  // current before advanceTick.  Wire writes happen inside advanceTick's
-  // always-write loop, which writes at writeHead *after* reading — giving the
-  // correct 16-tick ring-buffer delay.
-  const currentTick = clock.getTick();
-  for (const nodeId of sourceNodeIds) {
-    const node = boardNodes.get(nodeId);
-    const runtime = schedulerState.nodeStates.get(nodeId);
-    if (!node || !runtime) continue;
-
-    evaluateNodeForInit(node, runtime, currentTick);
-  }
-
-  // Run the scheduler tick (advances signals, delivers arrivals, evaluates downstream)
-  advanceTick(wires, boardNodes, topoOrder, schedulerState);
-
-  // Write updated wires back to the store
+  // Write updated wires to store ONCE (render reads this in the same frame)
   store.updateWires(wires);
 
-  // Record waveform data at connection points
-  recordWaveforms();
-
-  // Run validation against puzzle targets
+  // Validate after all ticks complete (only final state matters for victory)
   validateTick();
 }
 

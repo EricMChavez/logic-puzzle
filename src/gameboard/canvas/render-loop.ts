@@ -1,6 +1,6 @@
 import { useGameStore } from '../../store/index.ts';
 import { getThemeTokens } from '../../shared/tokens/theme-manager.ts';
-import { isRunning, getMeterBuffers, getTargetDisplayBuffers, getPerSampleMatch } from '../../simulation/simulation-controller.ts';
+import { isRunning, tickSimulation, getMeterBuffers, getTargetDisplayBuffers, getPerSampleMatch } from '../../simulation/simulation-controller.ts';
 import { GRID_COLS, GRID_ROWS, METER_LEFT_START, METER_RIGHT_START, gridRectToPixels, pixelToGrid } from '../../shared/grid/index.ts';
 import { drawMeter } from '../meters/render-meter.ts';
 import type { RenderMeterState } from '../meters/render-meter.ts';
@@ -71,6 +71,10 @@ export function startRenderLoop(
   let running = true;
   function render(timestamp: number) {
     if (!running) return;
+
+    // Drive simulation ticks BEFORE reading state — guarantees wires and
+    // meters are consistent for the current frame's draw calls.
+    tickSimulation(timestamp);
 
     // Single getState() + getThemeTokens() per frame
     const state = useGameStore.getState();
