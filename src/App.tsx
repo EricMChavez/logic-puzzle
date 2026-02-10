@@ -5,7 +5,7 @@ import { NavigationBar } from './ui/controls/NavigationBar.tsx'
 import { PuzzleInfoBar } from './ui/puzzle/PuzzleInfoBar.tsx'
 import { CompletionCeremony } from './ui/puzzle/CompletionCeremony.tsx'
 import { ZoomTransition } from './ui/puzzle/ZoomTransition.tsx'
-import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, LevelSelectOverlay, TrimDialog, SavePuzzleDialog } from './ui/overlays/index.ts'
+import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, LevelSelectOverlay, TrimDialog, SavePuzzleDialog, NodeCreationForm } from './ui/overlays/index.ts'
 import { PortConstantInput } from './ui/controls/PortConstantInput.tsx'
 import { useGameStore } from './store/index.ts'
 import type { GameboardState, NodeState } from './shared/types/index.ts'
@@ -103,6 +103,7 @@ function App() {
       <LevelSelectOverlay />
       <TrimDialog />
       <SavePuzzleDialog />
+      <NodeCreationForm />
       <StartScreen />
       <ZoomTransition />
       <CompletionCeremony />

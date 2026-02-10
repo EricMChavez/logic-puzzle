@@ -20,7 +20,8 @@ export type ActiveOverlay =
   | { type: 'start-screen' }
   | { type: 'trim-dialog' }
   | { type: 'save-puzzle-dialog' }
-  | { type: 'level-select' };
+  | { type: 'level-select' }
+  | { type: 'node-creation-form' };
 
 /** Overlay types that cannot be dismissed by Escape */
 const ESCAPE_IMMUNE = new Set<ActiveOverlay['type']>(['save-dialog', 'unsaved-changes', 'start-screen', 'save-puzzle-dialog']);

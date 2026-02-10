@@ -1,5 +1,6 @@
 import { useControls, button, Leva } from 'leva';
 import { useEffect } from 'react';
+import { useGameStore } from '../store/index.ts';
 import {
   DEFAULT_DEV_OVERRIDES,
   getDevOverrides,
@@ -133,6 +134,9 @@ export function DevTools() {
 
   // Actions
   useControls('Actions', {
+    'New Node Definition': button(() => {
+      useGameStore.getState().openOverlay({ type: 'node-creation-form' });
+    }),
     'Reset to Defaults': button(() => {
       resetDevOverrides();
       window.location.reload();
