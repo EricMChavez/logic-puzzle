@@ -5,3 +5,4 @@ export { WaveformSelectorOverlay } from './WaveformSelectorOverlay.tsx';
 export { LevelSelectOverlay } from './LevelSelectOverlay.tsx';
 export { TrimDialog } from './TrimDialog.tsx';
 export { SavePuzzleDialog } from './SavePuzzleDialog.tsx';
+export { NodeCreationForm } from './NodeCreationForm.tsx';
