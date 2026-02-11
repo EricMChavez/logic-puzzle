@@ -488,6 +488,60 @@ describe('evaluateAllCycles', () => {
     });
   });
 
+  describe('processingOrder', () => {
+    it('includes non-CP nodes in topological order', () => {
+      const nodes = new Map<NodeId, NodeState>();
+      nodes.set('__cp_input_0__', makeNode('__cp_input_0__', 'connection-input', 0, 1));
+      nodes.set('__cp_output_0__', makeNode('__cp_output_0__', 'connection-output', 1, 0));
+      nodes.set('inv1', makeNode('inv1', 'inverter', 1, 1));
+      nodes.set('inv2', makeNode('inv2', 'inverter', 1, 1));
+
+      const wires: Wire[] = [
+        makeWire('w1', '__cp_input_0__', 0, 'inv1', 0),
+        makeWire('w2', 'inv1', 0, 'inv2', 0),
+        makeWire('w3', 'inv2', 0, '__cp_output_0__', 0),
+      ];
+
+      const result = unwrap(evaluateAllCycles(
+        nodes,
+        wires,
+        new Map(),
+        constantInputs([42]),
+        4,
+      ));
+
+      // processingOrder should contain only non-CP nodes
+      expect(result.processingOrder).toContain('inv1');
+      expect(result.processingOrder).toContain('inv2');
+      expect(result.processingOrder).not.toContain('__cp_input_0__');
+      expect(result.processingOrder).not.toContain('__cp_output_0__');
+      // inv1 should come before inv2 (topological order)
+      expect(result.processingOrder.indexOf('inv1')).toBeLessThan(
+        result.processingOrder.indexOf('inv2'),
+      );
+    });
+
+    it('is empty for graph with only CPs', () => {
+      const nodes = new Map<NodeId, NodeState>();
+      nodes.set('__cp_input_0__', makeNode('__cp_input_0__', 'connection-input', 0, 1));
+      nodes.set('__cp_output_0__', makeNode('__cp_output_0__', 'connection-output', 1, 0));
+
+      const wires: Wire[] = [
+        makeWire('w1', '__cp_input_0__', 0, '__cp_output_0__', 0),
+      ];
+
+      const result = unwrap(evaluateAllCycles(
+        nodes,
+        wires,
+        new Map(),
+        constantInputs([77]),
+        4,
+      ));
+
+      expect(result.processingOrder).toEqual([]);
+    });
+  });
+
   describe('empty graph', () => {
     it('handles graph with no processing nodes', () => {
       const nodes = new Map<NodeId, NodeState>();

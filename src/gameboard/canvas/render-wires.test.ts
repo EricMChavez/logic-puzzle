@@ -6,6 +6,7 @@ import {
   signalToGlow,
   getWireSignal,
   drawWires,
+  buildWirePixelPath,
 } from './render-wires';
 import type { ThemeTokens } from '../../shared/tokens/token-types';
 import type { Wire } from '../../shared/types/index';
@@ -240,5 +241,64 @@ describe('drawWires', () => {
     drawWires(ctx, fullTokens, [wire], 40);
     // Only 1 beginPath call for the base polyline (a single moveTo, no lineTo segments)
     expect((ctx.beginPath as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
+
+  it('neutralOnly draws only 1 beginPath per wire (pass 1 only)', () => {
+    const ctx = makeMockCtx();
+    const wire: Wire = {
+      id: 'w1',
+      source: { nodeId: 'a', portIndex: 0, side: 'output' },
+      target: { nodeId: 'b', portIndex: 0, side: 'input' },
+      path: [
+        { col: 0, row: 0 },
+        { col: 1, row: 0 },
+        { col: 2, row: 0 },
+      ],
+    };
+    const wireValues = new Map([['w1', 100]]); // would normally trigger glow + polarity
+    drawWires(ctx, fullTokens, [wire], 40, undefined, wireValues, true);
+    // neutralOnly: only 1 beginPath call (base pass only), glow + polarity skipped
+    expect((ctx.beginPath as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
+});
+
+// ── buildWirePixelPath ──────────────────────────────────────────────────────
+
+describe('buildWirePixelPath', () => {
+  it('returns empty array for wire with empty path and no nodes', () => {
+    const wire: Wire = {
+      id: 'w1',
+      source: { nodeId: 'a', portIndex: 0, side: 'output' },
+      target: { nodeId: 'b', portIndex: 0, side: 'input' },
+      path: [],
+    };
+    expect(buildWirePixelPath(wire, 40)).toEqual([]);
+  });
+
+  it('converts grid path to pixel coordinates', () => {
+    const wire: Wire = {
+      id: 'w1',
+      source: { nodeId: 'a', portIndex: 0, side: 'output' },
+      target: { nodeId: 'b', portIndex: 0, side: 'input' },
+      path: [{ col: 2, row: 3 }, { col: 4, row: 3 }],
+    };
+    const pts = buildWirePixelPath(wire, 10);
+    expect(pts).toEqual([{ x: 20, y: 30 }, { x: 40, y: 30 }]);
+  });
+
+  it('deduplicates adjacent coincident points', () => {
+    const wire: Wire = {
+      id: 'w1',
+      source: { nodeId: 'a', portIndex: 0, side: 'output' },
+      target: { nodeId: 'b', portIndex: 0, side: 'input' },
+      path: [
+        { col: 2, row: 3 },
+        { col: 2, row: 3 }, // duplicate
+        { col: 4, row: 3 },
+      ],
+    };
+    const pts = buildWirePixelPath(wire, 10);
+    expect(pts.length).toBe(2);
+    expect(pts).toEqual([{ x: 20, y: 30 }, { x: 40, y: 30 }]);
   });
 });

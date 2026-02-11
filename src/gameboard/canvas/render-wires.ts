@@ -130,9 +130,73 @@ function getPortPixelPosition(
   return getNodePortPosition(node, side, portIndex, cellSize);
 }
 
+// ── Wire pixel path builder ─────────────────────────────────────────────────
+
+/**
+ * Build the full deduped pixel path for a wire: source port → grid path → target port.
+ * Shared by drawWires and drawWireBlips.
+ */
+export function buildWirePixelPath(
+  wire: Wire,
+  cellSize: number,
+  nodes?: ReadonlyMap<string, NodeState>,
+): Array<{ x: number; y: number }> {
+  // Allow wires with empty paths if we can resolve endpoints from nodes
+  if (wire.path.length === 0 && !nodes) return [];
+
+  // Pre-compute pixel positions for path cells (at gridline intersections)
+  const pathPts = wire.path.map((gp) => ({
+    x: gp.col * cellSize,
+    y: gp.row * cellSize,
+  }));
+
+  // Build full point list: source port → path → target port
+  const pts: Array<{ x: number; y: number }> = [];
+
+  if (nodes) {
+    const sourcePos = getPortPixelPosition(
+      wire.source.nodeId,
+      wire.source.side,
+      wire.source.portIndex,
+      nodes,
+      cellSize,
+    );
+    if (sourcePos) pts.push(sourcePos);
+  }
+
+  pts.push(...pathPts);
+
+  if (nodes) {
+    const targetPos = getPortPixelPosition(
+      wire.target.nodeId,
+      wire.target.side,
+      wire.target.portIndex,
+      nodes,
+      cellSize,
+    );
+    if (targetPos) pts.push(targetPos);
+  }
+
+  if (pts.length === 0) return [];
+
+  // Deduplicate adjacent coincident points (removes zero-length bridging segments)
+  const dedupedPts = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    if (Math.abs(pts[i].x - dedupedPts[dedupedPts.length - 1].x) > 0.5 ||
+        Math.abs(pts[i].y - dedupedPts[dedupedPts.length - 1].y) > 0.5) {
+      dedupedPts.push(pts[i]);
+    }
+  }
+
+  return dedupedPts;
+}
+
 // ── Three-pass wire renderer ────────────────────────────────────────────────
 
-/** Draw all wires along their auto-routed grid paths, connecting to port positions. */
+/**
+ * Draw all wires along their auto-routed grid paths, connecting to port positions.
+ * When neutralOnly is true, only pass 1 (neutral base) is drawn — used during pause animation.
+ */
 export function drawWires(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
@@ -140,6 +204,7 @@ export function drawWires(
   cellSize: number,
   nodes?: ReadonlyMap<string, NodeState>,
   wireValues?: ReadonlyMap<string, number>,
+  neutralOnly?: boolean,
 ): void {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
@@ -149,56 +214,7 @@ export function drawWires(
   const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
 
   for (const wire of wires) {
-    // Allow wires with empty paths if we can resolve endpoints from nodes
-    if (wire.path.length === 0 && !nodes) continue;
-
-    // Pre-compute pixel positions for path cells (at gridline intersections)
-    const pathPts = wire.path.map((gp) => ({
-      x: gp.col * cellSize,
-      y: gp.row * cellSize,
-    }));
-
-    // Build full point list: source port → path → target port
-    const pts: Array<{ x: number; y: number }> = [];
-
-    // Add source port position if nodes are available
-    if (nodes) {
-      const sourcePos = getPortPixelPosition(
-        wire.source.nodeId,
-        wire.source.side,
-        wire.source.portIndex,
-        nodes,
-        cellSize,
-      );
-      if (sourcePos) pts.push(sourcePos);
-    }
-
-    // Add path points
-    pts.push(...pathPts);
-
-    // Add target port position if nodes are available
-    if (nodes) {
-      const targetPos = getPortPixelPosition(
-        wire.target.nodeId,
-        wire.target.side,
-        wire.target.portIndex,
-        nodes,
-        cellSize,
-      );
-      if (targetPos) pts.push(targetPos);
-    }
-
-    if (pts.length === 0) continue;
-
-    // Deduplicate adjacent coincident points (removes zero-length bridging segments)
-    const dedupedPts = [pts[0]];
-    for (let i = 1; i < pts.length; i++) {
-      if (Math.abs(pts[i].x - dedupedPts[dedupedPts.length - 1].x) > 0.5 ||
-          Math.abs(pts[i].y - dedupedPts[dedupedPts.length - 1].y) > 0.5) {
-        dedupedPts.push(pts[i]);
-      }
-    }
-
+    const dedupedPts = buildWirePixelPath(wire, cellSize, nodes);
     if (dedupedPts.length === 0) continue;
 
     const totalSegments = dedupedPts.length - 1;
@@ -218,6 +234,7 @@ export function drawWires(
     ctx.stroke();
     ctx.restore();
 
+    if (neutralOnly) continue;
     if (totalSegments === 0) continue; // single-point path, base drawn
 
     // Uniform signal value for the entire wire at current playpoint

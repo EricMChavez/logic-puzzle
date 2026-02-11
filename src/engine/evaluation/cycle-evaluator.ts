@@ -37,6 +37,8 @@ export interface CycleResults {
   nodeOutputs: Map<string, number[][]>;
   /** Final cross-cycle state values (for debugging) */
   crossCycleState: Map<string, number>;
+  /** Non-CP nodes in topological evaluation order */
+  processingOrder: NodeId[];
 }
 
 /** Error from cycle evaluation. */
@@ -332,6 +334,7 @@ export function evaluateAllCycles(
     wireValues: wireValuesMap,
     nodeOutputs: nodeOutputsMap,
     crossCycleState: crossCycleValues,
+    processingOrder,
   });
 }
 

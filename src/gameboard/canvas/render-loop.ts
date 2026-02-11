@@ -1,5 +1,5 @@
 import { useGameStore } from '../../store/index.ts';
-import { getThemeTokens } from '../../shared/tokens/theme-manager.ts';
+import { getThemeTokens, isReducedMotion } from '../../shared/tokens/theme-manager.ts';
 import { getPerSampleMatch } from '../../simulation/cycle-runner.ts';
 import { generateWaveformValue } from '../../puzzle/waveform-generators.ts';
 import { GRID_COLS, GRID_ROWS, METER_LEFT_START, METER_RIGHT_START, gridRectToPixels, pixelToGrid } from '../../shared/grid/index.ts';
@@ -9,6 +9,9 @@ import { METER_GRID_ROWS, METER_GRID_COLS, METERS_PER_SIDE, METER_GAP_ROWS, METE
 import type { MeterKey } from '../meters/meter-types.ts';
 import { drawNodes } from './render-nodes.ts';
 import { drawWires } from './render-wires.ts';
+import { computeWireAnimationCache } from './wire-animation.ts';
+import type { WireAnimationCache } from './wire-animation.ts';
+import { drawWireBlips } from './render-wire-blips.ts';
 import { renderConnectionPoints } from './render-connection-points.ts';
 import { renderWirePreview } from './render-wire-preview.ts';
 import { drawGrid } from './render-grid.ts';
@@ -82,6 +85,14 @@ let cachedPreviewPath: GridPoint[] | null = null;
 let lastPlaypointTimestamp = 0;
 let playAccumulator = 0;
 
+// Pause blip animation state
+let pauseAnimAccumulator = 0;
+let lastPauseTimestamp = 0;
+const PAUSE_ANIM_CYCLE_MS = 2500;
+let cachedWireAnim: WireAnimationCache | null = null;
+let cachedWireAnimResults: CycleResults | null = null;
+let cachedWireAnimPlaypoint = -1;
+
 /**
  * Start the requestAnimationFrame render loop.
  * Reads Zustand via getState() each frame — NOT React hooks.
@@ -119,6 +130,25 @@ export function startRenderLoop(
       }
     }
     lastPlaypointTimestamp = timestamp;
+
+    // Advance pause blip animation when paused
+    let pauseProgress = 0;
+    if (state.playMode === 'paused') {
+      // Reset animation cycle when playpoint changes (arrow key stepping)
+      if (state.playpoint !== cachedWireAnimPlaypoint && cachedWireAnimPlaypoint >= 0) {
+        pauseAnimAccumulator = 0;
+        lastPauseTimestamp = 0;
+      }
+      if (lastPauseTimestamp > 0) {
+        pauseAnimAccumulator += timestamp - lastPauseTimestamp;
+      }
+      pauseProgress = (pauseAnimAccumulator % PAUSE_ANIM_CYCLE_MS) / PAUSE_ANIM_CYCLE_MS;
+      lastPauseTimestamp = timestamp;
+    } else {
+      pauseAnimAccumulator = 0;
+      lastPauseTimestamp = 0;
+      cachedWireAnim = null;
+    }
 
     // Derive logical dimensions from grid cell size
     const cellSize = getCellSize();
@@ -227,9 +257,25 @@ export function startRenderLoop(
       : new Map<string, number>();
 
     if (state.activeBoard) {
-      // Compute wire values at current playpoint for coloring
-      const wireValues = computeWireValues(cycleResults, playpoint, state.activeBoard.wires);
-      drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes, wireValues);
+      // Wire rendering: branch on pause state for blip animation
+      const isPaused = state.playMode === 'paused';
+      if (isPaused && cycleResults && cycleResults.processingOrder.length > 0 && !isReducedMotion()) {
+        // Recompute animation cache if cycleResults or playpoint changed
+        if (cachedWireAnimResults !== cycleResults || cachedWireAnimPlaypoint !== playpoint) {
+          cachedWireAnim = computeWireAnimationCache(
+            state.activeBoard.wires, state.activeBoard.nodes, cycleResults, playpoint,
+          );
+          cachedWireAnimResults = cycleResults;
+          cachedWireAnimPlaypoint = playpoint;
+        }
+        drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes, undefined, true);
+        if (cachedWireAnim) {
+          drawWireBlips(ctx!, tokens, state.activeBoard.wires, state.activeBoard.nodes, cellSize, cachedWireAnim, pauseProgress);
+        }
+      } else {
+        const wireValues = computeWireValues(cycleResults, playpoint, state.activeBoard.wires);
+        drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes, wireValues);
+      }
 
       // Compute knob values from cycle results
       const knobValues = computeKnobValues(state.activeBoard.nodes, state.activeBoard.wires, cycleResults, playpoint);
