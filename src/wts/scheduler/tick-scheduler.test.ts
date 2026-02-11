@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { advanceTick, createSchedulerState } from './tick-scheduler.ts';
 import type { NodeState, Wire, NodeId } from '../../shared/types/index.ts';
-import { createWire, WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
-import type { DelayState } from '../../engine/nodes/definitions/delay.ts';
+import { createWire } from '../../shared/types/index.ts';
 
 function makeNode(
   id: string,
@@ -42,14 +41,13 @@ describe('createSchedulerState', () => {
     expect(runtime.outputs).toEqual([0]);
   });
 
-  it('creates nodeState for delay nodes', () => {
+  it('creates nodeState for stateful nodes', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('D', makeNode('D', 'delay', { wts: 1 }, 1, 1));
+    nodes.set('S', makeNode('S', 'shifter'));
     const state = createSchedulerState(nodes);
-    const runtime = state.nodeStates.get('D')!;
-    expect(runtime.nodeState).toBeDefined();
-    const delayState = runtime.nodeState as DelayState;
-    expect(delayState.buffer).toHaveLength(129); // MAX_WTS * 16 + 1
+    const runtime = state.nodeStates.get('S')!;
+    // Shifter has no createState, so nodeState is undefined
+    expect(runtime.nodeState).toBeUndefined();
   });
 });
 
@@ -98,20 +96,29 @@ describe('advanceTick — signal transport', () => {
     nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
     const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
 
-    // Write multiple values into different ring buffer positions
+    // Default buffer starts with 1 entry (real sizes set at sim start via GTS)
+    expect(wires[0].signalBuffer.length).toBe(1);
+    expect(wires[0].signalBuffer[0]).toBe(0);
+
+    // Manually resize to simulate GTS-computed delay
+    wires[0].signalBuffer = new Array(16).fill(0);
     wires[0].signalBuffer[0] = 42;
     wires[0].signalBuffer[5] = 80;
 
-    // Verify the wire signalBuffer holds the canonical signal data
     expect(wires[0].signalBuffer[0]).toBe(42);
     expect(wires[0].signalBuffer[5]).toBe(80);
-    expect(wires[0].signalBuffer.length).toBe(WIRE_BUFFER_SIZE);
+    expect(wires[0].signalBuffer.length).toBe(16);
   });
 
-  it('writeHead advances each tick', () => {
+  it('writeHead advances each tick and wraps at buffer length', () => {
     const nodes = new Map<NodeId, NodeState>();
     nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
     const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
+
+    // Resize buffer to simulate GTS-computed delay
+    const DELAY = 16;
+    wires[0].signalBuffer = new Array(DELAY).fill(0);
+    wires[0].writeHead = 0;
 
     const state = createSchedulerState(nodes);
     expect(wires[0].writeHead).toBe(0);
@@ -121,19 +128,12 @@ describe('advanceTick — signal transport', () => {
 
     advanceTick(wires, nodes, ['A'], state);
     expect(wires[0].writeHead).toBe(2);
-  });
 
-  it('writeHead wraps around at WIRE_BUFFER_SIZE', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
-    const wires: Wire[] = [makeWire('w1', 'X', 0, 'A', 0)];
-
-    const state = createSchedulerState(nodes);
-
-    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+    // Advance to end of buffer
+    for (let i = 2; i < DELAY; i++) {
       advanceTick(wires, nodes, ['A'], state);
     }
-    // After 16 ticks, writeHead wraps back to 0
+    // After DELAY ticks, writeHead wraps back to 0
     expect(wires[0].writeHead).toBe(0);
   });
 });
@@ -222,76 +222,48 @@ describe('advanceTick — node evaluation', () => {
 });
 
 describe('advanceTick — multi-node chain', () => {
-  it('signal propagates through A → B with 16-tick wire delay', () => {
+  it('signal propagates through A → B with GTS wire delay', () => {
+    const WIRE_DELAY = 16;
     const nodes = new Map<NodeId, NodeState>();
     nodes.set('A', makeNode('A', 'inverter', {}, 1, 1));
     nodes.set('B', makeNode('B', 'inverter', {}, 1, 1));
     const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'A', 0),   // X → A, 16 ticks
-      makeWire('w2', 'A', 0, 'B', 0),    // A → B, 16 ticks
+      makeWire('w1', 'X', 0, 'A', 0),
+      makeWire('w2', 'A', 0, 'B', 0),
     ];
+
+    // Pre-size buffers to simulate GTS wire delay computation
+    for (const wire of wires) {
+      wire.signalBuffer = new Array(WIRE_DELAY).fill(0);
+      wire.writeHead = 0;
+    }
 
     const state = createSchedulerState(nodes);
     const topoOrder: NodeId[] = ['A', 'B'];
 
-    // Feed value 40 into w1 every tick for 16 ticks
-    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+    // Feed value 40 into w1 every tick for WIRE_DELAY ticks
+    for (let i = 0; i < WIRE_DELAY; i++) {
       injectSignal(wires[0], 40);
       advanceTick(wires, nodes, topoOrder, state);
     }
 
-    // After 16 ticks, value arrives at A via w1, A computes inverter(40) = -40
+    // After WIRE_DELAY ticks, value arrives at A via w1
     expect(state.nodeStates.get('A')!.inputs[0]).toBe(40);
     expect(state.nodeStates.get('A')!.outputs[0]).toBe(-40);
 
-    // Continue feeding for another 16 ticks so signal traverses w2
-    for (let i = 0; i < WIRE_BUFFER_SIZE; i++) {
+    // Continue feeding for another WIRE_DELAY ticks so signal traverses w2
+    for (let i = 0; i < WIRE_DELAY; i++) {
       injectSignal(wires[0], 40);
       advanceTick(wires, nodes, topoOrder, state);
     }
 
-    // After 32 total ticks, -40 arrives at B via w2, B computes inverter(-40) = 40
+    // After 2*WIRE_DELAY total ticks, -40 arrives at B via w2
     expect(state.nodeStates.get('B')!.inputs[0]).toBe(-40);
     expect(state.nodeStates.get('B')!.outputs[0]).toBe(40);
   });
 });
 
-describe('advanceTick — Delay node', () => {
-  it('Delay node adds WTS delay to signal timing', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    nodes.set('D', makeNode('D', 'delay', { wts: 1 }, 1, 1));
-    nodes.set('Out', makeNode('Out', 'inverter', {}, 1, 1));
-    const wires: Wire[] = [
-      makeWire('w1', 'X', 0, 'D', 0),
-      makeWire('w2', 'D', 0, 'Out', 0),
-    ];
-
-    const state = createSchedulerState(nodes);
-    const topoOrder: NodeId[] = ['D', 'Out'];
-
-    // Inject signal at writeHead — it arrives at D on this tick
-    injectSignal(wires[0], 80);
-
-    // Tick 1: signal arrives at D, D stores in buffer, outputs 0 (delay buffer is all zeros)
-    advanceTick(wires, nodes, topoOrder, state);
-    expect(state.nodeStates.get('D')!.inputs[0]).toBe(80);
-    // Delay buffer outputs the oldest value (0 initially)
-    expect(state.nodeStates.get('D')!.outputs[0]).toBe(0);
-
-    // Feed the same input for 15 more ticks (1 WTS = 16 subdivisions total)
-    for (let i = 0; i < 15; i++) {
-      injectSignal(wires[0], 80);
-      advanceTick(wires, nodes, topoOrder, state);
-    }
-    // After 16 ticks of input, the delay buffer still outputs 0
-    expect(state.nodeStates.get('D')!.outputs[0]).toBe(0);
-
-    // On the 17th tick with the same input, the delayed value emerges
-    injectSignal(wires[0], 80);
-    advanceTick(wires, nodes, topoOrder, state);
-    expect(state.nodeStates.get('D')!.outputs[0]).toBe(80);
-  });
-});
+// Delay node tests removed — Delay node replaced by GTS wire delays
 
 describe('advanceTick — zero-value delivery', () => {
   it('delivers zero values to reset previously non-zero inputs', () => {

@@ -20,8 +20,6 @@ import { getPortGridAnchor, getPortWireDirection, findPath, DIR_E } from '../../
 import type { GridPoint } from '../../shared/grid/types.ts';
 import type { MeterCircularBuffer } from '../meters/circular-buffer.ts';
 
-const WIRE_BUFFER_SIZE = 16;
-
 /** Build a map of latest signal value per CP, from meter circular buffers. */
 function computeCpSignals(meterBuffers: ReadonlyMap<string, MeterCircularBuffer>): ReadonlyMap<string, number> {
   const result = new Map<string, number>();
@@ -36,8 +34,9 @@ function computePortSignals(wires: ReadonlyArray<Wire>): ReadonlyMap<string, num
   const result = new Map<string, number>();
   for (const wire of wires) {
     if (!wire.signalBuffer || wire.signalBuffer.length === 0) continue;
+    const bufLen = wire.signalBuffer.length;
     // Source output port: newest sample (matches first wire segment)
-    const newest = wire.signalBuffer[(wire.writeHead - 1 + WIRE_BUFFER_SIZE) % WIRE_BUFFER_SIZE];
+    const newest = wire.signalBuffer[(wire.writeHead - 1 + bufLen) % bufLen];
     result.set(`${wire.source.nodeId}:output:${wire.source.portIndex}`, newest);
     // Target input port: oldest sample (matches last wire segment)
     const oldest = wire.signalBuffer[wire.writeHead];

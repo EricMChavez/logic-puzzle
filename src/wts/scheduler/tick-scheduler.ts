@@ -1,5 +1,4 @@
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
-import { WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
 import { clamp } from '../../shared/math/index.ts';
 import { getNodeDefinition } from '../../engine/nodes/registry.ts';
 import type { NodeRuntimeState as FrameworkRuntimeState } from '../../engine/nodes/framework.ts';
@@ -111,7 +110,7 @@ export function advanceTick(
 
   // Step 3: Advance all wire writeHeads
   for (const wire of wires) {
-    wire.writeHead = (wire.writeHead + 1) % WIRE_BUFFER_SIZE;
+    wire.writeHead = (wire.writeHead + 1) % wire.signalBuffer.length;
   }
 }
 

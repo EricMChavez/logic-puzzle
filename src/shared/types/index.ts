@@ -22,9 +22,6 @@ export interface PortRef {
   side: 'input' | 'output';
 }
 
-/** Number of signal buffer entries per wire (1 WTS = 16 subdivisions) */
-export const WIRE_BUFFER_SIZE = 16;
-
 /** A wire connecting two ports, carrying signal state via ring buffer */
 export interface Wire {
   id: string;
@@ -32,7 +29,7 @@ export interface Wire {
   target: PortRef;
   /** Auto-routed path through the grid (set by routing-slice, empty until Story 6.2) */
   path: GridPoint[];
-  /** Ring buffer of signal values, size WIRE_BUFFER_SIZE (16) */
+  /** Ring buffer of signal values, sized by GTS wire delay computation */
   signalBuffer: number[];
   /** Current write position in the ring buffer */
   writeHead: number;
@@ -44,7 +41,6 @@ export type FundamentalNodeType =
   | 'mix'
   | 'invert'
   | 'threshold'
-  | 'delay'
   | 'constant';
 
 /** State of a single node on a gameboard */
@@ -72,7 +68,7 @@ export interface GameboardState {
   wires: Wire[];
 }
 
-/** Creates a new wire with an empty signal buffer */
+/** Creates a new wire with a minimal signal buffer (real size set at sim start via GTS) */
 export function createWire(
   id: string,
   source: PortRef,
@@ -83,7 +79,7 @@ export function createWire(
     source,
     target,
     path: [],
-    signalBuffer: new Array(WIRE_BUFFER_SIZE).fill(0),
+    signalBuffer: [0],
     writeHead: 0,
   };
 }

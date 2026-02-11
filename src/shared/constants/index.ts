@@ -43,6 +43,12 @@ export const WTS_CONFIG = {
   DEFAULT_SPEED: 1,
 } as const;
 
+/** Gameboard Transfer Speed: all paths from input to output total this many ticks */
+export const GTS_CONFIG = {
+  WTS_COUNT: 4,
+  TOTAL_TICKS: 64,
+} as const;
+
 /** Validation constants */
 export const VALIDATION_CONFIG = {
   MATCH_TOLERANCE: 2,
@@ -71,7 +77,6 @@ export const COLORS = {
 export const NODE_TYPE_LABELS: Record<string, string> = {
   // v2 nodes
   inverter: 'Inverter',
-  delay: 'Delay',
   mixer: 'Mixer',
   amp: 'Amp',
   diverter: 'Diverter',

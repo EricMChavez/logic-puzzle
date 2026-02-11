@@ -67,10 +67,9 @@ describe('buildContextMenuItems', () => {
 });
 
 describe('hasEditableParams', () => {
-  it('returns true for mix, threshold, delay, mixer, amp, diverter', () => {
+  it('returns true for mix, threshold, mixer, amp, diverter', () => {
     expect(hasEditableParams('mix')).toBe(true);
     expect(hasEditableParams('threshold')).toBe(true);
-    expect(hasEditableParams('delay')).toBe(true);
     expect(hasEditableParams('mixer')).toBe(true);
     expect(hasEditableParams('amp')).toBe(true);
     expect(hasEditableParams('diverter')).toBe(true);

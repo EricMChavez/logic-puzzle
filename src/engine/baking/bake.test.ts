@@ -201,13 +201,13 @@ describe('analyzeDelays', () => {
     expect(analysis.inputBufferSizes[0]).toBeGreaterThanOrEqual(1);
   });
 
-  it('delay node propagation adds WTS delay to output delay', () => {
+  it('single node analysis', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
+      [makeNode('pol', 'polarizer', 1, 1)],
       [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
+        { from: cpInputId(0), fromPort: 0, to: 'pol', toPort: 0 },
+        { from: 'pol', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
     const sortResult = topologicalSort(Array.from(nodes.keys()), wires);
@@ -215,7 +215,7 @@ describe('analyzeDelays', () => {
     if (!sortResult.ok) return;
 
     const analysis = analyzeDelays(sortResult.value, nodes, wires);
-    expect(analysis.processingOrder).toEqual(['dly']);
+    expect(analysis.processingOrder).toEqual(['pol']);
     expect(analysis.inputCount).toBe(1);
     expect(analysis.outputCount).toBe(1);
   });
@@ -383,34 +383,6 @@ describe('steady-state equivalence', () => {
 
     // Shifter: 30 + 40 = 70
     expect(bakedOutput[0]).toBe(70);
-    expect(bakedOutput[0]).toBe(liveOutput[0]);
-  });
-
-  it('Delay node with wts=1', () => {
-    const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
-      [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-      ],
-    );
-
-    const result = bakeGraph(nodes, wires);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const { evaluate } = result.value;
-    // After enough warmup ticks with constant input, delay should pass the value through
-    for (let i = 0; i < 50; i++) {
-      evaluate([80]);
-    }
-    const bakedOutput = evaluate([80]);
-
-    const liveOutput = runLiveSimulation(nodes, wires, [80], 200);
-
-    // At steady state with constant input, delay node outputs the same value
-    expect(bakedOutput[0]).toBe(80);
     expect(bakedOutput[0]).toBe(liveOutput[0]);
   });
 
@@ -592,36 +564,6 @@ describe('metadata serialization roundtrip', () => {
     expect(roundtripped).toEqual(original);
   });
 
-  it('roundtrip with delay node preserves behavior', () => {
-    const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
-      [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-      ],
-    );
-
-    const result = bakeGraph(nodes, wires);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const serialized = JSON.stringify(result.value.metadata);
-    const deserialized = JSON.parse(serialized);
-    const reconstructed = reconstructFromMetadata(deserialized);
-
-    // Feed the same sequence to both
-    const sequence = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-    const originalOutputs: number[][] = [];
-    const reconstructedOutputs: number[][] = [];
-
-    for (const val of sequence) {
-      originalOutputs.push(result.value.evaluate([val]));
-      reconstructedOutputs.push(reconstructed.evaluate([val]));
-    }
-
-    expect(reconstructedOutputs).toEqual(originalOutputs);
-  });
 });
 
 // ─── Edge Cases ────────────────────────────────────────────────────────────
@@ -677,58 +619,6 @@ describe('edge cases', () => {
     }
     const output = evaluate([42]);
     expect(output[0]).toBe(-42);
-  });
-
-  it('delay wts=1 (minimum, 16 subdivisions)', () => {
-    const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('dly', 'delay', 1, 1, { wts: 1 })],
-      [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-      ],
-    );
-
-    const result = bakeGraph(nodes, wires);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const { evaluate } = result.value;
-
-    // Feed value — should take 16 calls before the value appears (1 WTS = 16 subdivisions)
-    for (let i = 0; i < 16; i++) {
-      const out = evaluate([100]);
-      // During warmup period, output should still be 0
-      expect(out[0]).toBe(0);
-    }
-    // On the 17th call, the first value should appear
-    const output = evaluate([100]);
-    expect(output[0]).toBe(100);
-  });
-
-  it('delay wts=2 (32 subdivisions)', () => {
-    const { nodes, wires } = buildGraph(
-      1, 1,
-      [makeNode('dly', 'delay', 1, 1, { wts: 2 })],
-      [
-        { from: cpInputId(0), fromPort: 0, to: 'dly', toPort: 0 },
-        { from: 'dly', fromPort: 0, to: cpOutputId(0), toPort: 0 },
-      ],
-    );
-
-    const result = bakeGraph(nodes, wires);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const { evaluate } = result.value;
-
-    // Feed value — should take 32 calls before the value appears (2 WTS = 32 subdivisions)
-    for (let i = 0; i < 32; i++) {
-      const out = evaluate([100]);
-      expect(out[0]).toBe(0);
-    }
-    const output = evaluate([100]);
-    expect(output[0]).toBe(100);
   });
 
   it('empty graph with no nodes produces empty output', () => {

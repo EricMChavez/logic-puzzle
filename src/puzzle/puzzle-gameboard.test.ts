@@ -161,7 +161,7 @@ describe('createPuzzleGameboard', () => {
     expect(board.wires.length).toBe(1);
     expect(board.wires[0].source.nodeId).toBe(cpInputId(0));
     expect(board.wires[0].target.nodeId).toBe('node-1');
-    expect(board.wires[0].signalBuffer.length).toBe(16);
+    expect(board.wires[0].signalBuffer.length).toBe(1);
   });
 
   it('does not add wires when initialWires is empty', () => {

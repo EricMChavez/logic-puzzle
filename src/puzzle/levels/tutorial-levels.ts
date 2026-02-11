@@ -369,9 +369,7 @@ export const DELAY: PuzzleDefinition = {
       { active: true, direction: 'output', cpIndex: 1 },
     ],
   },
-  initialNodes: [
-    { id: '5e5e529c-c97d-497a-96c9-9106ae2e3b06', type: 'delay', position: { col: 30, row: 10 }, params: {"wts":0}, inputCount: 1, outputCount: 1 },
-  ],
+  initialNodes: [],
 };
 
 export const LEVEL_1: PuzzleDefinition = {

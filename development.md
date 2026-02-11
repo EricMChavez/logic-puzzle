@@ -1,8 +1,27 @@
 # Development Status & Next Steps
 
 **Project:** Signal Processing Puzzle Game
-**Date:** 2026-02-04
+**Date:** 2026-02-11
 **Stack:** Canvas 2D + React 19 + Zustand + TypeScript + Vite
+
+---
+
+## GTS Implementation — DONE (2026-02-11)
+
+Replaced fixed 1-WTS wire propagation delay with variable per-wire delays (Gameboard Transfer Speed). Every path from source to terminal now totals exactly GTS = 4 WTS = 64 ticks. The Delay node was removed entirely.
+
+- **New:** `src/engine/graph/wire-delays.ts` — `computeWireDelays()` algorithm with arrival-time rounding
+- **New:** `GTS_CONFIG` constant (WTS_COUNT=4, TOTAL_TICKS=64)
+- **Removed:** `WIRE_BUFFER_SIZE` constant, `'delay'` from `FundamentalNodeType`, Delay node (4 files deleted)
+- **Updated:** tick-scheduler, render-wires, render-loop, simulation-controller, baking system (delay-calculator + bake) — all use dynamic `wire.signalBuffer.length`
+- **Updated:** UI (ParameterPopover, NodeControls, context-menu, keyboard-handler, render-nodes) — removed delay UI
+- **Tests:** 1052 passing across 71 suites, 0 TypeScript errors
+
+| What | Where |
+|------|-------|
+| Wire delay algorithm | `src/engine/graph/wire-delays.ts` |
+| GTS constant | `src/shared/constants/index.ts` |
+| Implementation plan | `docs/gts-implementation-plan.md` |
 
 ---
 

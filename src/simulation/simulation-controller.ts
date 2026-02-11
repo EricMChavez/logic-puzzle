@@ -1,18 +1,17 @@
 import type { NodeId, NodeState, Wire } from '../shared/types/index.ts';
-import { WIRE_BUFFER_SIZE } from '../shared/types/index.ts';
 import { WtsClock } from '../wts/clock/wts-clock.ts';
 import { createSchedulerState, advanceTick } from '../wts/scheduler/tick-scheduler.ts';
 import type { SchedulerState } from '../wts/scheduler/tick-scheduler.ts';
 import { topologicalSort } from '../engine/graph/topological-sort.ts';
+import { computeWireDelays } from '../engine/graph/wire-delays.ts';
 import { WaveformBuffer } from '../gameboard/visualization/waveform-buffer.ts';
 import { useGameStore } from '../store/index.ts';
-import { CONNECTION_POINT_CONFIG, VALIDATION_CONFIG } from '../shared/constants/index.ts';
+import { CONNECTION_POINT_CONFIG, VALIDATION_CONFIG, GTS_CONFIG } from '../shared/constants/index.ts';
 import { evaluateMultiply } from '../engine/nodes/multiply.ts';
 import { evaluateMix } from '../engine/nodes/mix.ts';
 import type { MixMode } from '../engine/nodes/mix.ts';
 import { evaluateInvert } from '../engine/nodes/invert.ts';
 import { evaluateThreshold } from '../engine/nodes/threshold.ts';
-import { evaluateDelay } from '../engine/nodes/delay.ts';
 import { generateWaveformValue } from '../puzzle/waveform-generators.ts';
 import { cpInputId, cpOutputId, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, creativeSlotId, isBidirectionalCpNode, getBidirectionalCpIndex, cpBidirectionalId } from '../puzzle/connection-point-nodes.ts';
 import { validateBuffers } from '../puzzle/validation.ts';
@@ -98,6 +97,15 @@ export function startSimulation(): void {
   const sortResult = topologicalSort(nodeIds, wires);
   if (!sortResult.ok) return; // Can't simulate with cycles
   topoOrder = sortResult.value;
+
+  // Compute GTS wire delays and resize signal buffers
+  const delayResult = computeWireDelays(topoOrder, wires, nodes, GTS_CONFIG.TOTAL_TICKS);
+  for (const wire of wires) {
+    const delay = delayResult.wireDelays.get(wire.id) ?? GTS_CONFIG.TOTAL_TICKS;
+    wire.signalBuffer = new Array(delay).fill(0);
+    wire.writeHead = 0;
+  }
+  store.updateWires([...wires]);
 
   // Initialize scheduler state
   clock = new WtsClock();
@@ -270,7 +278,7 @@ export function stopSimulation(): void {
   if (store.activeBoard) {
     const cleanedWires = store.activeBoard.wires.map((w) => ({
       ...w,
-      signalBuffer: new Array(WIRE_BUFFER_SIZE).fill(0),
+      signalBuffer: new Array(1).fill(0),
       writeHead: 0,
     }));
     store.updateWires(cleanedWires);
@@ -319,7 +327,7 @@ function initialEvaluation(
 }
 
 /** Evaluate a node for initial seeding. Mirrors tick-scheduler's evaluateNode. */
-function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outputs: number[]; delayState?: import('../engine/nodes/delay.ts').DelayState; bakedEvaluate?: (inputs: number[]) => number[] }, currentTick?: number): void {
+function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outputs: number[]; bakedEvaluate?: (inputs: number[]) => number[] }, currentTick?: number): void {
   switch (node.type) {
     case 'multiply': {
       runtime.outputs[0] = evaluateMultiply(runtime.inputs[0] ?? 0, runtime.inputs[1] ?? 0);
@@ -337,12 +345,6 @@ function evaluateNodeForInit(node: NodeState, runtime: { inputs: number[]; outpu
     case 'threshold': {
       const threshold = typeof node.params['threshold'] === 'number' ? node.params['threshold'] : 0;
       runtime.outputs[0] = evaluateThreshold(runtime.inputs[0] ?? 0, threshold);
-      break;
-    }
-    case 'delay': {
-      if (runtime.delayState) {
-        runtime.outputs[0] = evaluateDelay(runtime.inputs[0] ?? 0, runtime.delayState);
-      }
       break;
     }
     case 'connection-input': {

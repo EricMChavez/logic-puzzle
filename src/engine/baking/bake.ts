@@ -1,11 +1,13 @@
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
-import { createWire, WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
+import { createWire } from '../../shared/types/index.ts';
 import type { Result } from '../../shared/result/index.ts';
 import { ok, err } from '../../shared/result/index.ts';
 import { topologicalSort } from '../graph/topological-sort.ts';
+import { computeWireDelays } from '../graph/wire-delays.ts';
 import { getNodeDefinition } from '../nodes/registry.ts';
 import type { NodeRuntimeState } from '../nodes/framework.ts';
 import { analyzeDelays } from './delay-calculator.ts';
+import { GTS_CONFIG } from '../../shared/constants/index.ts';
 import type { PortSource, OutputMapping } from './delay-calculator.ts';
 import {
   isConnectionPointNode,
@@ -154,8 +156,8 @@ function transformBidirToStandard(
 /**
  * Bake a gameboard graph into a single evaluate closure.
  *
- * The closure captures mutable state (circular buffers for input CPs,
- * DelayState for delay nodes) and evaluates the entire graph in one call.
+ * The closure captures mutable state (circular buffers for input CPs)
+ * and evaluates the entire graph in one call.
  */
 export function bakeGraph(
   nodes: ReadonlyMap<NodeId, NodeState>,
@@ -189,11 +191,12 @@ export function bakeGraph(
   }
   const topoOrder = sortResult.value;
 
-  // Step 2: Analyze delays
-  const analysis = analyzeDelays(topoOrder, bakeNodes, bakeWires);
+  // Step 2: Compute GTS wire delays and analyze
+  const delayResult = computeWireDelays(topoOrder, bakeWires, bakeNodes, GTS_CONFIG.TOTAL_TICKS);
+  const analysis = analyzeDelays(topoOrder, bakeNodes, bakeWires, delayResult.wireDelays);
 
   // Step 3: Build metadata
-  const metadata = buildMetadata(topoOrder, bakeNodes, bakeWires, analysis);
+  const metadata = buildMetadata(topoOrder, bakeNodes, bakeWires, analysis, delayResult.wireDelays);
   if (cpLayout) {
     metadata.cpLayout = cpLayout;
   }
@@ -251,8 +254,14 @@ export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
     ),
   );
 
+  // Build wire delay map from stored edge data
+  const wireDelays = new Map<string, number>();
+  for (let i = 0; i < wires.length; i++) {
+    wireDelays.set(wires[i].id, metadata.edges[i].wtsDelay);
+  }
+
   // Re-analyze and build closure
-  const analysis = analyzeDelays(metadata.topoOrder, nodes, wires);
+  const analysis = analyzeDelays(metadata.topoOrder, nodes, wires, wireDelays);
   const evaluate = buildClosure(nodes, analysis);
 
   return { evaluate, metadata };
@@ -264,6 +273,7 @@ function buildMetadata(
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: Wire[],
   analysis: ReturnType<typeof analyzeDelays>,
+  wireDelays?: ReadonlyMap<string, number>,
 ): BakeMetadata {
   const nodeConfigs: BakedNodeConfig[] = [];
   for (const nodeId of topoOrder) {
@@ -283,7 +293,7 @@ function buildMetadata(
     fromPort: wire.source.portIndex,
     toNodeId: wire.target.nodeId,
     toPort: wire.target.portIndex,
-    wtsDelay: WIRE_BUFFER_SIZE,
+    wtsDelay: wireDelays?.get(wire.id) ?? 1,
   }));
 
   return {

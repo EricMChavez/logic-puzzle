@@ -12,7 +12,6 @@ describe('Node Registry', () => {
   describe('nodeRegistry', () => {
     it('contains all fundamental nodes', () => {
       expect(nodeRegistry.allTypes).toContain('inverter');
-      expect(nodeRegistry.allTypes).toContain('delay');
       expect(nodeRegistry.allTypes).toContain('mixer');
       expect(nodeRegistry.allTypes).toContain('amp');
       expect(nodeRegistry.allTypes).toContain('diverter');
@@ -21,7 +20,7 @@ describe('Node Registry', () => {
     });
 
     it('has correct count', () => {
-      expect(nodeRegistry.all).toHaveLength(7);
+      expect(nodeRegistry.all).toHaveLength(8);
     });
 
     it('has byType lookup', () => {
@@ -31,8 +30,7 @@ describe('Node Registry', () => {
 
     it('has byCategory lookup', () => {
       expect(nodeRegistry.byCategory.math).toHaveLength(4); // inverter, amp, polarizer, shifter
-      expect(nodeRegistry.byCategory.routing).toHaveLength(2); // mixer, diverter
-      expect(nodeRegistry.byCategory.timing).toHaveLength(1);
+      expect(nodeRegistry.byCategory.routing).toHaveLength(4); // mixer, diverter, splitter, merger
     });
   });
 
@@ -58,7 +56,7 @@ describe('Node Registry', () => {
     it('returns true for fundamental types', () => {
       expect(isFundamentalNode('inverter')).toBe(true);
       expect(isFundamentalNode('amp')).toBe(true);
-      expect(isFundamentalNode('delay')).toBe(true);
+      expect(isFundamentalNode('mixer')).toBe(true);
     });
 
     it('returns false for custom types', () => {
@@ -72,14 +70,14 @@ describe('Node Registry', () => {
     it('capitalizes first letter', () => {
       expect(getNodeLabel('inverter')).toBe('Inverter');
       expect(getNodeLabel('amp')).toBe('Amp');
-      expect(getNodeLabel('delay')).toBe('Delay');
+      expect(getNodeLabel('mixer')).toBe('Mixer');
     });
   });
 
   describe('getDefaultParams', () => {
     it('returns default params for parameterized nodes', () => {
-      expect(getDefaultParams('delay')).toEqual({ wts: 1 });
       expect(getDefaultParams('amp')).toEqual({ gain: 0 });
+      expect(getDefaultParams('mixer')).toEqual({ mix: 0 });
     });
 
     it('returns empty object for non-parameterized nodes', () => {

@@ -138,7 +138,7 @@ describe('palette filtering logic', () => {
         ? nodeRegistry.all.filter((def) => allowedNodes.includes(def.type))
         : nodeRegistry.all;
       expect(visible).toEqual(nodeRegistry.all);
-      expect(visible.length).toBe(7); // 7 v2 nodes
+      expect(visible.length).toBe(8); // 8 v2 nodes (delay removed, splitter+merger added)
     });
 
     it('allowedNodes filters to matching types only', () => {

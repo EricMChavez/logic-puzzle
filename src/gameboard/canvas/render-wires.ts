@@ -69,8 +69,6 @@ export function signalToGlow(value: number): number {
 
 // ── Ring-buffer → segment mapping ───────────────────────────────────────────
 
-const BUFFER_SIZE = 16; // must equal WIRE_BUFFER_SIZE
-
 /**
  * Return the signal value for segment `segIndex` of `totalSegments`.
  *
@@ -82,12 +80,11 @@ export function getSegmentSignal(
   segIndex: number,
   totalSegments: number,
 ): number {
-  const newestIdx =
-    (wire.writeHead - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+  const bufLen = wire.signalBuffer.length;
+  const newestIdx = (wire.writeHead - 1 + bufLen) % bufLen;
   const t = totalSegments <= 1 ? 0 : segIndex / (totalSegments - 1);
-  const sampleOffset = Math.floor(t * (BUFFER_SIZE - 1));
-  const bufIdx =
-    (newestIdx - sampleOffset + BUFFER_SIZE) % BUFFER_SIZE;
+  const sampleOffset = Math.floor(t * (bufLen - 1));
+  const bufIdx = (newestIdx - sampleOffset + bufLen) % bufLen;
   return wire.signalBuffer[bufIdx];
 }
 

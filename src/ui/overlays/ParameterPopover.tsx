@@ -6,7 +6,6 @@ import { getCellSize } from '../../shared/grid/index.ts';
 import styles from './ParameterPopover.module.css';
 
 const MIX_MODES = ['Add', 'Subtract', 'Average', 'Min', 'Max'] as const;
-const DELAY_OPTIONS = Array.from({ length: 9 }, (_, i) => i); // 0-8 WTS
 
 export function ParameterPopover() {
   const overlay = useGameStore((s) => s.activeOverlay);
@@ -66,9 +65,6 @@ function ParameterPopoverInner({ nodeId }: { nodeId: string }) {
         {node.type === 'mix' && (
           <MixControls node={node} updateNodeParams={updateNodeParams} />
         )}
-        {node.type === 'delay' && (
-          <DelayControls node={node} updateNodeParams={updateNodeParams} />
-        )}
         {node.type === 'threshold' && (
           <ThresholdControls node={node} updateNodeParams={updateNodeParams} />
         )}
@@ -103,24 +99,6 @@ function MixControls({ node, updateNodeParams }: ControlProps) {
       >
         {MIX_MODES.map((mode) => (
           <option key={mode} value={mode}>{mode}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function DelayControls({ node, updateNodeParams }: ControlProps) {
-  const current = Number(node.params['wts'] ?? 1);
-  return (
-    <div className={styles.field}>
-      <label className={styles.label}>Delay (WTS)</label>
-      <select
-        className={styles.select}
-        value={current}
-        onChange={(e) => updateNodeParams(node.id, { wts: Number(e.target.value) })}
-      >
-        {DELAY_OPTIONS.map((n) => (
-          <option key={n} value={n}>{n}</option>
         ))}
       </select>
     </div>

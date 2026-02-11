@@ -1,5 +1,4 @@
 import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
-import { WIRE_BUFFER_SIZE } from '../../shared/types/index.ts';
 import {
   isConnectionInputNode,
   isConnectionOutputNode,
@@ -47,6 +46,7 @@ export function analyzeDelays(
   topoOrder: NodeId[],
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: Wire[],
+  wireDelays?: ReadonlyMap<string, number>,
 ): DelayAnalysis {
   // Build wire lookup: target "nodeId:portIndex" → wire
   const wireByTarget = new Map<string, Wire>();
@@ -125,7 +125,8 @@ export function analyzeDelays(
         // Wire from an input CP
         const cpIndex = getConnectionPointIndex(sourceNodeId);
         const sourceDelay = outputDelay.get(sourceNodeId) ?? 0;
-        const totalDelay = sourceDelay + WIRE_BUFFER_SIZE;
+        const wireDelay = wireDelays?.get(wire.id) ?? 1;
+        const totalDelay = sourceDelay + wireDelay;
         portSources.set(wireKey, {
           kind: 'cp',
           cpIndex,
@@ -135,7 +136,8 @@ export function analyzeDelays(
       } else {
         // Wire from another processing node
         const sourceDelay = outputDelay.get(sourceNodeId) ?? 0;
-        const totalDelay = sourceDelay + WIRE_BUFFER_SIZE;
+        const wireDelay = wireDelays?.get(wire.id) ?? 1;
+        const totalDelay = sourceDelay + wireDelay;
         portSources.set(wireKey, {
           kind: 'node',
           sourceNodeId,
@@ -145,16 +147,7 @@ export function analyzeDelays(
       }
     }
 
-    // For delay nodes, add WTS delay converted to subdivisions
-    let nodeDelay = 0;
-    if (node.type === 'delay') {
-      const wts =
-        typeof node.params['wts'] === 'number'
-          ? node.params['wts']
-          : 1;
-      nodeDelay = wts * WIRE_BUFFER_SIZE; // WTS → subdivisions
-    }
-    outputDelay.set(nodeId, maxInputDelay + nodeDelay);
+    outputDelay.set(nodeId, maxInputDelay);
   }
 
   // Normalize CP buffer offsets: subtract minimum offset so shortest path = 0

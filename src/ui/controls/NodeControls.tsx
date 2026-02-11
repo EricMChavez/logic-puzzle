@@ -5,7 +5,6 @@ import type { MixMode } from '../../engine/nodes/mix.ts';
 import styles from './NodeControls.module.css';
 
 const MIX_MODES: MixMode[] = ['Add', 'Subtract', 'Average', 'Max', 'Min'];
-const DELAY_OPTIONS = Array.from({ length: 8 }, (_, i) => i + 1); // 1-8 WTS
 
 export function NodeControls() {
   const selectedNodeId = useGameStore((s) => s.selectedNodeId);
@@ -126,27 +125,6 @@ export function NodeControls() {
         </div>
       )}
 
-      {!readOnly && node.type === 'delay' && (
-        <label className={styles.field}>
-          <span>Delay (WTS)</span>
-          <select
-            value={Number(node.params['wts'] ?? 1)}
-            onChange={(e) =>
-              updateNodeParams(selectedNodeId, { wts: Number(e.target.value) })
-            }
-          >
-            {DELAY_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      {readOnly && node.type === 'delay' && (
-        <div className={styles.field}>
-          <span>Delay: {node.params['wts'] ?? 1} WTS</span>
-        </div>
-      )}
     </div>
   );
 }
