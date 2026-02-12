@@ -15,7 +15,7 @@ import {
   polarizerNode,
   offsetNode,
   splitterNode,
-  mergerNode,
+  averageNode,
   memoryNode,
 } from './definitions';
 
@@ -35,7 +35,7 @@ const NODE_DEFINITIONS: readonly NodeDefinition<Record<string, ParamValue>>[] = 
   polarizerNode,
   offsetNode as NodeDefinition<Record<string, ParamValue>>,
   splitterNode as NodeDefinition<Record<string, ParamValue>>,
-  mergerNode as NodeDefinition<Record<string, ParamValue>>,
+  averageNode as NodeDefinition<Record<string, ParamValue>>,
   memoryNode as NodeDefinition<Record<string, ParamValue>>,
 ] as const;
 

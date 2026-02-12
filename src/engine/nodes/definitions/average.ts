@@ -1,8 +1,8 @@
 import { defineNode } from '../framework';
 
-/** Merges two inputs to one output */
-export const mergerNode = defineNode({
-  type: 'merger',
+/** Averages two inputs to one output */
+export const averageNode = defineNode({
+  type: 'average',
   category: 'routing',
 
   inputs: [

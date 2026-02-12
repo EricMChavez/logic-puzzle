@@ -6,5 +6,5 @@ export { diverterNode, type DiverterParams } from './diverter';
 export { polarizerNode } from './polarizer';
 export { offsetNode, type OffsetParams } from './offset';
 export { splitterNode } from './splitter';
-export { mergerNode } from './merger';
+export { averageNode } from './average';
 export { memoryNode, createMemoryState, type MemoryState } from './memory';
