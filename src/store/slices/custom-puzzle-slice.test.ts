@@ -71,7 +71,7 @@ describe('custom-puzzle-slice serialization', () => {
       targetSamples: [[3, [50]]],
       initialNodes: [],
       initialWires: [],
-      allowedNodes: ['add', 'scale'],
+      allowedNodes: ['offset', 'scale'],
     }];
 
     let state = { customPuzzles: new Map<string, CustomPuzzle>() };
@@ -86,7 +86,7 @@ describe('custom-puzzle-slice serialization', () => {
     const hydrated = state.customPuzzles.get('legacy-puzzle');
     expect(hydrated).toBeDefined();
     // Legacy string[] should be migrated to Record<string, -1>
-    expect(hydrated!.allowedNodes).toEqual({ add: -1, scale: -1 });
+    expect(hydrated!.allowedNodes).toEqual({ offset: -1, scale: -1 });
   });
 
   it('hydrates allowedNodes as null when missing (backward compat)', () => {
@@ -127,7 +127,7 @@ describe('custom-puzzle-slice serialization', () => {
     const puzzle = makePuzzle({
       initialNodes: [{
         id: 'n1',
-        type: 'add',
+        type: 'offset',
         position: { col: 10, row: 5 },
         params: {},
         inputCount: 1,

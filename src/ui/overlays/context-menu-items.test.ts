@@ -69,7 +69,7 @@ describe('hasEditableParams', () => {
   it('returns true for parameterized node types', () => {
     expect(hasEditableParams('threshold')).toBe(true);
     expect(hasEditableParams('scale')).toBe(true);
-    expect(hasEditableParams('add')).toBe(true);
+    expect(hasEditableParams('offset')).toBe(true);
   });
 
   it('returns false for non-parameterized types', () => {

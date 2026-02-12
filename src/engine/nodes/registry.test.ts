@@ -12,7 +12,7 @@ import { getKnobConfig } from './framework';
 describe('Node Registry', () => {
   describe('nodeRegistry', () => {
     it('contains all fundamental nodes', () => {
-      expect(nodeRegistry.allTypes).toContain('add');
+      expect(nodeRegistry.allTypes).toContain('offset');
       expect(nodeRegistry.allTypes).toContain('scale');
       expect(nodeRegistry.allTypes).toContain('threshold');
       expect(nodeRegistry.allTypes).toContain('max');
@@ -26,12 +26,12 @@ describe('Node Registry', () => {
     });
 
     it('has byType lookup', () => {
-      expect(nodeRegistry.byType.get('add')).toBeDefined();
+      expect(nodeRegistry.byType.get('offset')).toBeDefined();
       expect(nodeRegistry.byType.get('unknown')).toBeUndefined();
     });
 
     it('has byCategory lookup', () => {
-      expect(nodeRegistry.byCategory.math).toHaveLength(5); // add, scale, threshold, max, min
+      expect(nodeRegistry.byCategory.math).toHaveLength(5); // offset, scale, threshold, max, min
       expect(nodeRegistry.byCategory.routing).toHaveLength(1); // split
       expect(nodeRegistry.byCategory.timing).toHaveLength(1); // memory
     });
@@ -57,7 +57,7 @@ describe('Node Registry', () => {
 
   describe('isFundamentalNode', () => {
     it('returns true for fundamental types', () => {
-      expect(isFundamentalNode('add')).toBe(true);
+      expect(isFundamentalNode('offset')).toBe(true);
       expect(isFundamentalNode('scale')).toBe(true);
       expect(isFundamentalNode('memory')).toBe(true);
     });
@@ -71,7 +71,7 @@ describe('Node Registry', () => {
 
   describe('getNodeLabel', () => {
     it('capitalizes first letter', () => {
-      expect(getNodeLabel('add')).toBe('Add');
+      expect(getNodeLabel('offset')).toBe('Offset');
       expect(getNodeLabel('scale')).toBe('Scale');
       expect(getNodeLabel('memory')).toBe('Memory');
     });
@@ -80,7 +80,7 @@ describe('Node Registry', () => {
   describe('getDefaultParams', () => {
     it('returns default params for parameterized nodes', () => {
       expect(getDefaultParams('scale')).toEqual({ factor: 100 });
-      expect(getDefaultParams('add')).toEqual({ amount: 0 });
+      expect(getDefaultParams('offset')).toEqual({ amount: 0 });
       expect(getDefaultParams('threshold')).toEqual({ level: 0 });
     });
 
@@ -109,8 +109,8 @@ describe('Node Registry', () => {
       expect(getKnobConfig(getNodeDefinition('scale'))).toEqual({ portIndex: 1, paramKey: 'factor' });
     });
 
-    it('returns correct config for add', () => {
-      expect(getKnobConfig(getNodeDefinition('add'))).toEqual({ portIndex: 1, paramKey: 'amount' });
+    it('returns correct config for offset', () => {
+      expect(getKnobConfig(getNodeDefinition('offset'))).toEqual({ portIndex: 1, paramKey: 'amount' });
     });
 
     it('returns correct config for threshold', () => {

@@ -30,7 +30,7 @@ A **recursive tool-building puzzle game** about signal processing. Players wire 
 
 | Node | Type ID | I/O | Operation | Notes |
 |------|---------|-----|-----------|-------|
-| **Add** | `add` | A + knob → 1 | `clamp(A + X)` | Knob: `amount`, default 0, size 4x3 |
+| **Offset** | `offset` | A + knob → 1 | `clamp(A + X)` | Knob: `amount`, default 0, size 4x3 |
 | **Scale** | `scale` | A + knob → 1 | `clamp(A * X / 100)` | Knob: `factor`, default 100 (unity), size 4x3 |
 | **Threshold** | `threshold` | A + knob → 1 | `A >= X ? +100 : -100` | Knob: `level`, default 0, size 4x3 |
 | **Max** | `max` | A, B → 1 | `max(A, B)` | No params, size 2x2 |

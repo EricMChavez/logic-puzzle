@@ -33,7 +33,7 @@ export interface Wire {
 
 /** The type of a fundamental node */
 export type FundamentalNodeType =
-  | 'add'
+  | 'offset'
   | 'scale'
   | 'threshold'
   | 'max'

@@ -38,7 +38,7 @@ function createTestStore() {
 
 const fakeMeta: BakeMetadata = {
   topoOrder: ['n1'],
-  nodeConfigs: [{ id: 'n1', type: 'add', params: {}, inputCount: 2, outputCount: 1 }],
+  nodeConfigs: [{ id: 'n1', type: 'offset', params: {}, inputCount: 2, outputCount: 1 }],
   edges: [],
   inputCount: 1,
   outputCount: 1,
@@ -141,10 +141,10 @@ describe('palette filtering logic', () => {
     });
 
     it('allowedNodes filters to matching types only', () => {
-      const allowedNodes = ['scale', 'add'];
+      const allowedNodes = ['scale', 'offset'];
       const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
       expect(visible.length).toBe(2);
-      expect(visible.map((d) => d.type).sort()).toEqual(['add', 'scale']);
+      expect(visible.map((d) => d.type).sort()).toEqual(['offset', 'scale']);
     });
 
     it('allowedNodes with no matches returns empty', () => {

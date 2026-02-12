@@ -180,7 +180,7 @@ describe('evaluateAllCycles', () => {
       const nodes = new Map<NodeId, NodeState>();
       nodes.set('__cp_output_0__', makeNode('__cp_output_0__', 'connection-output', 1, 0));
       // Add node: A + X
-      nodes.set('add1', makeNode('add1', 'add', 2, 1));
+      nodes.set('add1', makeNode('add1', 'offset', 2, 1));
 
       const wires: Wire[] = [
         makeWire('w1', 'add1', 0, '__cp_output_0__', 0),
@@ -284,8 +284,8 @@ describe('evaluateAllCycles', () => {
   describe('signal cycle detection', () => {
     it('detects signal cycles', () => {
       const nodes = new Map<NodeId, NodeState>();
-      nodes.set('a', makeNode('a', 'add', 2, 1));
-      nodes.set('b', makeNode('b', 'add', 2, 1));
+      nodes.set('a', makeNode('a', 'offset', 2, 1));
+      nodes.set('b', makeNode('b', 'offset', 2, 1));
 
       const wires: Wire[] = [
         makeWire('w1', 'a', 0, 'b', 0),

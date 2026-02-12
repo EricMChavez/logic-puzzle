@@ -81,7 +81,7 @@ describe('authoring-slice', () => {
 
   it('resetToSolution calls setActiveBoard with snapshot data', () => {
     const originalNode = {
-      id: 'n1', type: 'add', position: { col: 10, row: 10 },
+      id: 'n1', type: 'offset', position: { col: 10, row: 10 },
       params: {}, inputCount: 1, outputCount: 1,
     };
     const snapshotNodes = new Map([['n1', { ...originalNode }]]);
@@ -102,7 +102,7 @@ describe('authoring-slice', () => {
     const board = useGameStore.getState().activeBoard;
     expect(board).not.toBeNull();
     expect(board!.nodes.size).toBe(1);
-    expect(board!.nodes.get('n1')?.type).toBe('add');
+    expect(board!.nodes.get('n1')?.type).toBe('offset');
   });
 
   it('resetToSolution does nothing outside configuring-start', () => {

@@ -33,27 +33,27 @@ describe('buildPaletteItems', () => {
   });
 
   it('excludes custom-blank when custom is not in allowedNodes', () => {
-    const items = buildPaletteItems({ add: -1 }, new Map(), new Map([['add', -1]]));
+    const items = buildPaletteItems({ offset: -1 }, new Map(), new Map([['offset', -1]]));
     // 1 fundamental only (no custom-blank since 'custom' not in allowedNodes)
     expect(items.length).toBe(1);
-    expect(items[0].nodeType).toBe('add');
+    expect(items[0].nodeType).toBe('offset');
     expect(items.find((i) => i.id === 'custom-blank')).toBeUndefined();
   });
 
   it('includes custom-blank and utility nodes when custom is in allowedNodes', () => {
     const utilities = new Map([['u1', makeUtilityEntry('u1', 'My Filter')]]);
-    const budgets = new Map([['add', -1], ['custom', -1]]);
-    const items = buildPaletteItems({ add: -1, custom: -1 }, utilities, budgets);
+    const budgets = new Map([['offset', -1], ['custom', -1]]);
+    const items = buildPaletteItems({ offset: -1, custom: -1 }, utilities, budgets);
     // 1 fundamental + 1 custom-blank + 1 utility
     expect(items.length).toBe(3);
-    expect(items[0].nodeType).toBe('add');
+    expect(items[0].nodeType).toBe('offset');
     expect(items[1].id).toBe('custom-blank');
     expect(items[2].section).toBe('utility');
   });
 
   it('excludes utility nodes when custom is not in allowedNodes', () => {
     const utilities = new Map([['u1', makeUtilityEntry('u1', 'My Filter')]]);
-    const items = buildPaletteItems({ add: -1 }, utilities, new Map([['add', -1]]));
+    const items = buildPaletteItems({ offset: -1 }, utilities, new Map([['offset', -1]]));
     const utilityItems = items.filter((i) => i.section === 'utility');
     expect(utilityItems.length).toBe(0);
   });
@@ -72,24 +72,24 @@ describe('buildPaletteItems', () => {
   });
 
   it('marks depleted items as canPlace: false', () => {
-    const budgets = new Map([['add', 0]]);
-    const items = buildPaletteItems({ add: 2 }, new Map(), budgets);
+    const budgets = new Map([['offset', 0]]);
+    const items = buildPaletteItems({ offset: 2 }, new Map(), budgets);
     expect(items.length).toBe(1);
     expect(items[0].canPlace).toBe(false);
     expect(items[0].remaining).toBe(0);
   });
 
   it('shows remaining count for limited items', () => {
-    const budgets = new Map([['add', 3]]);
-    const items = buildPaletteItems({ add: 5 }, new Map(), budgets);
+    const budgets = new Map([['offset', 3]]);
+    const items = buildPaletteItems({ offset: 5 }, new Map(), budgets);
     expect(items.length).toBe(1);
     expect(items[0].remaining).toBe(3);
     expect(items[0].canPlace).toBe(true);
   });
 
   it('shows unlimited for -1 budget items', () => {
-    const budgets = new Map([['add', -1]]);
-    const items = buildPaletteItems({ add: -1 }, new Map(), budgets);
+    const budgets = new Map([['offset', -1]]);
+    const items = buildPaletteItems({ offset: -1 }, new Map(), budgets);
     expect(items.length).toBe(1);
     expect(items[0].remaining).toBe(-1);
     expect(items[0].canPlace).toBe(true);
@@ -102,26 +102,26 @@ describe('computeRemainingBudgets', () => {
   });
 
   it('computes remaining for unlimited types', () => {
-    const budgets = computeRemainingBudgets({ add: -1 }, new Map());
+    const budgets = computeRemainingBudgets({ offset: -1 }, new Map());
     expect(budgets).not.toBeNull();
-    expect(budgets!.get('add')).toBe(-1);
+    expect(budgets!.get('offset')).toBe(-1);
   });
 
   it('subtracts board nodes from budgets', () => {
     const nodes = new Map([
-      ['n1', { id: 'n1', type: 'add', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
-      ['n2', { id: 'n2', type: 'add', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['n2', { id: 'n2', type: 'offset', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]);
-    const budgets = computeRemainingBudgets({ add: 5 }, nodes as any);
-    expect(budgets!.get('add')).toBe(3);
+    const budgets = computeRemainingBudgets({ offset: 5 }, nodes as any);
+    expect(budgets!.get('offset')).toBe(3);
   });
 
   it('clamps remaining at 0', () => {
     const nodes = new Map([
-      ['n1', { id: 'n1', type: 'add', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]);
-    const budgets = computeRemainingBudgets({ add: 0 }, nodes as any);
-    expect(budgets!.get('add')).toBe(0);
+    const budgets = computeRemainingBudgets({ offset: 0 }, nodes as any);
+    expect(budgets!.get('offset')).toBe(0);
   });
 });
 

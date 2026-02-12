@@ -8,7 +8,7 @@
 import type { NodeDefinition, NodeCategory, ParamValue } from './framework';
 import { createDefaultParams } from './framework';
 import {
-  addNode,
+  offsetNode,
   scaleNode,
   thresholdNode,
   maxNode,
@@ -26,7 +26,7 @@ import {
  * To add a new node: import it and add it to this array.
  */
 const NODE_DEFINITIONS: readonly NodeDefinition<Record<string, ParamValue>>[] = [
-  addNode as NodeDefinition<Record<string, ParamValue>>,
+  offsetNode as NodeDefinition<Record<string, ParamValue>>,
   scaleNode as NodeDefinition<Record<string, ParamValue>>,
   thresholdNode as NodeDefinition<Record<string, ParamValue>>,
   maxNode as NodeDefinition<Record<string, ParamValue>>,

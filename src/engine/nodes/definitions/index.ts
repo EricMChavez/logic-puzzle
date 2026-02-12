@@ -1,5 +1,5 @@
 // Node definitions barrel export
-export { addNode, type AddParams } from './add';
+export { offsetNode, type OffsetParams } from './offset';
 export { scaleNode, type ScaleParams } from './scale';
 export { thresholdNode, type ThresholdParams } from './threshold';
 export { maxNode } from './max';

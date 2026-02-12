@@ -68,8 +68,8 @@ function buildGraph(
 describe('bakeGraph', () => {
   it('returns err for cyclic graphs', () => {
     const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'add', 2, 1));
-    nodes.set('B', makeNode('B', 'add', 2, 1));
+    nodes.set('A', makeNode('A', 'offset', 2, 1));
+    nodes.set('B', makeNode('B', 'offset', 2, 1));
 
     const wires = [
       makeWire('A', 0, 'B', 0),
@@ -86,7 +86,7 @@ describe('bakeGraph', () => {
   it('returns ok for valid graphs', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('add1', 'add', 2, 1)],
+      [makeNode('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -142,7 +142,7 @@ describe('cycle-based evaluation', () => {
   it('single Add node as passthrough (A + 0 = A)', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('add1', 'add', 2, 1)],
+      [makeNode('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -161,7 +161,7 @@ describe('cycle-based evaluation', () => {
   it('two-input Add', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('add1', 'add', 2, 1)],
+      [makeNode('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'add1', toPort: 1 },
@@ -244,8 +244,8 @@ describe('cycle-based evaluation', () => {
     const { nodes, wires } = buildGraph(
       2, 2,
       [
-        makeNode('add1', 'add', 2, 1),
-        makeNode('add2', 'add', 2, 1),
+        makeNode('add1', 'offset', 2, 1),
+        makeNode('add2', 'offset', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
@@ -273,7 +273,7 @@ describe('cycle-based evaluation', () => {
       3, 1,
       [
         makeNode('scl', 'scale', 2, 1),
-        makeNode('add1', 'add', 2, 1),
+        makeNode('add1', 'offset', 2, 1),
         makeNode('thr', 'threshold', 2, 1),
       ],
       [
@@ -307,8 +307,8 @@ describe('metadata serialization roundtrip', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
       [
-        makeNode('add1', 'add', 2, 1),
-        makeNode('add2', 'add', 2, 1),
+        makeNode('add1', 'offset', 2, 1),
+        makeNode('add2', 'offset', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
@@ -372,7 +372,7 @@ describe('edge cases', () => {
   it('unconnected input ports default to 0', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
-      [makeNode('add1', 'add', 2, 1)],
+      [makeNode('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -391,7 +391,7 @@ describe('edge cases', () => {
     const { nodes, wires } = buildGraph(
       1, 1,
       [
-        makeNode('add1', 'add', 2, 1),
+        makeNode('add1', 'offset', 2, 1),
         makeNode('orphan', 'scale', 2, 1),
       ],
       [
@@ -445,7 +445,7 @@ describe('edge cases', () => {
   it('clamping: Add with values exceeding range', () => {
     const { nodes, wires } = buildGraph(
       2, 1,
-      [makeNode('add1', 'add', 2, 1)],
+      [makeNode('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'add1', toPort: 1 },

@@ -1,12 +1,12 @@
 /** Gameboard layout styling */
 export const GAMEBOARD_STYLE = {
   /** Corner radius ratio (multiplied by cellSize at render time) */
-  CORNER_RADIUS_RATIO: 0,
+  CORNER_RADIUS_RATIO: 0.5,
 } as const;
 
 /** Ratio-based node styling (multiplied by cellSize at render time) */
 export const NODE_STYLE = {
-  BORDER_RADIUS_RATIO: 0.1,
+  BORDER_RADIUS_RATIO: 0,
   PORT_RADIUS_RATIO: 0.25,
   LABEL_FONT_RATIO: 0.40,
   PARAM_FONT_RATIO: 0.22,
@@ -14,6 +14,8 @@ export const NODE_STYLE = {
   PARAM_FONT_FAMILY: "'Consolas', 'JetBrains Mono', monospace",
   SHADOW_BLUR_RATIO: 0.29,
   SHADOW_OFFSET_Y_RATIO: 0.12,
+  /** Letter spacing for node labels as a ratio of cellSize */
+  LABEL_LETTER_SPACING_RATIO: 0.06,
   FOCUS_RING_WIDTH: 2,
   SELECTION_PAD: 3,
   /** Half-cell offset so ports sit on grid lines while body is offset */
@@ -45,7 +47,7 @@ export const VALIDATION_CONFIG = {
 /** Color palette for rendering */
 export const COLORS = {
   BACKGROUND: '#1a1a2e',
-  NODE_FILL: '#44484e',
+  NODE_FILL: '#212121',
   NODE_STROKE: '#4a4a6a',
   NODE_LABEL: '#e0e0f0',
   NODE_PARAM: '#9090b0',
@@ -57,39 +59,70 @@ export const COLORS = {
   CONNECTION_POINT_FILL: '#ff9200',
   CONNECTION_POINT_STROKE: '#f0c868',
   CONNECTION_POINT_LABEL: '#ff9200',
-  GRID_LINE: '#16161a',
+  GRID_LINE: '#318373',
   TARGET_WAVEFORM: '#c8c8d8',
 } as const;
 
 /** Highlight streak (diagonal light band) configuration */
 export const HIGHLIGHT_STREAK = {
   /** Angle in degrees from vertical (tilted right) */
-  ANGLE_DEG: 10,
-  /** Opacity of the white band (0-1) */
-  OPACITY: 0.04,
-  /** Width of the streak band as a fraction of the gradient span */
-  BAND_WIDTH_RATIO: 0.08,
+  ANGLE_DEG: 50,
   /** Position of streak center along the gradient span (0 = start, 1 = end) */
   CENTER_POSITION: 0.35,
+  /** Hard specular band */
+  HARD_OPACITY: 0.04,
+  HARD_BAND_WIDTH_RATIO: 0.05,
+  /** Soft diffuse wash underneath */
+  SOFT_OPACITY: 0.025,
+  SOFT_BAND_WIDTH_RATIO: 1.5,
+  /** Warm tint color (slightly warm white, like a desk lamp) */
+  WARM_TINT: { r: 255, g: 248, b: 240 },
+  /** Vertical fade ratio — fraction of height that fades to transparent at top/bottom */
+  VERTICAL_FADE_RATIO: 0.3,
 } as const;
 
-/** Tutorial text rendering configuration */
-export const TUTORIAL_TEXT = {
-  /** Font size as a ratio of cellSize */
-  FONT_SIZE_RATIO: 0.55,
-  /** Opacity of the tutorial text (subtle, engraved look) */
-  OPACITY: 0.08,
-  /** Vertical center as fraction of total gameboard height */
-  VERTICAL_CENTER: 0.5,
-  /** Maximum width as fraction of playable area width */
-  MAX_WIDTH_RATIO: 0.7,
-  /** Line height multiplier */
-  LINE_HEIGHT: 1.4,
+/** Depth/shadow configuration for neumorphic levels */
+export const DEPTH = {
+  /** Gameboard inset shadow (sunken level) */
+  INSET: {
+    DARK_BLUR: 12,
+    DARK_OFFSET: 4,
+    DARK_COLOR: 'rgba(0,0,0,0.5)',
+    LIGHT_BLUR: 8,
+    LIGHT_OFFSET: 3,
+    LIGHT_OPACITY: 0.03,
+  },
+} as const;
+
+/** Board message card rendering configuration */
+export const BOARD_MESSAGE_CARD = {
+  /** Title font size as a ratio of cellSize */
+  TITLE_FONT_SIZE_RATIO: 1.2,
+  /** Body font size as a ratio of cellSize */
+  BODY_FONT_SIZE_RATIO: 0.6,
+  /** Horizontal padding as a ratio of cellSize */
+  PADDING_H_RATIO: 0.8,
+  /** Vertical padding as a ratio of cellSize */
+  PADDING_V_RATIO: 0.4,
+  /** Gap between title and body as a ratio of cellSize */
+  GAP_RATIO: 0.5,
+  /** Max card width as a fraction of playable area width */
+  MAX_WIDTH_RATIO: 0.65,
+  /** Top position as a fraction of total gameboard height */
+  TOP_RATIO: 0.08,
+  /** Corner radius as a ratio of cellSize */
+  CORNER_RADIUS_RATIO: 0.4,
+  /** Card background color */
+  CARD_COLOR: '#ffffff',
+  /** Card opacity (fully opaque — noise/streak layer on top) */
+  CARD_OPACITY: 0.5,
+  /** Body text line height multiplier */
+  BODY_LINE_HEIGHT: 1.5,
 } as const;
 
 /** Display labels for node types (derived from registry for v2 nodes) */
 export const NODE_TYPE_LABELS: Record<string, string> = {
-  add: 'Add',
+  offset: 'Offset',
   scale: 'Scale',
   threshold: 'Threshold',
   max: 'Max',

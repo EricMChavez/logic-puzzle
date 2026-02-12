@@ -114,7 +114,7 @@ export type NodeEvaluator<TParams extends Record<string, ParamValue> = Record<st
  */
 export interface NodeDefinition<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> {
   // ─── Identity ───────────────────────────────────────────────────────────────
-  /** Unique type identifier: 'add', 'scale', etc. */
+  /** Unique type identifier: 'offset', 'scale', etc. */
   type: string;
   /** Category for palette grouping */
   category: NodeCategory;
