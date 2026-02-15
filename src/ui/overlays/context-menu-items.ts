@@ -8,7 +8,7 @@ export interface ContextMenuItem {
 }
 
 export type ContextTarget =
-  | { type: 'node'; nodeId: string; nodeType: string; locked?: boolean }
+  | { type: 'node'; chipId: string; nodeType: string; locked?: boolean }
   | { type: 'wire'; wireId: string };
 
 /**
@@ -23,7 +23,7 @@ export function buildContextMenuItems(
   if (target.type === 'wire') {
     if (isReadOnly) return [];
     return [
-      { id: 'delete-wire', label: 'Delete Wire', action: 'delete-wire', danger: true },
+      { id: 'delete-wire', label: 'Delete Path', action: 'delete-wire', danger: true },
     ];
   }
 
@@ -39,7 +39,7 @@ export function buildContextMenuItems(
     }
 
     if (!isReadOnly && !target.locked) {
-      items.push({ id: 'delete-node', label: 'Delete Node', action: 'delete-node', danger: true });
+      items.push({ id: 'delete-node', label: 'Delete Chip', action: 'delete-node', danger: true });
     }
 
     return items;

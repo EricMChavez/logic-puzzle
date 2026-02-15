@@ -167,7 +167,7 @@ export function exportCustomPuzzleAsSource(puzzle: CustomPuzzle): string {
   if (puzzle.initialWires && puzzle.initialWires.length > 0) {
     lines.push(`  initialWires: [`);
     for (const wire of puzzle.initialWires) {
-      lines.push(`    { source: { nodeId: '${wire.source.nodeId}', portIndex: ${wire.source.portIndex} }, target: { nodeId: '${wire.target.nodeId}', portIndex: ${wire.target.portIndex} } },`);
+      lines.push(`    { source: { chipId: '${wire.source.chipId}', portIndex: ${wire.source.portIndex} }, target: { chipId: '${wire.target.chipId}', portIndex: ${wire.target.portIndex} } },`);
     }
     lines.push(`  ],`);
   }

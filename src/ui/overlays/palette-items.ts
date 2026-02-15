@@ -58,7 +58,7 @@ export function buildPaletteItems(
 ): PaletteItem[] {
   const items: PaletteItem[] = [];
 
-  // Fundamental nodes from registry
+  // Fundamental chips from registry
   for (const def of nodeRegistry.all) {
     // Skip if not in allowed list (when filtering is active)
     if (allowedNodes && !(def.type in allowedNodes)) continue;
@@ -131,7 +131,7 @@ export function groupPaletteItemsByCategory(items: ReadonlyArray<PaletteItem>): 
     if (item.section === 'fundamental' && item.category) {
       groupKey = CATEGORY_LABELS[item.category];
     } else if (item.section === 'utility') {
-      groupKey = 'Utility Nodes';
+      groupKey = 'Utility Chips';
     } else {
       groupKey = 'Other';
     }

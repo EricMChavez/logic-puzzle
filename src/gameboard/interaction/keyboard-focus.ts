@@ -14,7 +14,7 @@ import { TOTAL_SLOTS } from '../../shared/grid/slot-helpers.ts';
 // ---------------------------------------------------------------------------
 
 export type KeyboardFocusTarget =
-  | { type: 'node'; nodeId: string }
+  | { type: 'node'; chipId: string }
   | { type: 'port'; portRef: PortRef }
   | { type: 'connection-point'; slotIndex: number }
   | { type: 'wire'; wireId: string };
@@ -72,21 +72,21 @@ export function computeTabOrder(
     .sort((a, b) => a.position.row - b.position.row || a.position.col - b.position.col);
 
   for (const node of sortedNodes) {
-    order.push({ type: 'node', nodeId: node.id });
+    order.push({ type: 'node', chipId: node.id });
 
     // If this is the expanded node, splice its ports and connected wires
     if (expandedNodeId === node.id) {
       // Input ports
       for (let i = 0; i < node.inputCount; i++) {
-        order.push({ type: 'port', portRef: { nodeId: node.id, portIndex: i, side: 'input' } });
+        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'input' } });
       }
       // Output ports
       for (let i = 0; i < node.outputCount; i++) {
-        order.push({ type: 'port', portRef: { nodeId: node.id, portIndex: i, side: 'output' } });
+        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'output' } });
       }
       // Wires connected to this node
       for (const wire of wires) {
-        if (wire.source.nodeId === node.id || wire.target.nodeId === node.id) {
+        if (wire.source.chipId === node.id || wire.target.chipId === node.id) {
           order.push({ type: 'wire', wireId: wire.id });
         }
       }
@@ -128,19 +128,19 @@ export function computeValidWiringTargets(
   // Build a set of occupied ports (each port can only have one wire)
   const occupiedPorts = new Set<string>();
   for (const wire of wires) {
-    occupiedPorts.add(`${wire.source.nodeId}:${wire.source.portIndex}:output`);
-    occupiedPorts.add(`${wire.target.nodeId}:${wire.target.portIndex}:input`);
+    occupiedPorts.add(`${wire.source.chipId}:${wire.source.portIndex}:output`);
+    occupiedPorts.add(`${wire.target.chipId}:${wire.target.portIndex}:input`);
   }
 
   for (const node of nodes.values()) {
-    if (node.id === fromPort.nodeId) continue;
+    if (node.id === fromPort.chipId) continue;
 
     const portCount = targetSide === 'input' ? node.inputCount : node.outputCount;
     for (let i = 0; i < portCount; i++) {
-      const candidate: PortRef = { nodeId: node.id, portIndex: i, side: targetSide };
+      const candidate: PortRef = { chipId: node.id, portIndex: i, side: targetSide };
 
       // Skip if this port already has a wire
-      if (occupiedPorts.has(`${candidate.nodeId}:${candidate.portIndex}:${candidate.side}`)) continue;
+      if (occupiedPorts.has(`${candidate.chipId}:${candidate.portIndex}:${candidate.side}`)) continue;
 
       targets.push(candidate);
     }
@@ -193,10 +193,10 @@ function findFocusIndex(order: KeyboardFocusTarget[], target: KeyboardFocusTarge
     if (item.type !== target.type) return false;
     switch (item.type) {
       case 'node':
-        return item.nodeId === (target as { type: 'node'; nodeId: string }).nodeId;
+        return item.chipId === (target as { type: 'node'; chipId: string }).chipId;
       case 'port':
         return (
-          item.portRef.nodeId === (target as { type: 'port'; portRef: PortRef }).portRef.nodeId &&
+          item.portRef.chipId === (target as { type: 'port'; portRef: PortRef }).portRef.chipId &&
           item.portRef.portIndex === (target as { type: 'port'; portRef: PortRef }).portRef.portIndex &&
           item.portRef.side === (target as { type: 'port'; portRef: PortRef }).portRef.side
         );

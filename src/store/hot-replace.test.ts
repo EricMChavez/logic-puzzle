@@ -18,10 +18,10 @@ function makeNode(id: string, type: string, overrides?: Partial<NodeState>): Nod
   };
 }
 
-function makeBoard(id: string, nodes: NodeState[]): GameboardState {
+function makeBoard(id: string, chips: NodeState[]): GameboardState {
   const map = new Map<string, NodeState>();
-  for (const n of nodes) map.set(n.id, n);
-  return { id, nodes: map, wires: [] };
+  for (const n of chips) map.set(n.id, n);
+  return { id, chips: map, paths: [] };
 }
 
 const fakeMeta: BakeMetadata = {
@@ -61,13 +61,13 @@ describe('hotReplaceNodes', () => {
     const result = hotReplaceNodes('puzzle:p1', patch, board, [], new Map());
 
     expect(result.activeBoard).toBeDefined();
-    const updated = result.activeBoard!.nodes.get('n1')!;
+    const updated = result.activeBoard!.chips.get('n1')!;
     expect(updated.inputCount).toBe(2);
     expect(updated.outputCount).toBe(3);
     expect(updated.libraryVersionHash).toBe('new-hash');
 
     // Non-matching node is unchanged
-    const unchanged = result.activeBoard!.nodes.get('n2')!;
+    const unchanged = result.activeBoard!.chips.get('n2')!;
     expect(unchanged.inputCount).toBe(1);
     expect(unchanged.outputCount).toBe(1);
   });
@@ -79,7 +79,7 @@ describe('hotReplaceNodes', () => {
     const stackEntry: BoardStackEntry = {
       board: stackBoard,
       portConstants: new Map(),
-      nodeIdInParent: 'parent-node',
+      chipIdInParent: 'parent-node',
       readOnly: false,
       meterSlots: createDefaultMeterSlots(),
     };
@@ -88,7 +88,7 @@ describe('hotReplaceNodes', () => {
 
     expect(result.boardStack).toBeDefined();
     expect(result.boardStack).toHaveLength(1);
-    const updated = result.boardStack![0].board.nodes.get('n1')!;
+    const updated = result.boardStack![0].board.chips.get('n1')!;
     expect(updated.inputCount).toBe(2);
     expect(updated.outputCount).toBe(3);
     expect(updated.libraryVersionHash).toBe('new-hash');
@@ -105,7 +105,7 @@ describe('hotReplaceNodes', () => {
 
     expect(result.utilityNodes).toBeDefined();
     const updatedEntry = result.utilityNodes!.get('u1')!;
-    const updated = updatedEntry.board.nodes.get('n1')!;
+    const updated = updatedEntry.board.chips.get('n1')!;
     expect(updated.inputCount).toBe(2);
     expect(updated.outputCount).toBe(3);
     expect(updated.libraryVersionHash).toBe('new-hash');
@@ -125,7 +125,7 @@ describe('hotReplaceNodes', () => {
     const result = hotReplaceNodes('puzzle:p1', patch, board, [], new Map());
     expect(result.activeBoard).toBeDefined();
 
-    for (const node of result.activeBoard!.nodes.values()) {
+    for (const node of result.activeBoard!.chips.values()) {
       expect(node.inputCount).toBe(2);
       expect(node.outputCount).toBe(3);
       expect(node.libraryVersionHash).toBe('new-hash');

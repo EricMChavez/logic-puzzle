@@ -28,8 +28,8 @@ function makeWire(
 ): Wire {
   return createWire(
     `${sourceId}:${sourcePort}->${targetId}:${targetPort}`,
-    { nodeId: sourceId, portIndex: sourcePort, side: 'output' },
-    { nodeId: targetId, portIndex: targetPort, side: 'input' },
+    { chipId: sourceId, portIndex: sourcePort, side: 'output' },
+    { chipId: targetId, portIndex: targetPort, side: 'input' },
   );
 }
 

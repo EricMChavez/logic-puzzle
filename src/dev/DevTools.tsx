@@ -1,6 +1,7 @@
-import { useControls, button, Leva } from 'leva';
+import { useControls, button, folder, Leva } from 'leva';
 import { useEffect } from 'react';
 import { useGameStore } from '../store/index.ts';
+import { getVolume, setVolume, playSound } from '../shared/audio/index.ts';
 import {
   DEFAULT_DEV_OVERRIDES,
   getDevOverrides,
@@ -214,6 +215,58 @@ export function DevTools() {
   useEffect(() => {
     if (enabled) setDepthStyleOverrides(depthValues);
   }, [enabled, depthValues]);
+
+  // ── Audio Volumes ─────────────────────────────────────────────────────────
+  useControls('Audio', {
+    'Playback': folder({
+      play: { value: getVolume('play'), min: 0, max: 1, step: 0.05, label: 'Play', onChange: (v: number) => setVolume('play', v) },
+      pause: { value: getVolume('pause'), min: 0, max: 1, step: 0.05, label: 'Pause', onChange: (v: number) => setVolume('pause', v) },
+      'Preview play': button(() => playSound('play')),
+      'Preview pause': button(() => playSound('pause')),
+    }, { collapsed: true }),
+    'Chip Drops': folder({
+      'node-drop-1': { value: getVolume('node-drop-1'), min: 0, max: 1, step: 0.05, label: 'Drop 1', onChange: (v: number) => setVolume('node-drop-1', v) },
+      'node-drop-2': { value: getVolume('node-drop-2'), min: 0, max: 1, step: 0.05, label: 'Drop 2', onChange: (v: number) => setVolume('node-drop-2', v) },
+      'node-drop-3': { value: getVolume('node-drop-3'), min: 0, max: 1, step: 0.05, label: 'Drop 3', onChange: (v: number) => setVolume('node-drop-3', v) },
+      'Preview drop 1': button(() => playSound('node-drop-1')),
+      'Preview drop 2': button(() => playSound('node-drop-2')),
+      'Preview drop 3': button(() => playSound('node-drop-3')),
+    }, { collapsed: true }),
+    'Path Drops': folder({
+      'wire-drop-1': { value: getVolume('wire-drop-1'), min: 0, max: 1, step: 0.05, label: 'Drop 1', onChange: (v: number) => setVolume('wire-drop-1', v) },
+      'wire-drop-2': { value: getVolume('wire-drop-2'), min: 0, max: 1, step: 0.05, label: 'Drop 2', onChange: (v: number) => setVolume('wire-drop-2', v) },
+      'wire-drop-3': { value: getVolume('wire-drop-3'), min: 0, max: 1, step: 0.05, label: 'Drop 3', onChange: (v: number) => setVolume('wire-drop-3', v) },
+      'Preview drop 1': button(() => playSound('wire-drop-1')),
+      'Preview drop 2': button(() => playSound('wire-drop-2')),
+      'Preview drop 3': button(() => playSound('wire-drop-3')),
+    }, { collapsed: true }),
+    'Knob Tics': folder({
+      'knob-tic-1': { value: getVolume('knob-tic-1'), min: 0, max: 1, step: 0.05, label: 'Tic 1', onChange: (v: number) => setVolume('knob-tic-1', v) },
+      'knob-tic-2': { value: getVolume('knob-tic-2'), min: 0, max: 1, step: 0.05, label: 'Tic 2', onChange: (v: number) => setVolume('knob-tic-2', v) },
+      'knob-tic-3': { value: getVolume('knob-tic-3'), min: 0, max: 1, step: 0.05, label: 'Tic 3', onChange: (v: number) => setVolume('knob-tic-3', v) },
+      'Preview tic 1': button(() => playSound('knob-tic-1')),
+      'Preview tic 2': button(() => playSound('knob-tic-2')),
+      'Preview tic 3': button(() => playSound('knob-tic-3')),
+    }, { collapsed: true }),
+    'Validation': folder({
+      'meter-valid': { value: getVolume('meter-valid'), min: 0, max: 1, step: 0.05, label: 'Meter Valid', onChange: (v: number) => setVolume('meter-valid', v) },
+      win: { value: getVolume('win'), min: 0, max: 1, step: 0.05, label: 'Win', onChange: (v: number) => setVolume('win', v) },
+      'Preview valid': button(() => playSound('meter-valid')),
+      'Preview win': button(() => playSound('win')),
+    }, { collapsed: true }),
+    'Playpoint': folder({
+      'next-cycle': { value: getVolume('next-cycle'), min: 0, max: 1, step: 0.05, label: 'Next Cycle', onChange: (v: number) => setVolume('next-cycle', v) },
+      'prev-cycle': { value: getVolume('prev-cycle'), min: 0, max: 1, step: 0.05, label: 'Prev Cycle', onChange: (v: number) => setVolume('prev-cycle', v) },
+      'Preview next': button(() => playSound('next-cycle')),
+      'Preview prev': button(() => playSound('prev-cycle')),
+    }, { collapsed: true }),
+    'Zoom': folder({
+      'reveal-open-start': { value: getVolume('reveal-open-start'), min: 0, max: 1, step: 0.05, label: 'Reveal Open', onChange: (v: number) => setVolume('reveal-open-start', v) },
+      'reveal-close-end': { value: getVolume('reveal-close-end'), min: 0, max: 1, step: 0.05, label: 'Reveal Close', onChange: (v: number) => setVolume('reveal-close-end', v) },
+      'Preview open': button(() => playSound('reveal-open-start')),
+      'Preview close': button(() => playSound('reveal-close-end')),
+    }, { collapsed: true }),
+  });
 
   // ── Actions ───────────────────────────────────────────────────────────────
   useControls('Actions', {

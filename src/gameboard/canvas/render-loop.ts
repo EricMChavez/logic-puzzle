@@ -28,6 +28,7 @@ import { drawKeyboardFocus } from './render-focus.ts';
 import { getFocusTarget, isFocusVisible } from '../interaction/keyboard-focus.ts';
 import { getRejectedKnobNodeId } from './rejected-knob.ts';
 import { drawPlaybackBar, getHoveredPlaybackButton } from './render-playback-bar.ts';
+import { playSound } from '../../shared/audio/index.ts';
 import { getPortGridAnchor, getPortWireDirection, findPath, DIR_E } from '../../shared/routing/index.ts';
 import type { GridPoint, GridRect } from '../../shared/grid/types.ts';
 import type { KnobInfo } from './render-types.ts';
@@ -46,31 +47,31 @@ const PLAYPOINT_RATE_NORMAL = 16; // cycles per second
  * For standard puzzle CPs, uses sideToSlot for proper slot derivation.
  */
 function getCpSlotIdx(
-  nodeId: string,
+  chipId: string,
   expectedDir: 'input' | 'output',
   nodes?: ReadonlyMap<string, NodeState> | null,
 ): number {
-  if (isCreativeSlotNode(nodeId)) {
-    const node = nodes?.get(nodeId);
+  if (isCreativeSlotNode(chipId)) {
+    const node = nodes?.get(chipId);
     const isMatch = expectedDir === 'input'
       ? node?.type === 'connection-input'
       : node?.type === 'connection-output';
-    return isMatch ? getCreativeSlotIndex(nodeId) : -1;
+    return isMatch ? getCreativeSlotIndex(chipId) : -1;
   }
-  if (isUtilitySlotNode(nodeId)) {
-    const node = nodes?.get(nodeId);
+  if (isUtilitySlotNode(chipId)) {
+    const node = nodes?.get(chipId);
     const isMatch = expectedDir === 'input'
       ? node?.type === 'connection-input'
       : node?.type === 'connection-output';
-    return isMatch ? getUtilitySlotIndex(nodeId) : -1;
+    return isMatch ? getUtilitySlotIndex(chipId) : -1;
   }
-  if (isBidirectionalCpNode(nodeId)) {
-    return getBidirectionalCpIndex(nodeId);
+  if (isBidirectionalCpNode(chipId)) {
+    return getBidirectionalCpIndex(chipId);
   }
-  if (expectedDir === 'output' && isConnectionOutputNode(nodeId)) {
+  if (expectedDir === 'output' && isConnectionOutputNode(chipId)) {
     // Standard puzzle output CP: per-direction index → right-side slot
-    const cpIndex = getConnectionPointIndex(nodeId);
-    const node = nodes?.get(nodeId);
+    const cpIndex = getConnectionPointIndex(chipId);
+    const node = nodes?.get(chipId);
     if (node?.params.physicalSide) {
       const pSide = node.params.physicalSide as 'left' | 'right';
       const idx = node.params.meterIndex as number;
@@ -78,10 +79,10 @@ function getCpSlotIdx(
     }
     return cpIndex + 3; // default: outputs on right
   }
-  if (expectedDir === 'input' && isConnectionInputNode(nodeId)) {
+  if (expectedDir === 'input' && isConnectionInputNode(chipId)) {
     // Standard puzzle input CP: per-direction index → left-side slot
-    const cpIndex = getConnectionPointIndex(nodeId);
-    const node = nodes?.get(nodeId);
+    const cpIndex = getConnectionPointIndex(chipId);
+    const node = nodes?.get(chipId);
     if (node?.params.physicalSide) {
       const pSide = node.params.physicalSide as 'left' | 'right';
       const idx = node.params.meterIndex as number;
@@ -116,8 +117,8 @@ function computePortSignals(
   // For each wire, the source output port value = the wire's value at this cycle
   for (const wire of wires) {
     const wireVal = cycleResults.wireValues.get(wire.id)?.[playpoint] ?? 0;
-    result.set(`${wire.source.nodeId}:output:${wire.source.portIndex}`, wireVal);
-    result.set(`${wire.target.nodeId}:input:${wire.target.portIndex}`, wireVal);
+    result.set(`${wire.source.chipId}:output:${wire.source.portIndex}`, wireVal);
+    result.set(`${wire.target.chipId}:input:${wire.target.portIndex}`, wireVal);
   }
 
   return result;
@@ -151,15 +152,15 @@ let cachedPreviewPath: GridPoint[] | null = null;
 function resolveSnapPortRef(
   hit: ReturnType<typeof findNearestSnapTarget>,
   nodes: ReadonlyMap<string, NodeState>,
-  fromPort: { nodeId: string; side: 'input' | 'output' },
+  fromPort: { chipId: string; side: 'input' | 'output' },
   slotConfig?: SlotConfig,
-): { nodeId: string; side: 'input' | 'output'; portIndex: number } | null {
+): { chipId: string; side: 'input' | 'output'; portIndex: number } | null {
   if (!hit) return null;
 
   if (hit.type === 'port') {
     // Basic validation: must connect output↔input, no self-loops
     if (hit.portRef.side === fromPort.side) return null;
-    if (hit.portRef.nodeId === fromPort.nodeId) return null;
+    if (hit.portRef.chipId === fromPort.chipId) return null;
     return hit.portRef;
   }
 
@@ -171,11 +172,11 @@ function resolveSnapPortRef(
       ? slotToDirectionIndex(slotConfig, slotIndex)
       : slotPerSideIndex(slotIndex);
     if (dirIndex >= 0) {
-      const nodeId = direction === 'input' ? cpInputId(dirIndex) : cpOutputId(dirIndex);
-      if (nodes.has(nodeId)) {
+      const chipId = direction === 'input' ? cpInputId(dirIndex) : cpOutputId(dirIndex);
+      if (nodes.has(chipId)) {
         const side = direction === 'input' ? 'output' : 'input';
         if (side === fromPort.side) return null; // same side → invalid
-        return { nodeId, portIndex: 0, side };
+        return { chipId, portIndex: 0, side };
       }
     }
 
@@ -185,7 +186,7 @@ function resolveSnapPortRef(
       const node = nodes.get(utilId)!;
       const side = node.type === 'connection-input' ? 'output' : 'input';
       if (side === fromPort.side) return null;
-      return { nodeId: utilId, portIndex: 0, side };
+      return { chipId: utilId, portIndex: 0, side };
     }
 
     // Try bidirectional CP nodes
@@ -193,7 +194,7 @@ function resolveSnapPortRef(
     if (nodes.has(bidirId)) {
       const side: 'input' | 'output' = 'input'; // wire ending at CP → input
       if (side === fromPort.side) return null;
-      return { nodeId: bidirId, portIndex: 0, side };
+      return { chipId: bidirId, portIndex: 0, side };
     }
 
     // Try creative mode slot nodes
@@ -202,7 +203,7 @@ function resolveSnapPortRef(
       const node = nodes.get(creativeId)!;
       const side = node.type === 'connection-input' ? 'output' : 'input';
       if (side === fromPort.side) return null;
-      return { nodeId: creativeId, portIndex: 0, side };
+      return { chipId: creativeId, portIndex: 0, side };
     }
   }
 
@@ -220,6 +221,14 @@ const PAUSE_ANIM_CYCLE_MS = 1250;
 let cachedWireAnim: WireAnimationCache | null = null;
 let cachedWireAnimResults: CycleResults | null = null;
 let cachedWireAnimPlaypoint = -1;
+let revealCloseSoundFired = false;
+
+// Play/pause color fade transition state
+let colorFade = 1; // 0 = neutral only, 1 = full polarity color
+let fadeDirection: 'up' | 'down' | null = null;
+let lastPlayMode: 'playing' | 'paused' = 'playing';
+const FADE_DURATION_MS = 500;
+let fadeStartTimestamp = 0;
 
 // --- Performance caches ---
 
@@ -300,7 +309,7 @@ export function startRenderLoop(
   if (!ctx) return () => {};
 
   // Register crop capture for high-res zoom portal curtain
-  registerCropCapture((nodeId: string, targetRect: GridRect) => {
+  registerCropCapture((chipId: string, targetRect: GridRect) => {
     const st = useGameStore.getState();
     const tok = getThemeTokens();
     const cs = getCellSize();
@@ -309,7 +318,7 @@ export function startRenderLoop(
     const w = canvas.width / d;
     const h = canvas.height / d;
 
-    const node = st.activeBoard?.nodes.get(nodeId);
+    const node = st.activeBoard?.chips.get(chipId);
     if (!node) return null;
 
     // Target pixel rect → final scale
@@ -334,7 +343,7 @@ export function startRenderLoop(
 
     // Render node at zoomed cellSize using module-level caches
     drawSingleNode(cropCtx as unknown as CanvasRenderingContext2D, tok, node, {
-      nodes: st.activeBoard!.nodes,
+      chips: st.activeBoard!.chips,
       puzzleNodes: st.puzzleNodes,
       utilityNodes: st.utilityNodes,
       selectedNodeId: null,
@@ -358,16 +367,47 @@ export function startRenderLoop(
     const state = useGameStore.getState();
     const tokens = getThemeTokens();
 
-    // Advance playpoint when playing
-    const currentRate = PLAYPOINT_RATE_NORMAL;
-    if (state.playMode === 'playing' && lastPlaypointTimestamp > 0) {
+    // Detect play/pause mode change → start color fade transition
+    if (state.playMode !== lastPlayMode) {
+      lastPlayMode = state.playMode;
+      if (isReducedMotion()) {
+        // Instant transition — no fade animation
+        colorFade = state.playMode === 'playing' ? 1 : 0;
+        fadeDirection = null;
+      } else {
+        fadeDirection = state.playMode === 'playing' ? 'up' : 'down';
+        // Adjust start time for smooth reversal from current colorFade position
+        const alreadyDone = fadeDirection === 'up' ? colorFade : (1 - colorFade);
+        fadeStartTimestamp = timestamp - alreadyDone * FADE_DURATION_MS;
+        state.setPlayPauseTransitioning(true);
+      }
+    }
+
+    // Advance color fade
+    if (fadeDirection !== null) {
+      const elapsed = timestamp - fadeStartTimestamp;
+      const t = Math.min(elapsed / FADE_DURATION_MS, 1);
+      colorFade = fadeDirection === 'up' ? t : 1 - t;
+      if (t >= 1) {
+        fadeDirection = null;
+        state.setPlayPauseTransitioning(false);
+      }
+    }
+
+    // Advance playpoint — speed modulated by colorFade (ramps to/from zero).
+    // Uses currentRate > 0 (not playMode) so playpoint decelerates during fade-down.
+    const currentRate = PLAYPOINT_RATE_NORMAL * colorFade;
+    if (currentRate > 0 && lastPlaypointTimestamp > 0) {
       const elapsed = timestamp - lastPlaypointTimestamp;
       playAccumulator += elapsed;
       const cyclesPerMs = currentRate / 1000;
       const cyclesToAdvance = Math.floor(playAccumulator * cyclesPerMs);
       if (cyclesToAdvance > 0) {
         playAccumulator -= cyclesToAdvance / cyclesPerMs;
-        state.stepPlaypoint(cyclesToAdvance);
+        // Use setPlaypoint (not stepPlaypoint) to bypass the transition guard —
+        // the guard blocks manual arrow-key stepping, not the render loop's advance.
+        const next = ((state.playpoint + cyclesToAdvance) % 256 + 256) % 256;
+        state.setPlaypoint(next);
       }
     }
     lastPlaypointTimestamp = timestamp;
@@ -490,7 +530,7 @@ export function startRenderLoop(
     const meterTargetArrays = _meterTargetCache;
 
     // Read wires early so we can compute CP connection status for meters
-    const boardWires = state.activeBoard?.wires ?? null;
+    const boardWires = state.activeBoard?.paths ?? null;
 
     // Build connected output CP set (cached on wires reference)
     // Output CPs receive signal from the graph — wires target them
@@ -499,8 +539,8 @@ export function startRenderLoop(
       const set = new Set<string>();
       if (boardWires) {
         for (const wire of boardWires) {
-          const targetId = wire.target.nodeId;
-          const slotIdx = getCpSlotIdx(targetId, 'output', state.activeBoard?.nodes);
+          const targetId = wire.target.chipId;
+          const slotIdx = getCpSlotIdx(targetId, 'output', state.activeBoard?.chips);
           if (slotIdx >= 0) set.add(`output:${slotIdx}`);
         }
       }
@@ -516,8 +556,8 @@ export function startRenderLoop(
       const set = new Set<string>();
       if (boardWires) {
         for (const wire of boardWires) {
-          const sourceId = wire.source.nodeId;
-          const slotIdx = getCpSlotIdx(sourceId, 'input', state.activeBoard?.nodes);
+          const sourceId = wire.source.chipId;
+          const slotIdx = getCpSlotIdx(sourceId, 'input', state.activeBoard?.chips);
           if (slotIdx >= 0) set.add(`input:${slotIdx}`);
         }
       }
@@ -597,7 +637,7 @@ export function startRenderLoop(
       if (boardWires) {
         for (const wire of boardWires) {
           if (wire.target.side === 'input') {
-            set.add(`${wire.target.nodeId}:${wire.target.portIndex}`);
+            set.add(`${wire.target.chipId}:${wire.target.portIndex}`);
           }
         }
       }
@@ -612,7 +652,7 @@ export function startRenderLoop(
         _liveNodeIdsCache = cycleResults.liveNodeIds;
         const liveWires = new Set<string>();
         for (const wire of boardWires) {
-          if (cycleResults.liveNodeIds.has(wire.source.nodeId)) {
+          if (cycleResults.liveNodeIds.has(wire.source.chipId)) {
             liveWires.add(wire.id);
           }
         }
@@ -628,45 +668,46 @@ export function startRenderLoop(
     const liveWireIds = _liveWireIdsCache;
 
     if (state.activeBoard) {
-      // Wire rendering: branch on pause state for blip animation
-      const isPaused = state.playMode === 'paused';
-      if (isPaused && cycleResults && cycleResults.processingOrder.length > 0 && !isReducedMotion()) {
+      // Wire rendering: fully paused (fade complete) shows neutral + blips;
+      // everything else (playing, fading, reduced-motion paused) uses colorFade
+      const fullyPaused = state.playMode === 'paused' && fadeDirection === null;
+      if (fullyPaused && cycleResults && cycleResults.processingOrder.length > 0 && !isReducedMotion()) {
         // Recompute animation cache if cycleResults or playpoint changed
         if (cachedWireAnimResults !== cycleResults || cachedWireAnimPlaypoint !== playpoint) {
           cachedWireAnim = computeWireAnimationCache(
-            state.activeBoard.wires, state.activeBoard.nodes, cycleResults, playpoint,
+            state.activeBoard.paths, state.activeBoard.chips, cycleResults, playpoint,
           );
           cachedWireAnimResults = cycleResults;
           cachedWireAnimPlaypoint = playpoint;
         }
-        drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes, undefined, true, liveWireIds);
+        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, undefined, true, liveWireIds);
         if (cachedWireAnim) {
-          drawWireBlips(ctx!, tokens, state.activeBoard.wires, state.activeBoard.nodes, cellSize, cachedWireAnim, pauseProgress, liveWireIds);
+          drawWireBlips(ctx!, tokens, state.activeBoard.paths, state.activeBoard.chips, cellSize, cachedWireAnim, pauseProgress, liveWireIds);
         }
       } else {
         if (
           cycleResults !== _wireValuesCycleResults ||
           playpoint !== _wireValuesPlaypoint ||
-          state.activeBoard.wires !== _wireValuesWires
+          state.activeBoard.paths !== _wireValuesWires
         ) {
-          _wireValuesCache = computeWireValues(cycleResults, playpoint, state.activeBoard.wires);
+          _wireValuesCache = computeWireValues(cycleResults, playpoint, state.activeBoard.paths);
           _wireValuesCycleResults = cycleResults;
           _wireValuesPlaypoint = playpoint;
-          _wireValuesWires = state.activeBoard.wires;
+          _wireValuesWires = state.activeBoard.paths;
         }
-        drawWires(ctx!, tokens, state.activeBoard.wires, cellSize, state.activeBoard.nodes, _wireValuesCache, false, liveWireIds);
+        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, _wireValuesCache, false, liveWireIds, undefined, colorFade);
       }
 
       // Compute knob values from cycle results (cached)
       if (
-        state.activeBoard.nodes !== _knobValuesNodes ||
-        state.activeBoard.wires !== _knobValuesWires ||
+        state.activeBoard.chips !== _knobValuesNodes ||
+        state.activeBoard.paths !== _knobValuesWires ||
         cycleResults !== _knobValuesCycleResults ||
         playpoint !== _knobValuesPlaypoint
       ) {
-        _knobValuesCache = computeKnobValues(state.activeBoard.nodes, state.activeBoard.wires, cycleResults, playpoint);
-        _knobValuesNodes = state.activeBoard.nodes;
-        _knobValuesWires = state.activeBoard.wires;
+        _knobValuesCache = computeKnobValues(state.activeBoard.chips, state.activeBoard.paths, cycleResults, playpoint);
+        _knobValuesNodes = state.activeBoard.chips;
+        _knobValuesWires = state.activeBoard.paths;
         _knobValuesCycleResults = cycleResults;
         _knobValuesPlaypoint = playpoint;
       }
@@ -675,7 +716,7 @@ export function startRenderLoop(
       drawNodes(ctx!, tokens, {
         puzzleNodes: state.puzzleNodes,
         utilityNodes: state.utilityNodes,
-        nodes: state.activeBoard.nodes,
+        chips: state.activeBoard.chips,
         selectedNodeId: state.selectedNodeId,
         hoveredNodeId: state.hoveredNodeId,
         knobValues,
@@ -688,7 +729,7 @@ export function startRenderLoop(
       // Keyboard focus ring (after nodes, before wire preview)
       drawKeyboardFocus(
         ctx!, tokens, getFocusTarget(), isFocusVisible(),
-        state.activeBoard.nodes, state.activeBoard.wires,
+        state.activeBoard.chips, state.activeBoard.paths,
         logicalWidth, logicalHeight, cellSize,
         state.interactionMode.type === 'keyboard-wiring' ? state.interactionMode : null,
         state.activePuzzle?.slotConfig,
@@ -706,17 +747,17 @@ export function startRenderLoop(
         lastPreviewGridRow = cursorGrid.row;
 
         const fromPort = state.interactionMode.fromPort;
-        const sourceNode = state.activeBoard.nodes.get(fromPort.nodeId);
+        const sourceNode = state.activeBoard.chips.get(fromPort.chipId);
         if (sourceNode) {
           const sourceAnchor = getPortGridAnchor(sourceNode, fromPort.side, fromPort.portIndex);
           const startDir = getPortWireDirection(sourceNode, fromPort.side, fromPort.portIndex);
 
           // Check for snap target within the wire snap radius
           const maxRadiusPx = WIRE_SNAP_RADIUS_CELLS * cellSize;
-          const wires = state.activeBoard.wires;
+          const wires = state.activeBoard.paths;
           const snapHit = findNearestSnapTarget(
             state.mousePosition.x, state.mousePosition.y, maxRadiusPx,
-            state.activeBoard.nodes, cellSize,
+            state.activeBoard.chips, cellSize,
             state.activePuzzle?.slotConfig,
             state.activePuzzle?.activeInputs,
             state.activePuzzle?.activeOutputs,
@@ -725,20 +766,20 @@ export function startRenderLoop(
               if (hit.type !== 'port') return true; // CPs validated in resolveSnapPortRef
               const p = hit.portRef;
               // Must connect output↔input, no self-loops
-              if (p.side === fromPort.side || p.nodeId === fromPort.nodeId) return false;
+              if (p.side === fromPort.side || p.chipId === fromPort.chipId) return false;
               // Port must not already have a wire
               return !wires.some((w) =>
-                (w.source.nodeId === p.nodeId && w.source.portIndex === p.portIndex && p.side === 'output') ||
-                (w.target.nodeId === p.nodeId && w.target.portIndex === p.portIndex && p.side === 'input'),
+                (w.source.chipId === p.chipId && w.source.portIndex === p.portIndex && p.side === 'output') ||
+                (w.target.chipId === p.chipId && w.target.portIndex === p.portIndex && p.side === 'input'),
               );
             },
           );
 
-          const snapPort = resolveSnapPortRef(snapHit, state.activeBoard.nodes, fromPort, state.activePuzzle?.slotConfig);
+          const snapPort = resolveSnapPortRef(snapHit, state.activeBoard.chips, fromPort, state.activePuzzle?.slotConfig);
 
           if (snapPort) {
             // Route to the snapped target's actual grid anchor with correct direction
-            const targetNode = state.activeBoard.nodes.get(snapPort.nodeId);
+            const targetNode = state.activeBoard.chips.get(snapPort.chipId);
             if (targetNode) {
               const targetAnchor = getPortGridAnchor(targetNode, snapPort.side, snapPort.portIndex);
               const endDir = getPortWireDirection(targetNode, snapPort.side, snapPort.portIndex);
@@ -788,11 +829,14 @@ export function startRenderLoop(
     // --- Ceremony active check (used for overlay dimming) ---
     const ceremonyActive = ceremony.type !== 'inactive';
 
-    // Playback bar (persistent UI chrome — always visible)
-    drawPlaybackBar(ctx!, tokens, {
-      playMode: state.playMode,
-      hoveredButton: getHoveredPlaybackButton(),
-    }, cellSize);
+    // Playback bar (persistent UI chrome — skip on home board)
+    const isHomeBoard = state.activeBoardId === 'motherboard';
+    if (!isHomeBoard) {
+      drawPlaybackBar(ctx!, tokens, {
+        playMode: state.playMode,
+        hoveredButton: getHoveredPlaybackButton(),
+      }, cellSize);
+    }
 
     // Zoom transition: capture second snapshot when in 'capturing' state
     if (zoomState.type === 'capturing') {
@@ -840,9 +884,17 @@ export function startRenderLoop(
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawRevealOverlay(ctx!, zoomState.zoomedCrop, revealT, vpWidth, vpHeight);
 
+      // Play close sound 300ms into the 600ms reveal animation
+      if (elapsed >= 300 && !revealCloseSoundFired) {
+        revealCloseSoundFired = true;
+        playSound('reveal-close-end');
+      }
+
       if (rawProgress >= 1) {
         state.completeReveal();
       }
+    } else {
+      revealCloseSoundFired = false;
     }
 
     // Reveal-paused: crop fully covers viewport while dialog is shown
@@ -981,7 +1033,7 @@ function buildMeterTargetArrays(
 }
 
 /**
- * Build a wire lookup map: "nodeId:portIndex" → Wire for wire targets.
+ * Build a wire lookup map: "chipId:portIndex" → Wire for wire targets.
  * Rebuilt only when the wires array reference changes.
  */
 function getWireTargetLookup(wires: ReadonlyArray<Wire>): Map<string, Wire> {
@@ -989,7 +1041,7 @@ function getWireTargetLookup(wires: ReadonlyArray<Wire>): Map<string, Wire> {
 
   _knobWireLookup = new Map();
   for (const wire of wires) {
-    _knobWireLookup.set(`${wire.target.nodeId}:${wire.target.portIndex}`, wire);
+    _knobWireLookup.set(`${wire.target.chipId}:${wire.target.portIndex}`, wire);
   }
   _knobWireLookupWires = wires;
   return _knobWireLookup;

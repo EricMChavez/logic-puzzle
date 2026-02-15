@@ -56,7 +56,8 @@
       "Bash(wmic process where \"name=''node.exe''\" get commandline)",
       "WebFetch(domain:fonts.googleapis.com)",
       "Bash(gh repo rename:*)",
-      "Bash(gh repo view:*)"
+      "Bash(gh repo view:*)",
+      "Bash(start \"\" \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\mockups\\\\transition-mockup.html\")"
     ]
   }
 }

@@ -75,37 +75,37 @@ describe('hitTestPlaybackBar', () => {
 
 describe('isOverlappingPlaybackBar', () => {
   it('returns true for node fully inside bar region', () => {
-    expect(isOverlappingPlaybackBar(30, 34, 3, 2)).toBe(true);
+    expect(isOverlappingPlaybackBar(30, 0, 3, 2)).toBe(true);
   });
 
   it('returns true for node partially overlapping bar region', () => {
-    // Node starts above bar but extends into it
-    expect(isOverlappingPlaybackBar(30, 33, 3, 2)).toBe(true);
+    // Node starts at bottom of bar and extends below it
+    expect(isOverlappingPlaybackBar(30, 1, 3, 2)).toBe(true);
   });
 
-  it('returns false for node above bar region', () => {
-    // Node ends at row 32 (inclusive), bar starts at row 34
-    expect(isOverlappingPlaybackBar(30, 31, 3, 2)).toBe(false);
+  it('returns false for node below bar region', () => {
+    // Node starts at row 2, bar ends at row 1
+    expect(isOverlappingPlaybackBar(30, 2, 3, 2)).toBe(false);
   });
 
   it('returns false for node left of bar region', () => {
     // Node ends at col 22 (exclusive), bar starts at col 24
-    expect(isOverlappingPlaybackBar(20, 34, 3, 2)).toBe(false);
+    expect(isOverlappingPlaybackBar(20, 0, 3, 2)).toBe(false);
   });
 
   it('returns false for node right of bar region', () => {
     // Node starts at col 42, bar ends at col 41
-    expect(isOverlappingPlaybackBar(42, 34, 3, 2)).toBe(false);
+    expect(isOverlappingPlaybackBar(42, 0, 3, 2)).toBe(false);
   });
 
   it('returns true for node that just touches bar region at corner', () => {
-    // Node at cols 22-24, rows 32-34 — overlaps at (24, 34)
-    expect(isOverlappingPlaybackBar(22, 32, 3, 3)).toBe(true);
+    // Node at cols 22-24, rows 0-2 — overlaps at col 24, rows 0-1
+    expect(isOverlappingPlaybackBar(22, 0, 3, 3)).toBe(true);
   });
 
   it('returns false for node just outside bar on left side', () => {
     // Node cols 21-23, bar starts at col 24
-    expect(isOverlappingPlaybackBar(21, 34, 3, 2)).toBe(false);
+    expect(isOverlappingPlaybackBar(21, 0, 3, 2)).toBe(false);
   });
 });
 

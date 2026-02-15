@@ -1,10 +1,14 @@
 import type { GridPoint } from '../grid/types';
 
-/** Unique identifier for a node instance */
-export type NodeId = string;
+/** Unique identifier for a chip instance */
+export type ChipId = string;
+/** @deprecated Use ChipId instead */
+export type NodeId = ChipId;
 
-/** Valid rotation angles for nodes (degrees clockwise) */
-export type NodeRotation = 0 | 90 | 180 | 270;
+/** Valid rotation angles for chips (degrees clockwise) */
+export type ChipRotation = 0 | 90 | 180 | 270;
+/** @deprecated Use ChipRotation instead */
+export type NodeRotation = ChipRotation;
 
 /** Unique identifier for a gameboard */
 export type GameboardId = string;
@@ -15,24 +19,26 @@ export interface Vec2 {
   y: number;
 }
 
-/** Reference to a specific port on a node */
+/** Reference to a specific port on a chip */
 export interface PortRef {
-  nodeId: NodeId;
+  chipId: ChipId;
   portIndex: number;
   side: 'input' | 'output';
 }
 
-/** A wire connecting two ports */
-export interface Wire {
+/** A path connecting two ports */
+export interface Path {
   id: string;
   source: PortRef;
   target: PortRef;
   /** Auto-routed path through the grid */
-  path: GridPoint[];
+  route: GridPoint[];
 }
+/** @deprecated Use Path instead */
+export type Wire = Path;
 
-/** The type of a fundamental node */
-export type FundamentalNodeType =
+/** The type of a fundamental chip */
+export type FundamentalChipType =
   | 'offset'
   | 'scale'
   | 'threshold'
@@ -41,10 +47,12 @@ export type FundamentalNodeType =
   | 'memory'
   | 'split'
   | 'negate';
+/** @deprecated Use FundamentalChipType instead */
+export type FundamentalNodeType = FundamentalChipType;
 
-/** State of a single node on a gameboard */
-export interface NodeState {
-  id: NodeId;
+/** State of a single chip on a gameboard */
+export interface ChipState {
+  id: ChipId;
   type: string;
   position: GridPoint;
   params: Record<string, number | string | boolean>;
@@ -54,29 +62,34 @@ export interface NodeState {
   outputCount: number;
   /** Version hash from the library entry at placement time */
   libraryVersionHash?: string;
-  /** Node rotation (0, 90, 180, or 270 degrees). Default 0. */
-  rotation?: NodeRotation;
-  /** If true, node cannot be deleted (used for starting nodes in custom puzzles) */
+  /** Chip rotation (0, 90, 180, or 270 degrees). Default 0. */
+  rotation?: ChipRotation;
+  /** If true, chip cannot be deleted (used for starting chips in custom puzzles) */
   locked?: boolean;
 }
+/** @deprecated Use ChipState instead */
+export type NodeState = ChipState;
 
 /** Complete state of a gameboard */
 export interface GameboardState {
   id: GameboardId;
-  nodes: Map<NodeId, NodeState>;
-  wires: Wire[];
+  chips: Map<ChipId, ChipState>;
+  paths: Path[];
 }
 
-/** Creates a new wire */
-export function createWire(
+/** Creates a new path */
+export function createPath(
   id: string,
   source: PortRef,
   target: PortRef,
-): Wire {
+): Path {
   return {
     id,
     source,
     target,
-    path: [],
+    route: [],
   };
 }
+
+/** @deprecated Use createPath instead */
+export const createWire = createPath;

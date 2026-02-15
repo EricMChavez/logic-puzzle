@@ -1,154 +1,156 @@
 import { describe, it, expect, vi } from 'vitest';
-import { handleEscape } from './escape-handler.ts';
+import { getEscapeAction, handleEscape } from './escape-handler.ts';
 import type { EscapeHandlerState } from './escape-handler.ts';
 
 function makeState(overrides: Partial<EscapeHandlerState> = {}): EscapeHandlerState {
   return {
+    activeOverlayType: 'none',
     hasActiveOverlay: vi.fn(() => false),
     isOverlayEscapeDismissible: vi.fn(() => false),
     closeOverlay: vi.fn(),
+    openOverlay: vi.fn(),
     interactionMode: { type: 'idle' },
     cancelWireDraw: vi.fn(),
     cancelPlacing: vi.fn(),
+    cancelKeyboardWiring: vi.fn(),
+    commitKnobAdjust: vi.fn(),
     selectedNodeId: null,
     clearSelection: vi.fn(),
-    navigationDepth: 0,
-    zoomOut: vi.fn(),
+    zoomTransitionType: 'idle',
+    ceremonyType: 'inactive',
     ...overrides,
   };
 }
 
 describe('escape-handler', () => {
-  describe('priority 1: escape-dismissible overlay', () => {
-    it('closes a dismissible overlay and returns close-overlay', () => {
+  describe('main menu toggle', () => {
+    it('opens menu when nothing is active', () => {
+      const state = makeState();
+      expect(handleEscape(state)).toBe('open-menu');
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+    });
+
+    it('closes menu when menu is open', () => {
       const state = makeState({
+        activeOverlayType: 'main-menu',
         hasActiveOverlay: vi.fn(() => true),
-        isOverlayEscapeDismissible: vi.fn(() => true),
       });
-      expect(handleEscape(state)).toBe('close-overlay');
+      expect(handleEscape(state)).toBe('close-menu');
       expect(state.closeOverlay).toHaveBeenCalledOnce();
     });
+  });
 
-    it('does not proceed to wire cancel when overlay is dismissed', () => {
+  describe('noop conditions', () => {
+    it('returns noop during zoom animation', () => {
+      const state = makeState({ zoomTransitionType: 'animating' });
+      expect(getEscapeAction(state)).toBe('noop');
+    });
+
+    it('returns noop during victory-screen ceremony', () => {
+      const state = makeState({ ceremonyType: 'victory-screen' });
+      expect(getEscapeAction(state)).toBe('noop');
+    });
+
+    it('returns noop during it-works ceremony', () => {
+      const state = makeState({ ceremonyType: 'it-works' });
+      expect(getEscapeAction(state)).toBe('noop');
+    });
+
+    it('returns noop for non-dismissible overlay', () => {
       const state = makeState({
+        activeOverlayType: 'save-dialog',
+        hasActiveOverlay: vi.fn(() => true),
+        isOverlayEscapeDismissible: vi.fn(() => false),
+      });
+      expect(getEscapeAction(state)).toBe('noop');
+    });
+  });
+
+  describe('cancel-and-menu', () => {
+    it('closes dismissible overlay then opens menu', () => {
+      const state = makeState({
+        activeOverlayType: 'palette-modal',
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => true),
-        interactionMode: { type: 'drawing-wire' },
       });
-      handleEscape(state);
-      expect(state.cancelWireDraw).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('priority 2: non-dismissible overlay blocks cascade', () => {
-    it('returns noop for save-dialog (non-dismissible)', () => {
-      const state = makeState({
-        hasActiveOverlay: vi.fn(() => true),
-        isOverlayEscapeDismissible: vi.fn(() => false),
-      });
-      expect(handleEscape(state)).toBe('noop');
-      expect(state.closeOverlay).not.toHaveBeenCalled();
+      expect(handleEscape(state)).toBe('cancel-and-menu');
+      expect(state.closeOverlay).toHaveBeenCalledOnce();
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
     });
 
-    it('blocks wire cancellation when non-dismissible overlay is open', () => {
-      const state = makeState({
-        hasActiveOverlay: vi.fn(() => true),
-        isOverlayEscapeDismissible: vi.fn(() => false),
-        interactionMode: { type: 'drawing-wire' },
-      });
-      expect(handleEscape(state)).toBe('noop');
-      expect(state.cancelWireDraw).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('priority 3: cancel wire drawing', () => {
-    it('cancels wire drawing and returns cancel-wiring', () => {
+    it('cancels wire drawing then opens menu', () => {
       const state = makeState({
         interactionMode: { type: 'drawing-wire' },
       });
-      expect(handleEscape(state)).toBe('cancel-wiring');
+      expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelWireDraw).toHaveBeenCalledOnce();
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
     });
-  });
 
-  describe('priority 4: cancel placement / deselect', () => {
-    it('cancels node placement and returns deselect', () => {
+    it('cancels keyboard wiring then opens menu', () => {
+      const state = makeState({
+        interactionMode: { type: 'keyboard-wiring' },
+      });
+      expect(handleEscape(state)).toBe('cancel-and-menu');
+      expect(state.cancelKeyboardWiring).toHaveBeenCalledOnce();
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+    });
+
+    it('cancels node placement then opens menu', () => {
       const state = makeState({
         interactionMode: { type: 'placing-node' },
       });
-      expect(handleEscape(state)).toBe('deselect');
+      expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelPlacing).toHaveBeenCalledOnce();
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
     });
 
-    it('clears selection when a node is selected', () => {
+    it('commits knob adjust then opens menu', () => {
+      const state = makeState({
+        interactionMode: { type: 'adjusting-knob' },
+      });
+      expect(handleEscape(state)).toBe('cancel-and-menu');
+      expect(state.commitKnobAdjust).toHaveBeenCalledOnce();
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+    });
+
+    it('clears selection then opens menu', () => {
       const state = makeState({
         selectedNodeId: 'n1',
       });
-      expect(handleEscape(state)).toBe('deselect');
+      expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.clearSelection).toHaveBeenCalledOnce();
-    });
-
-    it('placement cancellation takes priority over selection clearing', () => {
-      const state = makeState({
-        interactionMode: { type: 'placing-node' },
-        selectedNodeId: 'n1',
-      });
-      handleEscape(state);
-      expect(state.cancelPlacing).toHaveBeenCalledOnce();
-      expect(state.clearSelection).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('priority 5: zoom out', () => {
-    it('zooms out when at depth > 0 and returns zoom-out', () => {
-      const state = makeState({
-        navigationDepth: 1,
-      });
-      expect(handleEscape(state)).toBe('zoom-out');
-      expect(state.zoomOut).toHaveBeenCalledOnce();
-    });
-
-    it('does not zoom out at depth 0', () => {
-      const state = makeState({
-        navigationDepth: 0,
-      });
-      expect(handleEscape(state)).toBe('noop');
-      expect(state.zoomOut).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('noop fallback', () => {
-    it('returns noop when nothing to do', () => {
-      const state = makeState();
-      expect(handleEscape(state)).toBe('noop');
+      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
     });
   });
 
   describe('precedence ordering', () => {
-    it('overlay takes precedence over wire drawing', () => {
+    it('main menu close takes highest precedence', () => {
       const state = makeState({
+        activeOverlayType: 'main-menu',
+        hasActiveOverlay: vi.fn(() => true),
+        interactionMode: { type: 'drawing-wire' },
+      });
+      expect(getEscapeAction(state)).toBe('close-menu');
+    });
+
+    it('zoom animation blocks over interactions', () => {
+      const state = makeState({
+        zoomTransitionType: 'animating',
+        interactionMode: { type: 'drawing-wire' },
+        selectedNodeId: 'n1',
+      });
+      expect(getEscapeAction(state)).toBe('noop');
+    });
+
+    it('dismissible overlay cancel-and-menu takes precedence over wire cancel', () => {
+      const state = makeState({
+        activeOverlayType: 'palette-modal',
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => true),
         interactionMode: { type: 'drawing-wire' },
-        navigationDepth: 2,
       });
-      expect(handleEscape(state)).toBe('close-overlay');
-    });
-
-    it('wire drawing takes precedence over zoom out', () => {
-      const state = makeState({
-        interactionMode: { type: 'drawing-wire' },
-        navigationDepth: 2,
-      });
-      expect(handleEscape(state)).toBe('cancel-wiring');
-    });
-
-    it('deselect takes precedence over zoom out', () => {
-      const state = makeState({
-        selectedNodeId: 'n1',
-        navigationDepth: 2,
-      });
-      expect(handleEscape(state)).toBe('deselect');
+      expect(getEscapeAction(state)).toBe('cancel-and-menu');
     });
   });
 });

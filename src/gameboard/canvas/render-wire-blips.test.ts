@@ -138,9 +138,9 @@ describe('drawWireBlips', () => {
     const ctx = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: 'nodeA', portIndex: 0, side: 'output' },
-      target: { nodeId: '__cp_output_0__', portIndex: 0, side: 'input' },
-      path: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
+      source: { chipId: 'nodeA', portIndex: 0, side: 'output' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
     const cache: WireAnimationCache = {
@@ -160,9 +160,9 @@ describe('drawWireBlips', () => {
     const ctx = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { nodeId: '__cp_output_0__', portIndex: 0, side: 'input' },
-      path: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
     const cache: WireAnimationCache = {
@@ -183,9 +183,9 @@ describe('drawWireBlips', () => {
     const ctx = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { nodeId: '__cp_output_0__', portIndex: 0, side: 'input' },
-      path: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
     const cache: WireAnimationCache = {
@@ -210,9 +210,9 @@ describe('drawWireBlips', () => {
     const ctx = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { nodeId: '__cp_output_0__', portIndex: 0, side: 'input' },
-      path: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
     const cache: WireAnimationCache = { timings: new Map() };
@@ -225,9 +225,9 @@ describe('drawWireBlips', () => {
     // Use non-CP nodes that aren't in the nodes map, so getPortPixelPosition returns null
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: 'missing_a', portIndex: 0, side: 'output' },
-      target: { nodeId: 'missing_b', portIndex: 0, side: 'input' },
-      path: [], // No path, no matching nodes → empty pixel path
+      source: { chipId: 'missing_a', portIndex: 0, side: 'output' },
+      target: { chipId: 'missing_b', portIndex: 0, side: 'input' },
+      route: [], // No path, no matching nodes → empty pixel path
     };
 
     const cache: WireAnimationCache = {

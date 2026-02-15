@@ -7,8 +7,8 @@ import type { Wire, NodeId } from '../../shared/types/index.ts';
 function wire(sourceId: NodeId, targetId: NodeId, id?: string): Wire {
   return createWire(
     id ?? `${sourceId}->${targetId}`,
-    { nodeId: sourceId, portIndex: 0, side: 'output' },
-    { nodeId: targetId, portIndex: 0, side: 'input' },
+    { chipId: sourceId, portIndex: 0, side: 'output' },
+    { chipId: targetId, portIndex: 0, side: 'input' },
   );
 }
 
@@ -65,8 +65,8 @@ describe('computeLiveNodes', () => {
     const wires = [
       wire('src', 'A', 'signal-wire'),
       createWire('param-wire',
-        { nodeId: 'A', portIndex: 0, side: 'output' },
-        { nodeId: 'B', portIndex: 1, side: 'input' }, // knob port
+        { chipId: 'A', portIndex: 0, side: 'output' },
+        { chipId: 'B', portIndex: 1, side: 'input' }, // knob port
       ),
     ];
     const result = computeLiveNodes(wires, new Set(['src']));

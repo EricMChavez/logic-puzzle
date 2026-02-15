@@ -6,6 +6,7 @@ import { getCellSize } from '../../shared/grid/index.ts';
 import { getNodeDefinition } from '../../engine/nodes/registry.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
 import type { ParamDefinition, ParamValue } from '../../engine/nodes/framework.ts';
+import { playKnobTic } from '../../shared/audio/index.ts';
 import styles from './ParameterPopover.module.css';
 
 const KNOB_VALUES = [-100, -75, -50, -25, 0, 25, 50, 75, 100] as const;
@@ -13,14 +14,14 @@ const KNOB_VALUES = [-100, -75, -50, -25, 0, 25, 50, 75, 100] as const;
 export function ParameterPopover() {
   const overlay = useGameStore((s) => s.activeOverlay);
   if (overlay.type !== 'parameter-popover') return null;
-  return <ParameterPopoverInner nodeId={overlay.nodeId} />;
+  return <ParameterPopoverInner chipId={overlay.chipId} />;
 }
 
-function ParameterPopoverInner({ nodeId }: { nodeId: string }) {
+function ParameterPopoverInner({ chipId }: { chipId: string }) {
   const closeOverlay = useGameStore((s) => s.closeOverlay);
   const updateNodeParams = useGameStore((s) => s.updateNodeParams);
   const setPortConstant = useGameStore((s) => s.setPortConstant);
-  const node = useGameStore((s) => s.activeBoard?.nodes.get(nodeId));
+  const node = useGameStore((s) => s.activeBoard?.chips.get(chipId));
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Focus on mount
@@ -79,7 +80,7 @@ function ParameterPopoverInner({ nodeId }: { nodeId: string }) {
         style={{ left: pos.left, top: pos.top }}
         tabIndex={-1}
         role="dialog"
-        aria-label="Node Parameters"
+        aria-label="Chip Parameters"
       >
         <div className={styles.title}>Parameters</div>
         {isLegacyMix && (
@@ -124,8 +125,8 @@ interface KnobParamControlProps {
   node: { id: string; params: Record<string, ParamValue> };
   paramDef: ParamDefinition;
   knobPortIndex: number;
-  updateNodeParams: (nodeId: string, params: Record<string, ParamValue>) => void;
-  setPortConstant: (nodeId: string, portIndex: number, value: number) => void;
+  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
+  setPortConstant: (chipId: string, portIndex: number, value: number) => void;
 }
 
 function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, setPortConstant }: KnobParamControlProps) {
@@ -147,6 +148,7 @@ function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, set
             onClick={() => {
               updateNodeParams(node.id, { [paramDef.key]: v });
               setPortConstant(node.id, knobPortIndex, v);
+              playKnobTic();
             }}
           >
             {v}
@@ -160,7 +162,7 @@ function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, set
 interface GenericParamControlProps {
   node: { id: string; params: Record<string, ParamValue> };
   paramDef: ParamDefinition;
-  updateNodeParams: (nodeId: string, params: Record<string, ParamValue>) => void;
+  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
 }
 
 function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamControlProps) {
@@ -230,7 +232,7 @@ const MIX_MODES = ['Add', 'Subtract', 'Average', 'Min', 'Max'] as const;
 
 interface LegacyControlProps {
   node: { id: string; params: Record<string, ParamValue> };
-  updateNodeParams: (nodeId: string, params: Record<string, ParamValue>) => void;
+  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
 }
 
 function LegacyMixControls({ node, updateNodeParams }: LegacyControlProps) {

@@ -35,9 +35,9 @@ function makeWire(
 ): Wire {
   return {
     id,
-    source: { nodeId: sourceNodeId, portIndex: sourcePort, side: 'output' },
-    target: { nodeId: targetNodeId, portIndex: targetPort, side: 'input' },
-    path: [],
+    source: { chipId: sourceNodeId, portIndex: sourcePort, side: 'output' },
+    target: { chipId: targetNodeId, portIndex: targetPort, side: 'input' },
+    route: [],
   };
 }
 

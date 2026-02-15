@@ -56,7 +56,7 @@ function makeState(overrides: Partial<RenderNodesState> = {}): RenderNodesState 
   return {
     puzzleNodes: new Map(),
     utilityNodes: new Map(),
-    nodes: new Map(),
+    chips: new Map(),
     selectedNodeId: null,
     hoveredNodeId: null,
     knobValues: new Map(),
@@ -179,7 +179,7 @@ describe('drawNodes', () => {
     // CP nodes are skipped
     nodes.set('__cp_input_0__', makeNode('__cp_input_0__', 'connection-input', 0, 0, 0, 1));
 
-    const state = makeState({ nodes });
+    const state = makeState({ chips: nodes });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // roundRect called for body fill + body stroke + highlight streak clip + light edge clip for each of 2 real nodes = 8 calls
@@ -191,7 +191,7 @@ describe('drawNodes', () => {
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ nodes });
+    const state = makeState({ chips: nodes });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // Body gradient has two stops (first gradient); highlight streak adds more
@@ -206,7 +206,7 @@ describe('drawNodes', () => {
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ nodes, hoveredNodeId: 'n1' });
+    const state = makeState({ chips: nodes, hoveredNodeId: 'n1' });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // Body gradient has two stops (first gradient), but NOT raw token values (lerped toward white)
@@ -222,7 +222,7 @@ describe('drawNodes', () => {
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ nodes, selectedNodeId: 'n1' });
+    const state = makeState({ chips: nodes, selectedNodeId: 'n1' });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // The border stroke should include colorSelection
@@ -233,7 +233,7 @@ describe('drawNodes', () => {
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ nodes });
+    const state = makeState({ chips: nodes });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // save() is called before setting shadow, and we capture shadowBlur via fill()
@@ -246,7 +246,7 @@ describe('drawNodes', () => {
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ nodes });
+    const state = makeState({ chips: nodes });
     drawNodes(mock.ctx, tokens, state, 40);
 
     expect(mock.fontHistory.some(f => f.includes('bold') && f.includes('Space Grotesk'))).toBe(true);
@@ -257,7 +257,7 @@ describe('drawNodes', () => {
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
     nodes.set('n2', makeNode('n2', 'memory', 10, 6));
 
-    const state = makeState({ nodes, selectedNodeId: 'n1' });
+    const state = makeState({ chips: nodes, selectedNodeId: 'n1' });
 
     const roundRectCallOrder: number[] = [];
     let callIndex = 0;
@@ -288,7 +288,7 @@ describe('drawNodes', () => {
     const utilityEntry = { title: 'Tool', inputCount: 2, outputCount: 1, versionHash: 'new-hash' };
     const utilityNodes = new Map([['tool', utilityEntry]]);
 
-    const state = makeState({ nodes, utilityNodes: utilityNodes as RenderNodesState['utilityNodes'] });
+    const state = makeState({ chips: nodes, utilityNodes: utilityNodes as RenderNodesState['utilityNodes'] });
     const cellSize = 40;
     drawNodes(mock.ctx, tokens, state, cellSize);
 

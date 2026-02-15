@@ -4,21 +4,22 @@ import { buildContextMenuItems } from './context-menu-items.ts';
 import type { ContextMenuItem } from './context-menu-items.ts';
 import { generateId } from '../../shared/generate-id.ts';
 import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
-import { captureViewportSnapshot } from '../../gameboard/canvas/snapshot.ts';
+import { captureViewportSnapshot, captureCropSnapshot } from '../../gameboard/canvas/snapshot.ts';
 import { getNodeGridSize } from '../../shared/grid/index.ts';
 import styles from './ContextMenu.module.css';
 
 /** Capture viewport and start zoom-in transition for a node. */
-function captureAndStartZoomIn(state: ReturnType<typeof useGameStore.getState>, nodeId: string): void {
+function captureAndStartZoomIn(state: ReturnType<typeof useGameStore.getState>, chipId: string): void {
   if (state.zoomTransitionState.type !== 'idle') return;
-  const node = state.activeBoard?.nodes.get(nodeId);
+  const node = state.activeBoard?.chips.get(chipId);
   if (!node) return;
 
   const snapshot = captureViewportSnapshot();
   if (snapshot) {
     const { cols, rows } = getNodeGridSize(node);
     const targetRect = { col: node.position.col, row: node.position.row, cols, rows };
-    state.startZoomCapture(snapshot, targetRect, 'in');
+    const crop = captureCropSnapshot(chipId, targetRect) ?? undefined;
+    state.startZoomCapture(snapshot, targetRect, 'in', crop);
   }
 }
 
@@ -43,7 +44,7 @@ export function ContextMenu() {
 
 interface InnerProps {
   position: { x: number; y: number };
-  target: { type: 'node'; nodeId: string } | { type: 'wire'; wireId: string } | { type: 'empty' };
+  target: { type: 'node'; chipId: string } | { type: 'wire'; wireId: string } | { type: 'empty' };
   menuRef: React.RefObject<HTMLDivElement | null>;
   focusIndexRef: React.MutableRefObject<number>;
 }
@@ -55,12 +56,12 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
   // Build menu items
   let nodeType = '';
   if (target.type === 'node') {
-    const node = useGameStore.getState().activeBoard?.nodes.get(target.nodeId);
+    const node = useGameStore.getState().activeBoard?.chips.get(target.chipId);
     nodeType = node?.type ?? '';
   }
 
   const menuTarget = target.type === 'node'
-    ? { type: 'node' as const, nodeId: target.nodeId, nodeType }
+    ? { type: 'node' as const, chipId: target.chipId, nodeType }
     : target.type === 'wire'
       ? { type: 'wire' as const, wireId: target.wireId }
       : null;
@@ -97,7 +98,7 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
     switch (item.action) {
       case 'delete-node':
         if (target.type === 'node') {
-          state.removeNode(target.nodeId);
+          state.removeNode(target.chipId);
         }
         break;
       case 'delete-wire':
@@ -107,26 +108,26 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
         break;
       case 'inspect':
         if (target.type === 'node') {
-          captureAndStartZoomIn(state, target.nodeId);
-          state.zoomIntoNode(target.nodeId);
+          captureAndStartZoomIn(state, target.chipId);
+          state.zoomIntoNode(target.chipId);
         }
         break;
       case 'edit':
         if (target.type === 'node') {
-          const node = state.activeBoard?.nodes.get(target.nodeId);
+          const node = state.activeBoard?.chips.get(target.chipId);
           if (!node) break;
 
           if (node.type === 'custom-blank') {
             const utilityId = generateId();
             const board = createUtilityGameboard(utilityId);
-            captureAndStartZoomIn(state, target.nodeId);
-            state.startEditingUtility(utilityId, board, target.nodeId);
+            captureAndStartZoomIn(state, target.chipId);
+            state.startEditingUtility(utilityId, board, target.chipId);
           } else if (node.type.startsWith('utility:')) {
             const utilityId = node.type.slice('utility:'.length);
             const entry = state.utilityNodes.get(utilityId);
             if (entry) {
-              captureAndStartZoomIn(state, target.nodeId);
-              state.startEditingUtility(utilityId, entry.board, target.nodeId);
+              captureAndStartZoomIn(state, target.chipId);
+              state.startEditingUtility(utilityId, entry.board, target.chipId);
             }
           }
         }

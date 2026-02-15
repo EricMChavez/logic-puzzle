@@ -1,1 +1,1 @@
-export { StartScreen } from './StartScreen.tsx';
+export { MainMenu } from './MainMenu.tsx';

@@ -55,11 +55,11 @@ const fakeMeta: BakeMetadata = {
 function setupBoardWithPuzzleNode(store: ReturnType<typeof createTestStore>) {
   const board: GameboardState = {
     id: 'test-board',
-    nodes: new Map([
+    chips: new Map([
       ['p1', { id: 'p1', type: 'puzzle:inv1', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
       ['n1', { id: 'n1', type: 'invert', position: { col: 200, row: 200 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]),
-    wires: [],
+    paths: [],
   };
   store.getState().setActiveBoard(board);
   store.getState().addPuzzleNode({
@@ -93,7 +93,7 @@ describe('navigation-slice', () => {
     expect(s.activeBoardReadOnly).toBe(true);
     expect(s.navigationDepth).toBe(1);
     expect(s.activeBoardId).toBe('viewer-puzzle:inv1');
-    expect(s.activeBoard!.nodes.has('n1')).toBe(true);
+    expect(s.activeBoard!.chips.has('n1')).toBe(true);
     expect(s.selectedNodeId).toBeNull();
   });
 
@@ -259,10 +259,10 @@ describe('navigation-slice', () => {
 
     const utilityBoard: GameboardState = {
       id: 'utility-board',
-      nodes: new Map([
+      chips: new Map([
         ['un1', { id: 'un1', type: 'invert', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
 
     store.getState().startEditingUtility('util1', utilityBoard, 'p1' as any);
@@ -289,8 +289,8 @@ describe('navigation-slice', () => {
 
     const utilityBoard: GameboardState = {
       id: 'utility-board',
-      nodes: new Map(),
-      wires: [],
+      chips: new Map(),
+      paths: [],
     };
 
     store.getState().startEditingUtility('util1', utilityBoard, 'p1' as any);
@@ -336,25 +336,25 @@ describe('computeBreadcrumbs', () => {
   it('falls back to puzzleId when title not found', () => {
     const board: GameboardState = {
       id: 'b',
-      nodes: new Map([
+      chips: new Map([
         ['x', { id: 'x', type: 'puzzle:unknown-node', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
-    const entry = { board, portConstants: new Map(), nodeIdInParent: 'x' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
+    const entry = { board, portConstants: new Map(), chipIdInParent: 'x' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
     const result = computeBreadcrumbs([entry], new Map(), null);
     expect(result).toEqual(['Sandbox', 'unknown-node']);
   });
 
-  it('falls back to nodeId for non-puzzle node types', () => {
+  it('falls back to chipId for non-puzzle node types', () => {
     const board: GameboardState = {
       id: 'b',
-      nodes: new Map([
+      chips: new Map([
         ['n1', { id: 'n1', type: 'invert', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
-    const entry = { board, portConstants: new Map(), nodeIdInParent: 'n1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
+    const entry = { board, portConstants: new Map(), chipIdInParent: 'n1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
     const result = computeBreadcrumbs([entry], new Map(), null);
     expect(result).toEqual(['Sandbox', 'n1']);
   });
@@ -362,12 +362,12 @@ describe('computeBreadcrumbs', () => {
   it('shows "New Custom Node" for custom-blank nodes', () => {
     const board: GameboardState = {
       id: 'b',
-      nodes: new Map([
+      chips: new Map([
         ['cb1', { id: 'cb1', type: 'custom-blank', position: { col: 15, row: 10 }, params: {}, inputCount: 0, outputCount: 0 }],
       ]),
-      wires: [],
+      paths: [],
     };
-    const entry = { board, portConstants: new Map(), nodeIdInParent: 'cb1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
+    const entry = { board, portConstants: new Map(), chipIdInParent: 'cb1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
     const result = computeBreadcrumbs([entry], new Map(), null);
     expect(result).toEqual(['Sandbox', 'New Custom Node']);
   });
@@ -375,12 +375,12 @@ describe('computeBreadcrumbs', () => {
   it('shows utility title for utility nodes', () => {
     const board: GameboardState = {
       id: 'b',
-      nodes: new Map([
+      chips: new Map([
         ['u1', { id: 'u1', type: 'utility:myutil', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
-    const entry = { board, portConstants: new Map(), nodeIdInParent: 'u1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
+    const entry = { board, portConstants: new Map(), chipIdInParent: 'u1' as any, readOnly: false, meterSlots: createDefaultMeterSlots() };
     const utilityNodes = new Map([['myutil', { title: 'My Filter' } as any]]);
     const result = computeBreadcrumbs([entry], new Map(), null, utilityNodes);
     expect(result).toEqual(['Sandbox', 'My Filter']);

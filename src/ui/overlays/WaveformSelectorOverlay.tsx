@@ -248,11 +248,11 @@ function WaveformSelectorInner({ slotIndex }: { slotIndex: number }) {
   // Helper: delete wires connected to this slot's CP node
   const deleteSlotWires = useCallback(() => {
     if (!activeBoard) return;
-    const nodeId = creativeSlotId(slotIndex);
-    const filteredWires = activeBoard.wires.filter(
-      (w) => w.source.nodeId !== nodeId && w.target.nodeId !== nodeId,
+    const chipId = creativeSlotId(slotIndex);
+    const filteredWires = activeBoard.paths.filter(
+      (w) => w.source.chipId !== chipId && w.target.chipId !== chipId,
     );
-    if (filteredWires.length !== activeBoard.wires.length) {
+    if (filteredWires.length !== activeBoard.paths.length) {
       updateWires(filteredWires);
     }
   }, [activeBoard, slotIndex, updateWires]);

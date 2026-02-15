@@ -6,8 +6,8 @@ export type AuthoringPhase = 'idle' | 'configuring-start' | 'saving';
 
 /** Snapshot of board state at recording time */
 export interface BoardSnapshot {
-  nodes: Map<string, NodeState>;
-  wires: Wire[];
+  chips: Map<string, NodeState>;
+  paths: Wire[];
 }
 
 export interface AuthoringSlice {
@@ -48,7 +48,7 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
     const store = get() as unknown as {
       cycleResults: { outputValues: number[][] } | null;
       creativeSlots: Array<{ direction: 'input' | 'output' | 'off' }>;
-      activeBoard: { nodes: Map<string, NodeState>; wires: Wire[] } | null;
+      activeBoard: { chips: Map<string, NodeState>; paths: Wire[] } | null;
     };
 
     const { cycleResults, creativeSlots, activeBoard } = store;
@@ -80,20 +80,20 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
 
     // Deep-copy board state for snapshot
     const snapshotNodes = new Map<string, NodeState>();
-    for (const [id, node] of activeBoard.nodes) {
+    for (const [id, node] of activeBoard.chips) {
       snapshotNodes.set(id, { ...node, position: { ...node.position }, params: { ...node.params } });
     }
-    const snapshotWires = activeBoard.wires.map(w => ({
+    const snapshotWires = activeBoard.paths.map(w => ({
       ...w,
       source: { ...w.source },
       target: { ...w.target },
-      path: [...w.path],
+      route: [...w.route],
     }));
 
     set({
       authoringPhase: 'configuring-start',
       recordedTargetSamples: targetSamples,
-      solutionBoardSnapshot: { nodes: snapshotNodes, wires: snapshotWires },
+      solutionBoardSnapshot: { chips: snapshotNodes, paths: snapshotWires },
     });
   },
 
@@ -103,25 +103,25 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
 
     // Restore board from snapshot
     const store = get() as unknown as {
-      setActiveBoard: (board: { id: string; nodes: Map<string, NodeState>; wires: Wire[] }) => void;
+      setActiveBoard: (board: { id: string; chips: Map<string, NodeState>; paths: Wire[] }) => void;
       activeBoard: { id: string } | null;
     };
 
     if (!store.activeBoard) return;
 
     // Deep-copy snapshot to avoid mutating it
-    const nodes = new Map<string, NodeState>();
-    for (const [id, node] of state.solutionBoardSnapshot.nodes) {
-      nodes.set(id, { ...node, position: { ...node.position }, params: { ...node.params } });
+    const chips = new Map<string, NodeState>();
+    for (const [id, node] of state.solutionBoardSnapshot.chips) {
+      chips.set(id, { ...node, position: { ...node.position }, params: { ...node.params } });
     }
-    const wires = state.solutionBoardSnapshot.wires.map(w => ({
+    const wires = state.solutionBoardSnapshot.paths.map(w => ({
       ...w,
       source: { ...w.source },
       target: { ...w.target },
-      path: [...w.path],
+      route: [...w.route],
     }));
 
-    store.setActiveBoard({ id: store.activeBoard.id, nodes, wires });
+    store.setActiveBoard({ id: store.activeBoard.id, chips, paths: wires });
   },
 
   beginSaveAsPuzzle: () => {

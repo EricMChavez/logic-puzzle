@@ -55,10 +55,10 @@ const fakeMeta: BakeMetadata = {
 
 const fakeBoard: GameboardState = {
   id: 'utility-test',
-  nodes: new Map([
+  chips: new Map([
     ['n1', { id: 'n1', type: 'invert', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
   ]),
-  wires: [],
+  paths: [],
 };
 
 function makeEntry(id: string = 'u1'): UtilityNodeEntry {
@@ -158,15 +158,15 @@ describe('navigation-slice utility editing', () => {
     const store = createTestStore();
     const parentBoard: GameboardState = {
       id: 'parent',
-      nodes: new Map(),
-      wires: [],
+      chips: new Map(),
+      paths: [],
     };
     store.getState().setActiveBoard(parentBoard);
 
     const utilityBoard: GameboardState = {
       id: 'utility-edit',
-      nodes: new Map(),
-      wires: [],
+      chips: new Map(),
+      paths: [],
     };
 
     store.getState().startEditingUtility('u1', utilityBoard);
@@ -183,15 +183,15 @@ describe('navigation-slice utility editing', () => {
     const store = createTestStore();
     const parentBoard: GameboardState = {
       id: 'parent',
-      nodes: new Map(),
-      wires: [],
+      chips: new Map(),
+      paths: [],
     };
     store.getState().setActiveBoard(parentBoard);
 
     const utilityBoard: GameboardState = {
       id: 'utility-edit',
-      nodes: new Map(),
-      wires: [],
+      chips: new Map(),
+      paths: [],
     };
 
     store.getState().startEditingUtility('u1', utilityBoard);
@@ -215,10 +215,10 @@ describe('navigation-slice utility editing', () => {
     // Set up a board with a placed utility node
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([
+      chips: new Map([
         ['u-placed', { id: 'u-placed', type: 'utility:u1', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
     store.getState().setActiveBoard(board);
 
@@ -240,11 +240,11 @@ describe('deleteUtilityNode cascade removal', () => {
 
     const board: GameboardState = {
       id: 'board-1',
-      nodes: new Map([
+      chips: new Map([
         ['n1', { id: 'n1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
         ['u-inst', { id: 'u-inst', type: 'utility:u1', position: { col: 30, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
     store.getState().setActiveBoard(board);
 
@@ -252,8 +252,8 @@ describe('deleteUtilityNode cascade removal', () => {
 
     const s = store.getState();
     expect(s.utilityNodes.size).toBe(0);
-    expect(s.activeBoard!.nodes.has('u-inst')).toBe(false);
-    expect(s.activeBoard!.nodes.has('n1')).toBe(true);
+    expect(s.activeBoard!.chips.has('u-inst')).toBe(false);
+    expect(s.activeBoard!.chips.has('n1')).toBe(true);
   });
 
   it('removes connected wires when instance is deleted from activeBoard', () => {
@@ -261,24 +261,24 @@ describe('deleteUtilityNode cascade removal', () => {
     store.getState().addUtilityNode(makeEntry());
 
     const wire = createWire('w1',
-      { nodeId: 'n1', portIndex: 0, side: 'output' },
-      { nodeId: 'u-inst', portIndex: 0, side: 'input' },
+      { chipId: 'n1', portIndex: 0, side: 'output' },
+      { chipId: 'u-inst', portIndex: 0, side: 'input' },
     );
 
     const board: GameboardState = {
       id: 'board-1',
-      nodes: new Map([
+      chips: new Map([
         ['n1', { id: 'n1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
         ['u-inst', { id: 'u-inst', type: 'utility:u1', position: { col: 30, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [wire],
+      paths: [wire],
     };
     store.getState().setActiveBoard(board);
 
     store.getState().deleteUtilityNode('u1');
 
     const s = store.getState();
-    expect(s.activeBoard!.wires).toHaveLength(0);
+    expect(s.activeBoard!.paths).toHaveLength(0);
   });
 
   it('removes instances from other utility nodes internal boards', () => {
@@ -288,10 +288,10 @@ describe('deleteUtilityNode cascade removal', () => {
     // u2 contains an instance of u1 on its internal board
     const u2Board: GameboardState = {
       id: 'u2-board',
-      nodes: new Map([
+      chips: new Map([
         ['inner-u1', { id: 'inner-u1', type: 'utility:u1', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
     store.getState().addUtilityNode({
       ...makeEntry('u2'),
@@ -302,7 +302,7 @@ describe('deleteUtilityNode cascade removal', () => {
     store.getState().deleteUtilityNode('u1');
 
     const u2 = store.getState().utilityNodes.get('u2')!;
-    expect(u2.board.nodes.has('inner-u1')).toBe(false);
+    expect(u2.board.chips.has('inner-u1')).toBe(false);
   });
 
   it('does not modify activeBoard when no instances exist', () => {
@@ -311,10 +311,10 @@ describe('deleteUtilityNode cascade removal', () => {
 
     const board: GameboardState = {
       id: 'board-1',
-      nodes: new Map([
+      chips: new Map([
         ['n1', { id: 'n1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [],
+      paths: [],
     };
     store.getState().setActiveBoard(board);
     const boardBefore = store.getState().activeBoard;
@@ -330,29 +330,29 @@ describe('deleteUtilityNode cascade removal', () => {
     store.getState().addUtilityNode(makeEntry());
 
     const unrelatedWire = createWire('w-keep',
-      { nodeId: 'n1', portIndex: 0, side: 'output' },
-      { nodeId: 'n2', portIndex: 0, side: 'input' },
+      { chipId: 'n1', portIndex: 0, side: 'output' },
+      { chipId: 'n2', portIndex: 0, side: 'input' },
     );
     const deletedWire = createWire('w-remove',
-      { nodeId: 'u-inst', portIndex: 0, side: 'output' },
-      { nodeId: 'n2', portIndex: 0, side: 'input' },
+      { chipId: 'u-inst', portIndex: 0, side: 'output' },
+      { chipId: 'n2', portIndex: 0, side: 'input' },
     );
 
     const board: GameboardState = {
       id: 'board-1',
-      nodes: new Map([
+      chips: new Map([
         ['n1', { id: 'n1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
         ['n2', { id: 'n2', type: 'invert', position: { col: 40, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
         ['u-inst', { id: 'u-inst', type: 'utility:u1', position: { col: 30, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
       ]),
-      wires: [unrelatedWire, deletedWire],
+      paths: [unrelatedWire, deletedWire],
     };
     store.getState().setActiveBoard(board);
 
     store.getState().deleteUtilityNode('u1');
 
     const s = store.getState();
-    expect(s.activeBoard!.wires).toHaveLength(1);
-    expect(s.activeBoard!.wires[0].id).toBe('w-keep');
+    expect(s.activeBoard!.paths).toHaveLength(1);
+    expect(s.activeBoard!.paths[0].id).toBe('w-keep');
   });
 });

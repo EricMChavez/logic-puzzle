@@ -12,7 +12,7 @@ export interface GameboardSlice {
   activeBoard: GameboardState | null;
   /** ID of the active gameboard */
   activeBoardId: GameboardId | null;
-  /** Constant values for unconnected input ports. Key: "nodeId:portIndex" */
+  /** Constant values for unconnected input ports. Key: "chipId:portIndex" */
   portConstants: Map<string, number>;
   /** Incremented on structural graph mutations (add/remove node/wire, param change) */
   graphVersion: number;
@@ -26,19 +26,19 @@ export interface GameboardSlice {
   /** Add a node to the active gameboard */
   addNode: (node: NodeState) => void;
   /** Remove a node from the active gameboard */
-  removeNode: (nodeId: NodeId) => void;
+  removeNode: (chipId: NodeId) => void;
   /** Move a node to a new position (and optionally rotate) */
-  moveNode: (nodeId: NodeId, newPosition: GridPoint, newRotation?: NodeRotation) => void;
+  moveNode: (chipId: NodeId, newPosition: GridPoint, newRotation?: NodeRotation) => void;
   /** Add a wire to the active gameboard */
   addWire: (wire: Wire) => void;
   /** Remove a wire from the active gameboard */
   removeWire: (wireId: string) => void;
   /** Update parameters on an existing node */
-  updateNodeParams: (nodeId: NodeId, params: Record<string, number | string | boolean>) => void;
+  updateNodeParams: (chipId: NodeId, params: Record<string, number | string | boolean>) => void;
   /** Replace wire array on the active board (preserves portConstants) */
   updateWires: (wires: Wire[]) => void;
   /** Set a constant value for an unconnected input port */
-  setPortConstant: (nodeId: NodeId, portIndex: number, value: number) => void;
+  setPortConstant: (chipId: NodeId, portIndex: number, value: number) => void;
   /** Restore a board and its port constants (used by navigation zoom-out) */
   restoreBoard: (board: GameboardState, portConstants: Map<string, number>) => void;
   /** Update a creative slot node's direction (input/output/off) */
@@ -46,7 +46,7 @@ export interface GameboardSlice {
   /** Add back a creative slot node that was previously removed (for 'off' -> other transition) */
   addCreativeSlotNode: (slotIndex: number, direction: 'input' | 'output') => void;
   /** Batch update node params + port constant in a single set() with one graphVersion bump. Used during knob drag. */
-  batchKnobAdjust: (nodeId: NodeId, paramKey: string, portIndex: number, value: number) => void;
+  batchKnobAdjust: (chipId: NodeId, paramKey: string, portIndex: number, value: number) => void;
   /** Toggle a meter slot's mode during utility editing: input→output→off→input. Returns false if blocked by wires. */
   toggleMeterMode: (cpIndex: number) => boolean;
 }
@@ -64,7 +64,7 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
       activeBoard: board,
       activeBoardId: board.id,
       portConstants: new Map(),
-      occupancy: recomputeOccupancy(board.nodes),
+      occupancy: recomputeOccupancy(board.chips),
       graphVersion: state.graphVersion + 1,
       routingVersion: state.routingVersion + 1,
     })),
@@ -72,43 +72,43 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
   addNode: (node) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const nodes = new Map(state.activeBoard.nodes);
+      const nodes = new Map(state.activeBoard.chips);
       nodes.set(node.id, node);
       const occupancy = state.occupancy.map((col) => [...col]);
       markNodeOccupied(occupancy, node);
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
         occupancy,
       };
     }),
 
-  removeNode: (nodeId) =>
+  removeNode: (chipId) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const node = state.activeBoard.nodes.get(nodeId);
+      const node = state.activeBoard.chips.get(chipId);
       // Locked nodes cannot be deleted
       if (node?.locked) return state;
-      const nodes = new Map(state.activeBoard.nodes);
-      nodes.delete(nodeId);
-      const wires = state.activeBoard.wires.filter(
-        (w) => w.source.nodeId !== nodeId && w.target.nodeId !== nodeId
+      const nodes = new Map(state.activeBoard.chips);
+      nodes.delete(chipId);
+      const wires = state.activeBoard.paths.filter(
+        (w) => w.source.chipId !== chipId && w.target.chipId !== chipId
       );
       const occupancy = state.occupancy.map((col) => [...col]);
       if (node) clearNodeOccupied(occupancy, node);
       return {
-        activeBoard: { ...state.activeBoard, nodes, wires },
+        activeBoard: { ...state.activeBoard, chips: nodes, paths: wires },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
         occupancy,
       };
     }),
 
-  moveNode: (nodeId, newPosition, newRotation) =>
+  moveNode: (chipId, newPosition, newRotation) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const node = state.activeBoard.nodes.get(nodeId);
+      const node = state.activeBoard.chips.get(chipId);
       if (!node) return state;
 
       // Clear old position
@@ -125,11 +125,11 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
       // Mark new position
       markNodeOccupied(occupancy, updatedNode);
 
-      const nodes = new Map(state.activeBoard.nodes);
-      nodes.set(nodeId, updatedNode);
+      const nodes = new Map(state.activeBoard.chips);
+      nodes.set(chipId, updatedNode);
 
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
         occupancy,
@@ -142,7 +142,7 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
       return {
         activeBoard: {
           ...state.activeBoard,
-          wires: [...state.activeBoard.wires, wire],
+          paths: [...state.activeBoard.paths, wire],
         },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
@@ -155,22 +155,22 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
       return {
         activeBoard: {
           ...state.activeBoard,
-          wires: state.activeBoard.wires.filter((w) => w.id !== wireId),
+          paths: state.activeBoard.paths.filter((w) => w.id !== wireId),
         },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
       };
     }),
 
-  updateNodeParams: (nodeId, params) =>
+  updateNodeParams: (chipId, params) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const node = state.activeBoard.nodes.get(nodeId);
+      const node = state.activeBoard.chips.get(chipId);
       if (!node) return state;
-      const nodes = new Map(state.activeBoard.nodes);
-      nodes.set(nodeId, { ...node, params: { ...node.params, ...params } });
+      const nodes = new Map(state.activeBoard.chips);
+      nodes.set(chipId, { ...node, params: { ...node.params, ...params } });
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         graphVersion: state.graphVersion + 1,
       };
     }),
@@ -179,13 +179,13 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
     set((state) => {
       if (!state.activeBoard) return state;
       return {
-        activeBoard: { ...state.activeBoard, wires },
+        activeBoard: { ...state.activeBoard, paths: wires },
       };
     }),
 
-  setPortConstant: (nodeId, portIndex, value) =>
+  setPortConstant: (chipId, portIndex, value) =>
     set((state) => {
-      const key = `${nodeId}:${portIndex}`;
+      const key = `${chipId}:${portIndex}`;
       const portConstants = new Map(state.portConstants);
       portConstants.set(key, value);
       return { portConstants, graphVersion: state.graphVersion + 1 };
@@ -196,7 +196,7 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
       activeBoard: board,
       activeBoardId: board.id,
       portConstants,
-      occupancy: recomputeOccupancy(board.nodes),
+      occupancy: recomputeOccupancy(board.chips),
       graphVersion: state.graphVersion + 1,
       routingVersion: state.routingVersion + 1,
     })),
@@ -204,20 +204,20 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
   updateCreativeSlotNode: (slotIndex, direction) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const nodeId = creativeSlotId(slotIndex);
-      const existingNode = state.activeBoard.nodes.get(nodeId);
+      const chipId = creativeSlotId(slotIndex);
+      const existingNode = state.activeBoard.chips.get(chipId);
 
-      const nodes = new Map(state.activeBoard.nodes);
+      const nodes = new Map(state.activeBoard.chips);
       const occupancy = state.occupancy.map((col) => [...col]);
 
       // Handle 'off' direction: remove the node
       if (direction === 'off') {
         if (existingNode) {
-          nodes.delete(nodeId);
+          nodes.delete(chipId);
           clearNodeOccupied(occupancy, existingNode);
         }
         return {
-          activeBoard: { ...state.activeBoard, nodes },
+          activeBoard: { ...state.activeBoard, chips: nodes },
           graphVersion: state.graphVersion + 1,
           routingVersion: state.routingVersion + 1,
           occupancy,
@@ -226,14 +226,14 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
 
       // For input/output: update existing node
       if (!existingNode) return state;
-      nodes.set(nodeId, {
+      nodes.set(chipId, {
         ...existingNode,
         type: direction === 'input' ? 'connection-input' : 'connection-output',
         inputCount: direction === 'input' ? 0 : 1,
         outputCount: direction === 'input' ? 1 : 0,
       });
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
       };
@@ -242,15 +242,15 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
   addCreativeSlotNode: (slotIndex, direction) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const nodeId = creativeSlotId(slotIndex);
+      const chipId = creativeSlotId(slotIndex);
 
       // Don't add if already exists
-      if (state.activeBoard.nodes.has(nodeId)) return state;
+      if (state.activeBoard.chips.has(chipId)) return state;
 
       // Import the node creation function dynamically to avoid circular imports
       // For now, create a minimal node structure
       const node: NodeState = {
-        id: nodeId,
+        id: chipId,
         type: direction === 'input' ? 'connection-input' : 'connection-output',
         position: { col: slotIndex < 3 ? 0 : 60, row: 6 + slotIndex % 3 * 10 },
         rotation: 0,
@@ -261,13 +261,13 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
         params: {},
       };
 
-      const nodes = new Map(state.activeBoard.nodes);
-      nodes.set(nodeId, node);
+      const nodes = new Map(state.activeBoard.chips);
+      nodes.set(chipId, node);
       const occupancy = state.occupancy.map((col) => [...col]);
       markNodeOccupied(occupancy, node);
 
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         graphVersion: state.graphVersion + 1,
         routingVersion: state.routingVersion + 1,
         occupancy,
@@ -278,11 +278,11 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
     const state = get();
     if (!state.activeBoard) return false;
 
-    const nodeId = utilitySlotId(cpIndex);
+    const chipId = utilitySlotId(cpIndex);
 
     // Check if any wires connect to this CP — block toggle if so
-    const hasWires = state.activeBoard.wires.some(
-      (w) => w.source.nodeId === nodeId || w.target.nodeId === nodeId,
+    const hasWires = state.activeBoard.paths.some(
+      (w) => w.source.chipId === chipId || w.target.chipId === chipId,
     );
     if (hasWires) return false;
 
@@ -303,9 +303,9 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
     slots.set(key, { mode: nextMode });
 
     // Update board nodes
-    const nodes = new Map(state.activeBoard.nodes);
-    if (nodes.has(nodeId)) {
-      nodes.delete(nodeId);
+    const nodes = new Map(state.activeBoard.chips);
+    if (nodes.has(chipId)) {
+      nodes.delete(chipId);
     }
     if (nextMode === 'input' || nextMode === 'output') {
       const newNode = createUtilitySlotNode(cpIndex, nextMode);
@@ -313,7 +313,7 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
     }
 
     set({
-      activeBoard: { ...state.activeBoard, nodes },
+      activeBoard: { ...state.activeBoard, chips: nodes },
       meterSlots: slots,
       graphVersion: state.graphVersion + 1,
       routingVersion: state.routingVersion + 1,
@@ -322,18 +322,18 @@ export const createGameboardSlice: StateCreator<GameStore, [], [], GameboardSlic
     return true;
   },
 
-  batchKnobAdjust: (nodeId, paramKey, portIndex, value) =>
+  batchKnobAdjust: (chipId, paramKey, portIndex, value) =>
     set((state) => {
       if (!state.activeBoard) return state;
-      const node = state.activeBoard.nodes.get(nodeId);
+      const node = state.activeBoard.chips.get(chipId);
       if (!node) return state;
-      const nodes = new Map(state.activeBoard.nodes);
-      nodes.set(nodeId, { ...node, params: { ...node.params, [paramKey]: value } });
-      const key = `${nodeId}:${portIndex}`;
+      const nodes = new Map(state.activeBoard.chips);
+      nodes.set(chipId, { ...node, params: { ...node.params, [paramKey]: value } });
+      const key = `${chipId}:${portIndex}`;
       const portConstants = new Map(state.portConstants);
       portConstants.set(key, value);
       return {
-        activeBoard: { ...state.activeBoard, nodes },
+        activeBoard: { ...state.activeBoard, chips: nodes },
         portConstants,
         graphVersion: state.graphVersion + 1,
       };

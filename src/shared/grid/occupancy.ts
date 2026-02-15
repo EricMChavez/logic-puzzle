@@ -37,7 +37,7 @@ export function getNodeGridSize(node: NodeState): { cols: number; rows: number }
   let cols: number;
   let rows: number;
 
-  if (node.type.startsWith('utility:') || node.type === 'custom-blank') {
+  if (node.type.startsWith('utility:') || node.type === 'custom-blank' || node.type.startsWith('menu:')) {
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (node.type.startsWith('puzzle:')) {
@@ -79,7 +79,7 @@ export function getNodeGridSizeFromType(
   let cols: number;
   let rows: number;
 
-  if (nodeType.startsWith('utility:') || nodeType === 'custom-blank') {
+  if (nodeType.startsWith('utility:') || nodeType === 'custom-blank' || nodeType.startsWith('menu:')) {
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (nodeType.startsWith('puzzle:')) {
@@ -265,7 +265,7 @@ export function canMoveNode(
   const rotation = newRotation ?? node.rotation ?? 0;
   let baseCols: number;
   let baseRows: number;
-  if (node.type.startsWith('utility:') || node.type === 'custom-blank') {
+  if (node.type.startsWith('utility:') || node.type === 'custom-blank' || node.type.startsWith('menu:')) {
     baseCols = UTILITY_GRID_COLS;
     baseRows = UTILITY_GRID_ROWS;
   } else if (node.type.startsWith('puzzle:')) {

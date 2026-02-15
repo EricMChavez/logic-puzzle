@@ -42,13 +42,13 @@ export function drawKeyboardFocus(
 
   switch (focusTarget.type) {
     case 'node': {
-      const node = nodes.get(focusTarget.nodeId);
+      const node = nodes.get(focusTarget.chipId);
       if (!node) break;
       drawNodeFocusRing(ctx, tokens, node, cellSize);
       break;
     }
     case 'port': {
-      const node = nodes.get(focusTarget.portRef.nodeId);
+      const node = nodes.get(focusTarget.portRef.chipId);
       if (!node) break;
       const pos = getNodePortPosition(node, focusTarget.portRef.side, focusTarget.portRef.portIndex, cellSize);
       const portRadius = NODE_STYLE.PORT_RADIUS_RATIO * cellSize;
@@ -64,7 +64,7 @@ export function drawKeyboardFocus(
     }
     case 'wire': {
       const wire = wires.find((w) => w.id === focusTarget.wireId);
-      if (!wire || wire.path.length === 0) break;
+      if (!wire || wire.route.length === 0) break;
       drawWireFocusRing(ctx, tokens, wire, cellSize);
       break;
     }
@@ -119,7 +119,7 @@ function drawWireFocusRing(
   wire: Wire,
   cellSize: number,
 ): void {
-  const pts = wire.path.map((gp) => ({
+  const pts = wire.route.map((gp) => ({
     x: gp.col * cellSize + cellSize / 2,
     y: gp.row * cellSize + cellSize / 2,
   }));
@@ -152,7 +152,7 @@ function drawWiringTargetHighlights(
   const portRadius = NODE_STYLE.PORT_RADIUS_RATIO * cellSize;
 
   // Get source position for wire preview
-  const sourceNode = nodes.get(wiringState.fromPort.nodeId);
+  const sourceNode = nodes.get(wiringState.fromPort.chipId);
   let sourcePos = { x: 0, y: 0 };
   if (sourceNode) {
     sourcePos = getNodePortPosition(
@@ -166,7 +166,7 @@ function drawWiringTargetHighlights(
   for (let i = 0; i < wiringState.validTargets.length; i++) {
     const target = wiringState.validTargets[i];
     const isActive = i === wiringState.targetIndex;
-    const targetNode = nodes.get(target.nodeId);
+    const targetNode = nodes.get(target.chipId);
     if (!targetNode) continue;
 
     const pos = getNodePortPosition(targetNode, target.side, target.portIndex, cellSize);

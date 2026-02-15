@@ -16,8 +16,8 @@ import { deriveDirectionsFromMeterSlots } from '../meters/meter-types.ts';
 export type HitResult =
   | { type: 'port'; portRef: PortRef; position: Vec2 }
   | { type: 'connection-point'; slotIndex: number; direction: 'input' | 'output'; position: Vec2 }
-  | { type: 'knob'; nodeId: NodeId; center: Vec2 }
-  | { type: 'node'; nodeId: NodeId }
+  | { type: 'knob'; chipId: NodeId; center: Vec2 }
+  | { type: 'node'; chipId: NodeId }
   | { type: 'wire'; wireId: string }
   | { type: 'meter'; slotIndex: number }
   | { type: 'playback-button'; button: 'prev' | 'play-pause' | 'next' }
@@ -99,7 +99,7 @@ export function hitTest(
       if (dist(x, y, pos.x, pos.y) <= PORT_HIT_RADIUS) {
         return {
           type: 'port',
-          portRef: { nodeId: node.id, portIndex: i, side: 'output' },
+          portRef: { chipId: node.id, portIndex: i, side: 'output' },
           position: pos,
         };
       }
@@ -109,7 +109,7 @@ export function hitTest(
       if (dist(x, y, pos.x, pos.y) <= PORT_HIT_RADIUS) {
         return {
           type: 'port',
-          portRef: { nodeId: node.id, portIndex: i, side: 'input' },
+          portRef: { chipId: node.id, portIndex: i, side: 'input' },
           position: pos,
         };
       }
@@ -139,7 +139,7 @@ export function hitTest(
     const centerY = bodyRect.y + bodyRect.height / 2 + labelFontSize * 0.5;
     const knobRadius = 1.1 * cellSize;
     if (dist(x, y, centerX, centerY) <= knobRadius) {
-      return { type: 'knob', nodeId: node.id, center: { x: centerX, y: centerY } };
+      return { type: 'knob', chipId: node.id, center: { x: centerX, y: centerY } };
     }
   }
 
@@ -159,17 +159,17 @@ export function hitTest(
     }
   }
   if (bodyHitId !== null) {
-    return { type: 'node', nodeId: bodyHitId };
+    return { type: 'node', chipId: bodyHitId };
   }
 
   // 5. Check wires (path segments at gridline intersections)
   for (const wire of wires) {
-    if (wire.path.length >= 2) {
-      for (let i = 0; i < wire.path.length - 1; i++) {
-        const ax = wire.path[i].col * cellSize;
-        const ay = wire.path[i].row * cellSize;
-        const bx = wire.path[i + 1].col * cellSize;
-        const by = wire.path[i + 1].row * cellSize;
+    if (wire.route.length >= 2) {
+      for (let i = 0; i < wire.route.length - 1; i++) {
+        const ax = wire.route[i].col * cellSize;
+        const ay = wire.route[i].row * cellSize;
+        const bx = wire.route[i + 1].col * cellSize;
+        const by = wire.route[i + 1].row * cellSize;
         if (pointToSegmentDist(x, y, ax, ay, bx, by) <= WIRE_HIT_THRESHOLD) {
           return { type: 'wire', wireId: wire.id };
         }
@@ -220,7 +220,7 @@ export function findNearestSnapTarget(
       if (d < bestDist) {
         const hit: HitResult = {
           type: 'port',
-          portRef: { nodeId: node.id, portIndex: i, side: 'output' },
+          portRef: { chipId: node.id, portIndex: i, side: 'output' },
           position: pos,
         };
         if (!isValidTarget || isValidTarget(hit)) {
@@ -235,7 +235,7 @@ export function findNearestSnapTarget(
       if (d < bestDist) {
         const hit: HitResult = {
           type: 'port',
-          portRef: { nodeId: node.id, portIndex: i, side: 'input' },
+          portRef: { chipId: node.id, portIndex: i, side: 'input' },
           position: pos,
         };
         if (!isValidTarget || isValidTarget(hit)) {

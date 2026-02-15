@@ -20,9 +20,9 @@ function createTestHarness(board: GameboardState | null = null) {
     return g;
   })() : createOccupancyGrid();
 
-  let currentWires = board?.wires ?? [];
-  const updateWiresSpy = vi.fn((wires: Wire[]) => {
-    currentWires = wires;
+  let currentWires = board?.paths ?? [];
+  const updateWiresSpy = vi.fn((paths: Wire[]) => {
+    currentWires = paths;
   });
 
   const fakeStore = {
@@ -59,11 +59,11 @@ describe('routing-slice', () => {
   it('routeAllWires computes paths for wires between nodes', () => {
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 25, 8);
-    const wire = createWire('w1', { nodeId: 'a', portIndex: 0, side: 'output' }, { nodeId: 'b', portIndex: 0, side: 'input' });
+    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([['a', nodeA], ['b', nodeB]]),
-      wires: [wire],
+      chips: new Map([['a', nodeA], ['b', nodeB]]),
+      paths: [wire],
     };
 
     const { actions, updateWiresSpy, getWires } = createTestHarness(board);
@@ -72,21 +72,21 @@ describe('routing-slice', () => {
     expect(updateWiresSpy).toHaveBeenCalledTimes(1);
     const routed = getWires();
     expect(routed.length).toBe(1);
-    expect(routed[0].path.length).toBeGreaterThan(0);
+    expect(routed[0].route.length).toBeGreaterThan(0);
     // Path should start at source node's right grid line and end at target node's left grid line
-    expect(routed[0].path[0].col).toBe(12 + 3); // node.col + NODE_GRID_COLS (right grid line)
-    const lastPt = routed[0].path[routed[0].path.length - 1];
+    expect(routed[0].route[0].col).toBe(12 + 3); // node.col + NODE_GRID_COLS (right grid line)
+    const lastPt = routed[0].route[routed[0].route.length - 1];
     expect(lastPt.col).toBe(25); // target node.col (left grid line)
   });
 
   it('routeAllWires preserves wire id and source/target', () => {
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 25, 8);
-    const wire = createWire('w1', { nodeId: 'a', portIndex: 0, side: 'output' }, { nodeId: 'b', portIndex: 0, side: 'input' });
+    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([['a', nodeA], ['b', nodeB]]),
-      wires: [wire],
+      chips: new Map([['a', nodeA], ['b', nodeB]]),
+      paths: [wire],
     };
 
     const { actions, getWires } = createTestHarness(board);
@@ -94,19 +94,19 @@ describe('routing-slice', () => {
 
     const routed = getWires();
     expect(routed[0].id).toBe('w1');
-    expect(routed[0].source.nodeId).toBe('a');
-    expect(routed[0].target.nodeId).toBe('b');
+    expect(routed[0].source.chipId).toBe('a');
+    expect(routed[0].target.chipId).toBe('b');
   });
 
   it('routeAllWires sets empty path when routing fails', () => {
     // Place nodes with a wall between them
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 30, 8);
-    const wire = createWire('w1', { nodeId: 'a', portIndex: 0, side: 'output' }, { nodeId: 'b', portIndex: 0, side: 'input' });
+    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([['a', nodeA], ['b', nodeB]]),
-      wires: [wire],
+      chips: new Map([['a', nodeA], ['b', nodeB]]),
+      paths: [wire],
     };
 
     const harness = createTestHarness(board);
@@ -117,7 +117,7 @@ describe('routing-slice', () => {
       }
     }
     harness.actions.routeAllWires();
-    expect(harness.getWires()[0].path).toEqual([]);
+    expect(harness.getWires()[0].route).toEqual([]);
   });
 });
 

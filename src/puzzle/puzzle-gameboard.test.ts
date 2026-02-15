@@ -20,16 +20,16 @@ describe('createPuzzleGameboard', () => {
     const board = createPuzzleGameboard(makePuzzle(1, 1));
 
     expect(board.id).toBe('puzzle-test');
-    expect(board.nodes.size).toBe(2);
-    expect(board.wires).toEqual([]);
+    expect(board.chips.size).toBe(2);
+    expect(board.paths).toEqual([]);
 
-    const input0 = board.nodes.get(cpInputId(0));
+    const input0 = board.chips.get(cpInputId(0));
     expect(input0).toBeDefined();
     expect(input0!.type).toBe('connection-input');
     expect(input0!.inputCount).toBe(0);
     expect(input0!.outputCount).toBe(1);
 
-    const output0 = board.nodes.get(cpOutputId(0));
+    const output0 = board.chips.get(cpOutputId(0));
     expect(output0).toBeDefined();
     expect(output0!.type).toBe('connection-output');
     expect(output0!.inputCount).toBe(1);
@@ -39,30 +39,30 @@ describe('createPuzzleGameboard', () => {
   it('creates correct nodes for 2-input / 1-output puzzle', () => {
     const board = createPuzzleGameboard(makePuzzle(2, 1));
 
-    expect(board.nodes.size).toBe(3);
+    expect(board.chips.size).toBe(3);
 
     // Both input CP nodes present
-    expect(board.nodes.has(cpInputId(0))).toBe(true);
-    expect(board.nodes.has(cpInputId(1))).toBe(true);
+    expect(board.chips.has(cpInputId(0))).toBe(true);
+    expect(board.chips.has(cpInputId(1))).toBe(true);
 
     // Single output CP node present
-    expect(board.nodes.has(cpOutputId(0))).toBe(true);
+    expect(board.chips.has(cpOutputId(0))).toBe(true);
 
     // No extra nodes
-    expect(board.nodes.has(cpInputId(2))).toBe(false);
-    expect(board.nodes.has(cpOutputId(1))).toBe(false);
+    expect(board.chips.has(cpInputId(2))).toBe(false);
+    expect(board.chips.has(cpOutputId(1))).toBe(false);
   });
 
   it('creates correct nodes for 3-input / 2-output puzzle', () => {
     const board = createPuzzleGameboard(makePuzzle(3, 2));
 
-    expect(board.nodes.size).toBe(5);
+    expect(board.chips.size).toBe(5);
 
     for (let i = 0; i < 3; i++) {
-      expect(board.nodes.has(cpInputId(i))).toBe(true);
+      expect(board.chips.has(cpInputId(i))).toBe(true);
     }
     for (let i = 0; i < 2; i++) {
-      expect(board.nodes.has(cpOutputId(i))).toBe(true);
+      expect(board.chips.has(cpOutputId(i))).toBe(true);
     }
   });
 
@@ -75,7 +75,7 @@ describe('createPuzzleGameboard', () => {
 
   it('starts with empty wires', () => {
     const board = createPuzzleGameboard(makePuzzle(2, 2));
-    expect(board.wires).toEqual([]);
+    expect(board.paths).toEqual([]);
   });
 
   it('creates CP nodes with physicalSide/meterIndex when connectionPoints is set', () => {
@@ -96,22 +96,22 @@ describe('createPuzzleGameboard', () => {
     };
 
     const board = createPuzzleGameboard(puzzle);
-    expect(board.nodes.size).toBe(2);
+    expect(board.chips.size).toBe(2);
 
     // Output on left side, meter slot 1
-    const output0 = board.nodes.get(cpOutputId(0));
+    const output0 = board.chips.get(cpOutputId(0));
     expect(output0).toBeDefined();
     expect(output0!.params).toEqual({ physicalSide: 'left', meterIndex: 1 });
 
     // Input on right side, meter slot 0
-    const input0 = board.nodes.get(cpInputId(0));
+    const input0 = board.chips.get(cpInputId(0));
     expect(input0).toBeDefined();
     expect(input0!.params).toEqual({ physicalSide: 'right', meterIndex: 0 });
   });
 
   it('falls back to sequential creation when connectionPoints is not set', () => {
     const board = createPuzzleGameboard(makePuzzle(1, 1));
-    const input0 = board.nodes.get(cpInputId(0));
+    const input0 = board.chips.get(cpInputId(0));
     expect(input0).toBeDefined();
     // No physicalSide/meterIndex when using fallback
     expect(input0!.params).toEqual({});
@@ -129,15 +129,15 @@ describe('createPuzzleGameboard', () => {
     const board = createPuzzleGameboard(puzzle);
 
     // 2 CP nodes + 2 initial nodes
-    expect(board.nodes.size).toBe(4);
+    expect(board.chips.size).toBe(4);
 
-    const node1 = board.nodes.get('node-1');
+    const node1 = board.chips.get('node-1');
     expect(node1).toBeDefined();
     expect(node1!.type).toBe('invert');
     expect(node1!.position).toEqual({ col: 20, row: 10 });
     expect(node1!.locked).toBe(true);
 
-    const node2 = board.nodes.get('node-2');
+    const node2 = board.chips.get('node-2');
     expect(node2).toBeDefined();
     expect(node2!.type).toBe('mix');
     expect(node2!.params).toEqual({ mode: 'add' });
@@ -152,16 +152,16 @@ describe('createPuzzleGameboard', () => {
         { id: 'node-1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 },
       ],
       initialWires: [
-        { source: { nodeId: cpInputId(0), portIndex: 0 }, target: { nodeId: 'node-1', portIndex: 0 } },
+        { source: { chipId: cpInputId(0), portIndex: 0 }, target: { chipId: 'node-1', portIndex: 0 } },
       ],
     };
 
     const board = createPuzzleGameboard(puzzle);
 
-    expect(board.wires.length).toBe(1);
-    expect(board.wires[0].source.nodeId).toBe(cpInputId(0));
-    expect(board.wires[0].target.nodeId).toBe('node-1');
-    expect(board.wires[0].path).toBeDefined();
+    expect(board.paths.length).toBe(1);
+    expect(board.paths[0].source.chipId).toBe(cpInputId(0));
+    expect(board.paths[0].target.chipId).toBe('node-1');
+    expect(board.paths[0].route).toBeDefined();
   });
 
   it('does not add wires when initialWires is empty', () => {
@@ -171,6 +171,6 @@ describe('createPuzzleGameboard', () => {
     };
 
     const board = createPuzzleGameboard(puzzle);
-    expect(board.wires).toEqual([]);
+    expect(board.paths).toEqual([]);
   });
 });

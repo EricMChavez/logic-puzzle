@@ -34,14 +34,14 @@ export function cpBidirectionalId(index: number): string {
 }
 
 /** Check if a node ID is a bidirectional connection point virtual node */
-export function isBidirectionalCpNode(nodeId: string): boolean {
-  return nodeId.startsWith(CP_BIDIR_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+export function isBidirectionalCpNode(chipId: string): boolean {
+  return chipId.startsWith(CP_BIDIR_PREFIX) && chipId.endsWith(CP_SUFFIX);
 }
 
 /** Extract the bidirectional CP index from a virtual node ID. Returns -1 if not a bidir CP node. */
-export function getBidirectionalCpIndex(nodeId: string): number {
-  if (!isBidirectionalCpNode(nodeId)) return -1;
-  const num = nodeId.slice(CP_BIDIR_PREFIX.length, -CP_SUFFIX.length);
+export function getBidirectionalCpIndex(chipId: string): number {
+  if (!isBidirectionalCpNode(chipId)) return -1;
+  const num = chipId.slice(CP_BIDIR_PREFIX.length, -CP_SUFFIX.length);
   return parseInt(num, 10);
 }
 
@@ -51,14 +51,14 @@ export function utilitySlotId(slotIndex: number): string {
 }
 
 /** Check if a node ID is a utility slot virtual node */
-export function isUtilitySlotNode(nodeId: string): boolean {
-  return nodeId.startsWith(CP_UTILITY_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+export function isUtilitySlotNode(chipId: string): boolean {
+  return chipId.startsWith(CP_UTILITY_PREFIX) && chipId.endsWith(CP_SUFFIX);
 }
 
 /** Extract the slot index from a utility slot node ID. Returns -1 if not a utility slot node. */
-export function getUtilitySlotIndex(nodeId: string): number {
-  if (!isUtilitySlotNode(nodeId)) return -1;
-  const num = nodeId.slice(CP_UTILITY_PREFIX.length, -CP_SUFFIX.length);
+export function getUtilitySlotIndex(chipId: string): number {
+  if (!isUtilitySlotNode(chipId)) return -1;
+  const num = chipId.slice(CP_UTILITY_PREFIX.length, -CP_SUFFIX.length);
   return parseInt(num, 10);
 }
 
@@ -86,40 +86,40 @@ export function createUtilitySlotNode(
 }
 
 /** Check if a node ID belongs to any connection point virtual node */
-export function isConnectionPointNode(nodeId: string): boolean {
-  return isConnectionInputNode(nodeId) || isConnectionOutputNode(nodeId) || isCreativeSlotNode(nodeId) || isBidirectionalCpNode(nodeId) || isUtilitySlotNode(nodeId);
+export function isConnectionPointNode(chipId: string): boolean {
+  return isConnectionInputNode(chipId) || isConnectionOutputNode(chipId) || isCreativeSlotNode(chipId) || isBidirectionalCpNode(chipId) || isUtilitySlotNode(chipId);
 }
 
 /** Check if a node ID is a creative mode slot virtual node */
-export function isCreativeSlotNode(nodeId: string): boolean {
-  return nodeId.startsWith(CP_CREATIVE_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+export function isCreativeSlotNode(chipId: string): boolean {
+  return chipId.startsWith(CP_CREATIVE_PREFIX) && chipId.endsWith(CP_SUFFIX);
 }
 
 /** Extract the slot index from a creative slot node ID. Returns -1 if not a creative slot node. */
-export function getCreativeSlotIndex(nodeId: string): number {
-  if (!isCreativeSlotNode(nodeId)) return -1;
-  const num = nodeId.slice(CP_CREATIVE_PREFIX.length, -CP_SUFFIX.length);
+export function getCreativeSlotIndex(chipId: string): number {
+  if (!isCreativeSlotNode(chipId)) return -1;
+  const num = chipId.slice(CP_CREATIVE_PREFIX.length, -CP_SUFFIX.length);
   return parseInt(num, 10);
 }
 
 /** Check if a node ID is a connection-input virtual node */
-export function isConnectionInputNode(nodeId: string): boolean {
-  return nodeId.startsWith(CP_INPUT_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+export function isConnectionInputNode(chipId: string): boolean {
+  return chipId.startsWith(CP_INPUT_PREFIX) && chipId.endsWith(CP_SUFFIX);
 }
 
 /** Check if a node ID is a connection-output virtual node */
-export function isConnectionOutputNode(nodeId: string): boolean {
-  return nodeId.startsWith(CP_OUTPUT_PREFIX) && nodeId.endsWith(CP_SUFFIX);
+export function isConnectionOutputNode(chipId: string): boolean {
+  return chipId.startsWith(CP_OUTPUT_PREFIX) && chipId.endsWith(CP_SUFFIX);
 }
 
 /** Extract the connection point index from a virtual node ID. Returns -1 if not a CP node. */
-export function getConnectionPointIndex(nodeId: string): number {
-  if (isConnectionInputNode(nodeId)) {
-    const num = nodeId.slice(CP_INPUT_PREFIX.length, -CP_SUFFIX.length);
+export function getConnectionPointIndex(chipId: string): number {
+  if (isConnectionInputNode(chipId)) {
+    const num = chipId.slice(CP_INPUT_PREFIX.length, -CP_SUFFIX.length);
     return parseInt(num, 10);
   }
-  if (isConnectionOutputNode(nodeId)) {
-    const num = nodeId.slice(CP_OUTPUT_PREFIX.length, -CP_SUFFIX.length);
+  if (isConnectionOutputNode(chipId)) {
+    const num = chipId.slice(CP_OUTPUT_PREFIX.length, -CP_SUFFIX.length);
     return parseInt(num, 10);
   }
   return -1;

@@ -11,8 +11,8 @@ describe('gameboard-slice removeNode', () => {
     const lockedNode = makeNode('n1', 'invert', 15, 10, { locked: true });
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([['n1', lockedNode]]),
-      wires: [],
+      chips: new Map([['n1', lockedNode]]),
+      paths: [],
     };
 
     // Create a minimal store for testing the slice
@@ -30,7 +30,7 @@ describe('gameboard-slice removeNode', () => {
 
     slice.removeNode('n1');
     // Node should still be present
-    expect(state.activeBoard.nodes.has('n1')).toBe(true);
+    expect(state.activeBoard.chips.has('n1')).toBe(true);
     expect(state.graphVersion).toBe(0);
   });
 
@@ -38,8 +38,8 @@ describe('gameboard-slice removeNode', () => {
     const normalNode = makeNode('n2', 'invert', 15, 10);
     const board: GameboardState = {
       id: 'test-board',
-      nodes: new Map([['n2', normalNode]]),
-      wires: [],
+      chips: new Map([['n2', normalNode]]),
+      paths: [],
     };
 
     let state: any = {
@@ -56,7 +56,7 @@ describe('gameboard-slice removeNode', () => {
 
     slice.removeNode('n2');
     // Node should be removed
-    expect(state.activeBoard.nodes.has('n2')).toBe(false);
+    expect(state.activeBoard.chips.has('n2')).toBe(false);
     expect(state.graphVersion).toBe(1);
   });
 });

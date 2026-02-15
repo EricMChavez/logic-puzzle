@@ -9,13 +9,13 @@ import type { CycleError } from './topological-sort.ts';
  * on every structural edit. Pure data structure, no React/Canvas.
  */
 export class SignalGraph {
-  private nodes: Map<NodeId, NodeState>;
-  private wires: Wire[];
+  private chips: Map<NodeId, NodeState>;
+  private paths: Wire[];
   private sortedOrder: NodeId[];
 
   constructor() {
-    this.nodes = new Map();
-    this.wires = [];
+    this.chips = new Map();
+    this.paths = [];
     this.sortedOrder = [];
   }
 
@@ -26,22 +26,22 @@ export class SignalGraph {
 
   /** All nodes */
   getNodes(): ReadonlyMap<NodeId, NodeState> {
-    return this.nodes;
+    return this.chips;
   }
 
   /** All wires */
   getWires(): ReadonlyArray<Wire> {
-    return this.wires;
+    return this.paths;
   }
 
   /** Get a node by ID */
   getNode(id: NodeId): NodeState | undefined {
-    return this.nodes.get(id);
+    return this.chips.get(id);
   }
 
   /** Add a node and recalculate sort order. Always succeeds (no cycles from adding a node). */
   addNode(node: NodeState): void {
-    this.nodes.set(node.id, node);
+    this.chips.set(node.id, node);
     this.recalculate();
   }
 
@@ -49,13 +49,13 @@ export class SignalGraph {
    * Remove a node and all its connected wires. Recalculates sort order.
    * Returns the removed wires.
    */
-  removeNode(nodeId: NodeId): Wire[] {
-    this.nodes.delete(nodeId);
-    const removed = this.wires.filter(
-      (w) => w.source.nodeId === nodeId || w.target.nodeId === nodeId,
+  removeNode(chipId: NodeId): Wire[] {
+    this.chips.delete(chipId);
+    const removed = this.paths.filter(
+      (w) => w.source.chipId === chipId || w.target.chipId === chipId,
     );
-    this.wires = this.wires.filter(
-      (w) => w.source.nodeId !== nodeId && w.target.nodeId !== nodeId,
+    this.paths = this.paths.filter(
+      (w) => w.source.chipId !== chipId && w.target.chipId !== chipId,
     );
     this.recalculate();
     return removed;
@@ -66,29 +66,29 @@ export class SignalGraph {
    * Returns ok with the new sort order, or err with cycle path.
    */
   addWire(wire: Wire): Result<NodeId[], CycleError> {
-    const testWires = [...this.wires, wire];
-    const nodeIds = Array.from(this.nodes.keys());
-    const result = topologicalSort(nodeIds, testWires);
+    const testWires = [...this.paths, wire];
+    const chipIds = Array.from(this.chips.keys());
+    const result = topologicalSort(chipIds, testWires);
 
     if (!result.ok) {
       return err(result.error);
     }
 
-    this.wires.push(wire);
+    this.paths.push(wire);
     this.sortedOrder = result.value;
     return ok(result.value);
   }
 
   /** Remove a wire by ID and recalculate sort order. */
   removeWire(wireId: string): void {
-    this.wires = this.wires.filter((w) => w.id !== wireId);
+    this.paths = this.paths.filter((w) => w.id !== wireId);
     this.recalculate();
   }
 
   /** Recalculate topological order from current state. */
   private recalculate(): void {
-    const nodeIds = Array.from(this.nodes.keys());
-    const result = topologicalSort(nodeIds, this.wires);
+    const chipIds = Array.from(this.chips.keys());
+    const result = topologicalSort(chipIds, this.paths);
     if (result.ok) {
       this.sortedOrder = result.value;
     }

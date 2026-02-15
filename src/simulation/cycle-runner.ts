@@ -51,7 +51,7 @@ function runCycleEvaluation(): void {
     return;
   }
 
-  const { nodes, wires } = store.activeBoard;
+  const { chips: nodes, paths: wires } = store.activeBoard;
   const { activePuzzle, activeTestCaseIndex, isCreativeMode, creativeSlots, editingUtilityId, portConstants } = store;
 
   // Build port constants map for the evaluator
@@ -66,8 +66,8 @@ function runCycleEvaluation(): void {
     inputGenerator = (_cycleIndex: number) => {
       const inputs: number[] = [];
       for (let i = 0; i < 6; i++) {
-        const nodeId = utilitySlotId(i);
-        const key = `${nodeId}:0`;
+        const chipId = utilitySlotId(i);
+        const key = `${chipId}:0`;
         inputs.push(constants.get(key) ?? 0);
       }
       return inputs;
@@ -78,7 +78,7 @@ function runCycleEvaluation(): void {
       const inputs: number[] = [];
       for (let i = 0; i < 6; i++) {
         const slot = creativeSlots[i];
-        if (slot?.direction === 'input') {
+        if (slot?.direction === 'input' && slot.waveform) {
           inputs.push(generateWaveformValue(cycleIndex, slot.waveform));
         } else {
           inputs.push(0);
@@ -185,7 +185,7 @@ function triggerCeremony(): void {
   const { activePuzzle, activeBoard } = store;
   if (!activePuzzle || !activeBoard) return;
 
-  const bakeResult = bakeGraph(activeBoard.nodes, activeBoard.wires);
+  const bakeResult = bakeGraph(activeBoard.chips, activeBoard.paths);
   if (!bakeResult.ok) return;
 
   const { metadata } = bakeResult.value;
@@ -236,6 +236,12 @@ export function initCycleRunner(store: {
     // Re-evaluate when test case changes
     if (state.activeTestCaseIndex !== prev.activeTestCaseIndex && state.activePuzzle) {
       initializeMeters(state);
+      runCycleEvaluation();
+      return;
+    }
+
+    // Re-evaluate when creative slot waveforms change
+    if (state.creativeSlots !== prev.creativeSlots && state.activeBoard) {
       runCycleEvaluation();
       return;
     }

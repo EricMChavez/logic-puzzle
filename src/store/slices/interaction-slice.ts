@@ -9,11 +9,11 @@ export type InteractionMode =
   | { type: 'drawing-wire'; fromPort: PortRef; fromPosition: Vec2 }
   | { type: 'keyboard-wiring'; fromPort: PortRef; validTargets: PortRef[]; targetIndex: number }
   | { type: 'dragging-node'; draggedNode: NodeState; grabOffset: GridPoint; originalPosition: GridPoint; rotation: NodeRotation }
-  | { type: 'adjusting-knob'; nodeId: NodeId; startY: number; startValue: number };
+  | { type: 'adjusting-knob'; chipId: NodeId; startY: number; startValue: number };
 
 /** Port currently being edited for a constant value */
 export interface EditingPort {
-  nodeId: NodeId;
+  chipId: NodeId;
   portIndex: number;
   position: Vec2;
 }
@@ -39,7 +39,7 @@ export interface InteractionSlice {
   /** Rotate the current placement/drag by 90 degrees */
   rotatePlacement: () => void;
   /** Select a node on the gameboard */
-  selectNode: (nodeId: NodeId) => void;
+  selectNode: (chipId: NodeId) => void;
   /** Clear the current selection */
   clearSelection: () => void;
   /** Start drawing a wire from a port */
@@ -49,9 +49,9 @@ export interface InteractionSlice {
   /** Update mouse position (for wire preview) */
   setMousePosition: (pos: Vec2 | null) => void;
   /** Track which node the cursor is over */
-  setHoveredNode: (nodeId: NodeId | null) => void;
+  setHoveredNode: (chipId: NodeId | null) => void;
   /** Open constant value editor for a port */
-  startEditingPort: (nodeId: NodeId, portIndex: number, position: Vec2) => void;
+  startEditingPort: (chipId: NodeId, portIndex: number, position: Vec2) => void;
   /** Close constant value editor */
   stopEditingPort: () => void;
   /** Enter keyboard wiring mode */
@@ -63,7 +63,7 @@ export interface InteractionSlice {
   /** Set the keyboard ghost position for arrow-key placement */
   setKeyboardGhostPosition: (pos: GridPoint | null) => void;
   /** Start adjusting a mixer knob */
-  startKnobAdjust: (nodeId: NodeId, startY: number, startValue: number) => void;
+  startKnobAdjust: (chipId: NodeId, startY: number, startValue: number) => void;
   /** Commit knob adjustment and return to idle */
   commitKnobAdjust: () => void;
   /** Start dragging a node */
@@ -106,8 +106,8 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
     }
   },
 
-  selectNode: (nodeId) =>
-    set({ selectedNodeId: nodeId, interactionMode: { type: 'idle' } }),
+  selectNode: (chipId) =>
+    set({ selectedNodeId: chipId, interactionMode: { type: 'idle' } }),
 
   clearSelection: () =>
     set({ selectedNodeId: null }),
@@ -124,11 +124,11 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
   setMousePosition: (pos) =>
     set({ mousePosition: pos }),
 
-  setHoveredNode: (nodeId) =>
-    set({ hoveredNodeId: nodeId }),
+  setHoveredNode: (chipId) =>
+    set({ hoveredNodeId: chipId }),
 
-  startEditingPort: (nodeId, portIndex, position) =>
-    set({ editingPort: { nodeId, portIndex, position } }),
+  startEditingPort: (chipId, portIndex, position) =>
+    set({ editingPort: { chipId, portIndex, position } }),
 
   stopEditingPort: () =>
     set({ editingPort: null }),
@@ -161,10 +161,10 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
   setKeyboardGhostPosition: (pos) =>
     set({ keyboardGhostPosition: pos }),
 
-  startKnobAdjust: (nodeId, startY, startValue) =>
+  startKnobAdjust: (chipId, startY, startValue) =>
     set({
-      interactionMode: { type: 'adjusting-knob', nodeId, startY, startValue },
-      selectedNodeId: nodeId,
+      interactionMode: { type: 'adjusting-knob', chipId, startY, startValue },
+      selectedNodeId: chipId,
     }),
 
   commitKnobAdjust: () =>

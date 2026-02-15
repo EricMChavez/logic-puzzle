@@ -607,7 +607,7 @@ function NodeCreationFormInner() {
                   className={styles.input}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Brief description of what this node does"
+                  placeholder="Brief description of what this chip does"
                   maxLength={120}
                 />
               </div>

@@ -3,7 +3,7 @@ import type { NodeId, Vec2 } from '../../shared/types/index.ts';
 
 /** What entity a context menu targets */
 export type ContextTarget =
-  | { type: 'node'; nodeId: NodeId }
+  | { type: 'node'; chipId: NodeId }
   | { type: 'wire'; wireId: string }
   | { type: 'empty' };
 
@@ -11,19 +11,18 @@ export type ContextTarget =
 export type ActiveOverlay =
   | { type: 'none' }
   | { type: 'palette-modal' }
-  | { type: 'parameter-popover'; nodeId: NodeId }
+  | { type: 'parameter-popover'; chipId: NodeId }
   | { type: 'context-menu'; position: Vec2; target: ContextTarget }
-  | { type: 'inspect-modal'; nodeId: NodeId }
+  | { type: 'inspect-modal'; chipId: NodeId }
   | { type: 'save-dialog' }
   | { type: 'unsaved-changes' }
   | { type: 'waveform-selector'; slotIndex: number }
-  | { type: 'start-screen' }
+  | { type: 'main-menu' }
   | { type: 'save-puzzle-dialog' }
-  | { type: 'level-select' }
   | { type: 'node-creation-form' };
 
 /** Overlay types that cannot be dismissed by Escape */
-const ESCAPE_IMMUNE = new Set<ActiveOverlay['type']>(['save-dialog', 'unsaved-changes', 'start-screen', 'save-puzzle-dialog']);
+const ESCAPE_IMMUNE = new Set<ActiveOverlay['type']>(['save-dialog', 'unsaved-changes', 'main-menu', 'save-puzzle-dialog']);
 
 export interface OverlaySlice {
   activeOverlay: ActiveOverlay;

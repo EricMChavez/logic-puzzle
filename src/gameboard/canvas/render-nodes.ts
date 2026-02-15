@@ -60,9 +60,9 @@ export function getNodePixelRect(node: NodeState, cellSize: number): PixelRect {
 
 type NodeVisualState = 'default' | 'hover' | 'selected';
 
-function getNodeVisualState(nodeId: string, state: RenderNodesState): NodeVisualState {
-  if (state.selectedNodeId === nodeId) return 'selected';
-  if (state.hoveredNodeId === nodeId) return 'hover';
+function getNodeVisualState(chipId: string, state: RenderNodesState): NodeVisualState {
+  if (state.selectedNodeId === chipId) return 'selected';
+  if (state.hoveredNodeId === chipId) return 'hover';
   return 'default';
 }
 
@@ -110,7 +110,7 @@ export function drawNodes(
   cellSize: number,
 ): void {
   // First pass: draw all node bodies + ports (default, hover states)
-  for (const node of state.nodes.values()) {
+  for (const node of state.chips.values()) {
     if (isConnectionPointNode(node.id)) continue;
     drawNodeBody(ctx, tokens, state, node, cellSize);
     const isLive = state.liveNodeIds.has(node.id);
@@ -119,7 +119,7 @@ export function drawNodes(
 
   // Second pass: draw selection highlight on top of all nodes
   if (state.selectedNodeId) {
-    const selectedNode = state.nodes.get(state.selectedNodeId);
+    const selectedNode = state.chips.get(state.selectedNodeId);
     if (selectedNode && !isConnectionPointNode(selectedNode.id)) {
       drawSelectionHighlight(ctx, tokens, selectedNode, cellSize);
     }
@@ -231,6 +231,9 @@ function drawNodeBody(
     const utilityId = node.type.slice('utility:'.length);
     const entry = state.utilityNodes.get(utilityId);
     if (entry) label = entry.title;
+  } else if (node.type.startsWith('menu:')) {
+    const menuKey = node.type.slice('menu:'.length);
+    label = (node.params.label as string) ?? menuKey;
   }
   label = label.toUpperCase();
 
@@ -285,8 +288,10 @@ function drawNodeBody(
     }
   }
 
-  // --- Portal border for custom nodes (zoom transition target area) ---
-  if (node.type.startsWith('puzzle:') || node.type.startsWith('utility:')) {
+  // --- Portal border for custom/menu nodes (zoom transition target area) ---
+  const isMenuNode = node.type.startsWith('menu:');
+  const showPortal = !isMenuNode || !node.params.locked;
+  if (showPortal && (node.type.startsWith('puzzle:') || node.type.startsWith('utility:') || node.type === 'custom-blank' || isMenuNode)) {
     const TARGET_ASPECT = 16 / 9;
     const targetW = rect.height * TARGET_ASPECT;
     const bodyCenter = rect.x + rect.width / 2;
@@ -310,6 +315,31 @@ function drawNodeBody(
 
   // --- Modified indicator ---
   drawModifiedIndicator(ctx, tokens, state, node, rect);
+
+  // --- Menu node locked overlay ---
+  if (isMenuNode && node.params.locked) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, borderRadius);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    ctx.restore();
+  }
+
+  // --- Menu node completed accent ---
+  if (isMenuNode && node.params.completed) {
+    const checkSize = Math.round(cellSize * 0.5);
+    const checkX = rect.x + rect.width - checkSize - 4;
+    const checkY = rect.y + 4;
+    ctx.save();
+    ctx.fillStyle = '#4ade80';
+    ctx.font = `bold ${checkSize}px ${CARD_BODY_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('\u2713', checkX + checkSize / 2, checkY);
+    ctx.restore();
+  }
 }
 
 function drawModifiedIndicator(

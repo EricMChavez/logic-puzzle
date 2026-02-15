@@ -33,8 +33,8 @@ describe('authoring-slice', () => {
       ],
       activeBoard: {
         id: 'test-board',
-        nodes: new Map(),
-        wires: [],
+        chips: new Map(),
+        paths: [],
       },
     } as any);
 
@@ -49,7 +49,7 @@ describe('authoring-slice', () => {
     useGameStore.setState({
       authoringPhase: 'configuring-start',
       recordedTargetSamples: new Map(),
-      solutionBoardSnapshot: { nodes: new Map(), wires: [] },
+      solutionBoardSnapshot: { chips: new Map(), paths: [] },
     } as any);
 
     useGameStore.getState().beginSaveAsPuzzle();
@@ -65,7 +65,7 @@ describe('authoring-slice', () => {
     useGameStore.setState({
       authoringPhase: 'configuring-start',
       recordedTargetSamples: new Map([[3, [10, 20]]]),
-      solutionBoardSnapshot: { nodes: new Map(), wires: [] },
+      solutionBoardSnapshot: { chips: new Map(), paths: [] },
     } as any);
 
     useGameStore.getState().cancelAuthoring();
@@ -94,24 +94,24 @@ describe('authoring-slice', () => {
       editingUtilityId: null,
       authoringPhase: 'configuring-start',
       recordedTargetSamples: new Map(),
-      solutionBoardSnapshot: { nodes: snapshotNodes, wires: snapshotWires },
-      activeBoard: { id: 'test-board', nodes: new Map(), wires: [] },
+      solutionBoardSnapshot: { chips: snapshotNodes, paths: snapshotWires },
+      activeBoard: { id: 'test-board', chips: new Map(), paths: [] },
     } as any);
 
     useGameStore.getState().resetToSolution();
     const board = useGameStore.getState().activeBoard;
     expect(board).not.toBeNull();
-    expect(board!.nodes.size).toBe(1);
-    expect(board!.nodes.get('n1')?.type).toBe('offset');
+    expect(board!.chips.size).toBe(1);
+    expect(board!.chips.get('n1')?.type).toBe('offset');
   });
 
   it('resetToSolution does nothing outside configuring-start', () => {
     useGameStore.setState({
       authoringPhase: 'idle',
-      activeBoard: { id: 'test-board', nodes: new Map(), wires: [] },
+      activeBoard: { id: 'test-board', chips: new Map(), paths: [] },
     } as any);
 
     useGameStore.getState().resetToSolution();
-    expect(useGameStore.getState().activeBoard!.nodes.size).toBe(0);
+    expect(useGameStore.getState().activeBoard!.chips.size).toBe(0);
   });
 });

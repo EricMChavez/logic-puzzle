@@ -171,17 +171,17 @@ export const createPaletteSlice: StateCreator<GameStore, [], [], PaletteSlice> =
 /** Remove all nodes of the given type from a board, plus any wires connected to them. */
 function removeNodesFromBoard(board: GameboardState, nodeType: string): GameboardState | null {
   const removedIds = new Set<string>();
-  for (const [id, node] of board.nodes) {
+  for (const [id, node] of board.chips) {
     if (node.type === nodeType) removedIds.add(id);
   }
   if (removedIds.size === 0) return null;
 
-  const nodes = new Map(board.nodes);
+  const nodes = new Map(board.chips);
   for (const id of removedIds) nodes.delete(id);
 
-  const wires = board.wires.filter(
-    (w) => !removedIds.has(w.source.nodeId) && !removedIds.has(w.target.nodeId),
+  const paths = board.paths.filter(
+    (w) => !removedIds.has(w.source.chipId) && !removedIds.has(w.target.chipId),
   );
 
-  return { ...board, nodes, wires };
+  return { ...board, chips: nodes, paths };
 }

@@ -38,7 +38,7 @@ function createTestStore() {
 }
 
 function makeBoard(id: string): GameboardState {
-  return { id, nodes: new Map(), wires: [] };
+  return { id, chips: new Map(), paths: [] };
 }
 
 function makeNode(id: string): NodeState {
@@ -46,7 +46,7 @@ function makeNode(id: string): NodeState {
 }
 
 function makeWire(id: string): Wire {
-  return createWire(id, { nodeId: 'n1', portIndex: 0, side: 'output' }, { nodeId: 'n2', portIndex: 0, side: 'input' });
+  return createWire(id, { chipId: 'n1', portIndex: 0, side: 'output' }, { chipId: 'n2', portIndex: 0, side: 'input' });
 }
 
 describe('history-slice', () => {
@@ -67,7 +67,7 @@ describe('history-slice', () => {
 
       store.getState().addNode(makeNode('n1'));
       expect(store.getState().undoStack.length).toBe(1);
-      expect(store.getState().undoStack[0].board.nodes.size).toBe(0); // snapshot of BEFORE the add
+      expect(store.getState().undoStack[0].board.chips.size).toBe(0); // snapshot of BEFORE the add
     });
 
     it('pushes snapshot when wire is added', () => {
@@ -105,7 +105,7 @@ describe('history-slice', () => {
 
       store.getState().removeNode('n1');
       expect(store.getState().undoStack.length).toBe(afterAdd + 1);
-      expect(store.getState().activeBoard!.nodes.size).toBe(0);
+      expect(store.getState().activeBoard!.chips.size).toBe(0);
     });
 
     it('pushes snapshot when wire is removed', () => {
@@ -120,7 +120,7 @@ describe('history-slice', () => {
 
       store.getState().removeWire('w1');
       expect(store.getState().undoStack.length).toBe(afterWire + 1);
-      expect(store.getState().activeBoard!.wires.length).toBe(0);
+      expect(store.getState().activeBoard!.paths.length).toBe(0);
     });
 
     it('pushes snapshot when port constant is set', () => {
@@ -154,10 +154,10 @@ describe('history-slice', () => {
       store.getState().clearHistory();
 
       store.getState().addNode(makeNode('n1'));
-      expect(store.getState().activeBoard!.nodes.size).toBe(1);
+      expect(store.getState().activeBoard!.chips.size).toBe(1);
 
       store.getState().undo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(0);
+      expect(store.getState().activeBoard!.chips.size).toBe(0);
     });
 
     it('moves current state to redo stack', () => {
@@ -169,7 +169,7 @@ describe('history-slice', () => {
       store.getState().undo();
 
       expect(store.getState().redoStack.length).toBe(1);
-      expect(store.getState().redoStack[0].board.nodes.size).toBe(1);
+      expect(store.getState().redoStack[0].board.chips.size).toBe(1);
     });
 
     it('is a no-op when undo stack is empty', () => {
@@ -214,14 +214,14 @@ describe('history-slice', () => {
       store.getState().addNode(makeNode('n1'));
       store.getState().addNode(makeNode('n2'));
       store.getState().addNode(makeNode('n3'));
-      expect(store.getState().activeBoard!.nodes.size).toBe(3);
+      expect(store.getState().activeBoard!.chips.size).toBe(3);
 
       store.getState().undo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(2);
+      expect(store.getState().activeBoard!.chips.size).toBe(2);
       store.getState().undo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(1);
+      expect(store.getState().activeBoard!.chips.size).toBe(1);
       store.getState().undo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(0);
+      expect(store.getState().activeBoard!.chips.size).toBe(0);
     });
   });
 
@@ -233,10 +233,10 @@ describe('history-slice', () => {
 
       store.getState().addNode(makeNode('n1'));
       store.getState().undo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(0);
+      expect(store.getState().activeBoard!.chips.size).toBe(0);
 
       store.getState().redo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(1);
+      expect(store.getState().activeBoard!.chips.size).toBe(1);
     });
 
     it('is a no-op when redo stack is empty', () => {
@@ -256,11 +256,11 @@ describe('history-slice', () => {
 
       store.getState().addNode(makeNode('n1'));
       store.getState().addNode(makeNode('n2'));
-      const stateAfterEdits = store.getState().activeBoard!.nodes.size;
+      const stateAfterEdits = store.getState().activeBoard!.chips.size;
 
       store.getState().undo();
       store.getState().redo();
-      expect(store.getState().activeBoard!.nodes.size).toBe(stateAfterEdits);
+      expect(store.getState().activeBoard!.chips.size).toBe(stateAfterEdits);
     });
   });
 
@@ -277,8 +277,8 @@ describe('history-slice', () => {
       expect(store.getState().undoStack.length).toBe(50);
       // Oldest snapshot (0 nodes) should be evicted; newest retained
       // The 11th edit (index 10) left a snapshot with 10 nodes — that's the oldest kept
-      expect(store.getState().undoStack[0].board.nodes.size).toBe(10);
-      expect(store.getState().undoStack[49].board.nodes.size).toBe(59);
+      expect(store.getState().undoStack[0].board.chips.size).toBe(10);
+      expect(store.getState().undoStack[49].board.chips.size).toBe(59);
     });
   });
 

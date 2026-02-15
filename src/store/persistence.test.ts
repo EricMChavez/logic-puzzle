@@ -37,15 +37,15 @@ function makePuzzleEntry(id: string): PuzzleNodeEntry {
 
 function makeBoard(id: string): GameboardState {
   const wire = createWire('w1',
-    { nodeId: 'cp-in-0', portIndex: 0, side: 'output' },
-    { nodeId: 'node-1', portIndex: 0, side: 'input' },
+    { chipId: 'cp-in-0', portIndex: 0, side: 'output' },
+    { chipId: 'node-1', portIndex: 0, side: 'input' },
   );
   return {
     id,
-    nodes: new Map([
+    chips: new Map([
       ['node-1', { id: 'node-1', type: 'invert', position: { col: 10, row: 20 }, params: {}, inputCount: 1, outputCount: 1 }],
     ]),
-    wires: [wire],
+    paths: [wire],
   };
 }
 
@@ -98,10 +98,10 @@ describe('gameboard serialization', () => {
     const deserialized = deserializeGameboard(serialized);
 
     expect(deserialized.id).toBe('test-board');
-    expect(deserialized.nodes).toBeInstanceOf(Map);
-    expect(deserialized.nodes.size).toBe(1);
-    expect(deserialized.nodes.get('node-1')!.type).toBe('invert');
-    expect(deserialized.nodes.get('node-1')!.position).toEqual({ col: 10, row: 20 });
+    expect(deserialized.chips).toBeInstanceOf(Map);
+    expect(deserialized.chips.size).toBe(1);
+    expect(deserialized.chips.get('node-1')!.type).toBe('invert');
+    expect(deserialized.chips.get('node-1')!.position).toEqual({ col: 10, row: 20 });
   });
 
   it('preserves wire structure', () => {
@@ -109,9 +109,9 @@ describe('gameboard serialization', () => {
     const serialized = serializeGameboard(board);
     const deserialized = deserializeGameboard(serialized);
 
-    expect(deserialized.wires.length).toBe(1);
-    expect(deserialized.wires[0].source.nodeId).toBe('cp-in-0');
-    expect(deserialized.wires[0].target.nodeId).toBe('node-1');
+    expect(deserialized.paths.length).toBe(1);
+    expect(deserialized.paths[0].source.chipId).toBe('cp-in-0');
+    expect(deserialized.paths[0].target.chipId).toBe('node-1');
   });
 });
 
@@ -120,7 +120,7 @@ describe('state serialization', () => {
     const state = makeState();
     const serialized = serializeState(state);
 
-    expect(serialized.version).toBe(1);
+    expect(serialized.version).toBe(2);
     expect(Array.isArray(serialized.completedLevels)).toBe(true);
     expect(serialized.completedLevels).toContain('level-01');
     expect(serialized.completedLevels).toContain('level-02');
@@ -136,8 +136,8 @@ describe('state serialization', () => {
     const serialized = serializeState(state);
     const utilEntry = serialized.utilityNodes[0][1];
 
-    expect(Array.isArray(utilEntry.board.nodes)).toBe(true);
-    expect(utilEntry.board.nodes.length).toBe(1);
+    expect(Array.isArray(utilEntry.board.chips)).toBe(true);
+    expect(utilEntry.board.chips.length).toBe(1);
   });
 
   it('roundtrip preserves all fields', () => {
@@ -159,8 +159,8 @@ describe('state serialization', () => {
     expect(deserialized!.utilityNodes).toBeInstanceOf(Map);
     expect(deserialized!.utilityNodes.size).toBe(1);
     const util = deserialized!.utilityNodes.get('util-1')!;
-    expect(util.board.nodes).toBeInstanceOf(Map);
-    expect(util.board.nodes.size).toBe(1);
+    expect(util.board.chips).toBeInstanceOf(Map);
+    expect(util.board.chips.size).toBe(1);
   });
 
   it('roundtrip preserves BakeMetadata', () => {
@@ -196,7 +196,7 @@ describe('deserializeState error handling', () => {
 
   it('falls back to defaults when field types are wrong', () => {
     const data = JSON.stringify({
-      version: 1,
+      version: 2,
       completedLevels: 'not-an-array',
       currentLevelIndex: 'five',
       puzzleNodes: 42,
@@ -210,7 +210,17 @@ describe('deserializeState error handling', () => {
     expect(result!.utilityNodes.size).toBe(0);
   });
 
-  it('handles missing fields gracefully', () => {
+  it('handles missing fields gracefully (v2)', () => {
+    const partial = JSON.stringify({ version: 2 });
+    const result = deserializeState(partial);
+    expect(result).not.toBeNull();
+    expect(result!.completedLevels.size).toBe(0);
+    expect(result!.currentLevelIndex).toBe(0);
+    expect(result!.puzzleNodes.size).toBe(0);
+    expect(result!.utilityNodes.size).toBe(0);
+  });
+
+  it('handles missing fields gracefully (v1 migration)', () => {
     const partial = JSON.stringify({ version: 1 });
     const result = deserializeState(partial);
     expect(result).not.toBeNull();
@@ -218,6 +228,85 @@ describe('deserializeState error handling', () => {
     expect(result!.currentLevelIndex).toBe(0);
     expect(result!.puzzleNodes.size).toBe(0);
     expect(result!.utilityNodes.size).toBe(0);
+  });
+});
+
+describe('v1 → v2 migration', () => {
+  it('migrates v1 data with old field names (nodes, wires, nodeId, path)', () => {
+    const v1Data = JSON.stringify({
+      version: 1,
+      completedLevels: ['level-01'],
+      currentLevelIndex: 1,
+      puzzleNodes: [['level-01', makePuzzleEntry('level-01')]],
+      utilityNodes: [['util-1', {
+        utilityId: 'util-1',
+        title: 'Utility util-1',
+        inputCount: 1,
+        outputCount: 1,
+        bakeMetadata: fakeMeta,
+        board: {
+          id: 'board-util-1',
+          nodes: [['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 5 }, params: {}, inputCount: 1, outputCount: 1 }]],
+          wires: [{
+            id: 'w1',
+            source: { nodeId: 'cp-in-0', portIndex: 0, side: 'output' },
+            target: { nodeId: 'n1', portIndex: 0, side: 'input' },
+            path: [{ col: 5, row: 5 }, { col: 10, row: 5 }],
+          }],
+        },
+        versionHash: 'uhash-util-1',
+      }]],
+    });
+
+    const result = deserializeState(v1Data);
+    expect(result).not.toBeNull();
+    expect(result!.completedLevels.has('level-01')).toBe(true);
+    expect(result!.currentLevelIndex).toBe(1);
+
+    // Utility board should have migrated field names
+    const util = result!.utilityNodes.get('util-1')!;
+    expect(util.board.chips).toBeInstanceOf(Map);
+    expect(util.board.chips.size).toBe(1);
+    expect(util.board.chips.get('n1')!.type).toBe('offset');
+
+    // Wire should have chipId (not nodeId) and route (not path)
+    expect(util.board.paths.length).toBe(1);
+    expect(util.board.paths[0].source.chipId).toBe('cp-in-0');
+    expect(util.board.paths[0].target.chipId).toBe('n1');
+    expect(util.board.paths[0].route).toEqual([{ col: 5, row: 5 }, { col: 10, row: 5 }]);
+  });
+
+  it('migrates v1 data using chips/paths if already renamed', () => {
+    const v1Data = JSON.stringify({
+      version: 1,
+      completedLevels: [],
+      currentLevelIndex: 0,
+      puzzleNodes: [],
+      utilityNodes: [['u1', {
+        utilityId: 'u1',
+        title: 'Test',
+        inputCount: 1,
+        outputCount: 1,
+        bakeMetadata: fakeMeta,
+        board: {
+          id: 'b1',
+          chips: [['n1', { id: 'n1', type: 'scale', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }]],
+          paths: [{
+            id: 'w1',
+            source: { chipId: 'cp-in-0', portIndex: 0, side: 'output' },
+            target: { chipId: 'n1', portIndex: 0, side: 'input' },
+            route: [],
+          }],
+        },
+        versionHash: 'h1',
+      }]],
+    });
+
+    const result = deserializeState(v1Data);
+    expect(result).not.toBeNull();
+    const util = result!.utilityNodes.get('u1')!;
+    expect(util.board.chips.get('n1')!.type).toBe('scale');
+    expect(util.board.paths[0].source.chipId).toBe('cp-in-0');
   });
 });
 

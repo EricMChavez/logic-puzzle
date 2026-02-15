@@ -31,7 +31,7 @@ describe('creative-slice', () => {
 
     it('saves creative slots state on exit (for persistence)', () => {
       useGameStore.getState().enterCreativeMode();
-      useGameStore.getState().setActiveBoard({ id: 'creative-mode', nodes: new Map(), wires: [] });
+      useGameStore.getState().setActiveBoard({ id: 'creative-mode', chips: new Map(), paths: [] });
       useGameStore.getState().setCreativeSlotDirection(0, 'output');
       useGameStore.getState().setCreativeSlotWaveformShape(0, 'square-quarter');
 
@@ -178,7 +178,7 @@ describe('creative-slice', () => {
     it('exitCreativeMode saves current state', () => {
       const store = useGameStore.getState();
       store.enterCreativeMode();
-      store.setActiveBoard({ id: 'creative-mode', nodes: new Map(), wires: [] });
+      store.setActiveBoard({ id: 'creative-mode', chips: new Map(), paths: [] });
       store.setCreativeSlotWaveformShape(0, 'square-quarter');
 
       store.exitCreativeMode();
@@ -192,7 +192,7 @@ describe('creative-slice', () => {
     it('enterCreativeMode restores saved slots', () => {
       const store = useGameStore.getState();
       store.enterCreativeMode();
-      store.setActiveBoard({ id: 'creative-mode', nodes: new Map(), wires: [] });
+      store.setActiveBoard({ id: 'creative-mode', chips: new Map(), paths: [] });
       store.setCreativeSlotWaveformShape(1, 'triangle-half');
       store.exitCreativeMode();
 
@@ -205,7 +205,7 @@ describe('creative-slice', () => {
     it('clearSavedCreativeState resets to defaults', () => {
       const store = useGameStore.getState();
       store.enterCreativeMode();
-      store.setActiveBoard({ id: 'creative-mode', nodes: new Map(), wires: [] });
+      store.setActiveBoard({ id: 'creative-mode', chips: new Map(), paths: [] });
       store.setCreativeSlotWaveformShape(0, 'square-quarter');
       store.exitCreativeMode();
       expect(useGameStore.getState().savedCreativeState).not.toBeNull();

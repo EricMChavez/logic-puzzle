@@ -10,8 +10,8 @@ let clearTimer: ReturnType<typeof setTimeout> | null = null;
 const FLASH_DURATION_MS = 400;
 
 /** Mark a knob as rejected (wired knob was clicked). Auto-clears after FLASH_DURATION_MS. */
-export function rejectKnob(nodeId: string): void {
-  rejectedNodeId = nodeId;
+export function rejectKnob(chipId: string): void {
+  rejectedNodeId = chipId;
   if (clearTimer !== null) clearTimeout(clearTimer);
   clearTimer = setTimeout(() => {
     rejectedNodeId = null;

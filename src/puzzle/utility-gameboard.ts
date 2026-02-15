@@ -26,7 +26,7 @@ export function createUtilityGameboard(
 
   return {
     id: `utility-${utilityId}`,
-    nodes,
-    wires: [],
+    chips: nodes,
+    paths: [],
   };
 }

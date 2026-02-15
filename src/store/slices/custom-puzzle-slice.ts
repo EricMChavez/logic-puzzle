@@ -32,8 +32,8 @@ export interface CustomPuzzle {
   }>;
   /** Initial wires (serialized) */
   initialWires: Array<{
-    source: { nodeId: string; portIndex: number };
-    target: { nodeId: string; portIndex: number };
+    source: { chipId: string; portIndex: number };
+    target: { chipId: string; portIndex: number };
   }>;
   /** Node type budgets. null = all unlimited. Record maps type → max count (-1 = unlimited). */
   allowedNodes: AllowedNodes;
@@ -147,21 +147,21 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
     }
 
     // Build initial wires from puzzle definition
-    const wires: Wire[] = [];
+    const paths: Wire[] = [];
     for (const wireDef of puzzle.initialWires) {
-      const wireId = `wire-${wireDef.source.nodeId}-${wireDef.source.portIndex}-${wireDef.target.nodeId}-${wireDef.target.portIndex}`;
-      wires.push(createWire(
+      const wireId = `wire-${wireDef.source.chipId}-${wireDef.source.portIndex}-${wireDef.target.chipId}-${wireDef.target.portIndex}`;
+      paths.push(createWire(
         wireId,
-        { nodeId: wireDef.source.nodeId, portIndex: wireDef.source.portIndex, side: 'output' },
-        { nodeId: wireDef.target.nodeId, portIndex: wireDef.target.portIndex, side: 'input' },
+        { chipId: wireDef.source.chipId, portIndex: wireDef.source.portIndex, side: 'output' },
+        { chipId: wireDef.target.chipId, portIndex: wireDef.target.portIndex, side: 'input' },
       ));
     }
 
     // Create gameboard
     const board: GameboardState = {
       id: `custom-puzzle-${puzzle.id}`,
-      nodes,
-      wires,
+      chips: nodes,
+      paths,
     };
 
     // Build test case with inputs (from slot waveforms) and expected outputs (from samples)

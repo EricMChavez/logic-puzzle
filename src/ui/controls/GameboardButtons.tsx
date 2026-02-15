@@ -38,7 +38,6 @@ export function GameboardButtons() {
   return (
     <div className={styles.container}>
       <BackButton
-        isCreativeMode={isCreativeMode}
         navigationDepth={navigationDepth}
         editingUtilityId={editingUtilityId}
         activeBoardReadOnly={activeBoardReadOnly}
@@ -58,13 +57,11 @@ export function GameboardButtons() {
 }
 
 function BackButton({
-  isCreativeMode,
   navigationDepth,
   editingUtilityId,
   activeBoardReadOnly,
   ceremonyType,
 }: {
-  isCreativeMode: boolean;
   navigationDepth: number;
   editingUtilityId: string | null;
   activeBoardReadOnly: boolean;
@@ -80,7 +77,7 @@ function BackButton({
       if (store.zoomTransitionState.type !== 'idle') return;
       const entry = store.boardStack[store.boardStack.length - 1];
       if (entry?.zoomedCrop) {
-        const parentNode = entry.board.nodes.get(entry.nodeIdInParent);
+        const parentNode = entry.board.chips.get(entry.chipIdInParent);
         let targetRect;
         if (parentNode) {
           const { cols, rows } = getNodeGridSize(parentNode);
@@ -99,7 +96,7 @@ function BackButton({
       if (snapshot) {
         const lastEntry = store.boardStack[store.boardStack.length - 1];
         if (lastEntry) {
-          const parentNode = lastEntry.board.nodes.get(lastEntry.nodeIdInParent);
+          const parentNode = lastEntry.board.chips.get(lastEntry.chipIdInParent);
           if (parentNode) {
             const { cols, rows } = getNodeGridSize(parentNode);
             const targetRect = { col: parentNode.position.col, row: parentNode.position.row, cols, rows };
@@ -108,11 +105,15 @@ function BackButton({
         }
       }
       store.zoomOut();
-    } else if (isCreativeMode) {
-      store.openOverlay({ type: 'start-screen' });
     } else {
-      store.openOverlay({ type: 'level-select' });
+      // At motherboard level — no back button action (Escape handles menu)
+      return;
     }
+  }
+
+  // Only show back button when inside a puzzle/utility (not at motherboard level)
+  if (ceremonyType !== 'it-works' && editingUtilityId === null && !(navigationDepth > 0)) {
+    return null;
   }
 
   let label: string;
@@ -120,12 +121,8 @@ function BackButton({
     label = 'Dismiss';
   } else if (editingUtilityId !== null) {
     label = 'Back';
-  } else if (navigationDepth > 0 && activeBoardReadOnly) {
-    label = 'Back';
-  } else if (isCreativeMode) {
-    label = 'Menu';
   } else {
-    label = 'Levels';
+    label = 'Back';
   }
 
   return (

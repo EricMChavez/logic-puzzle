@@ -10,14 +10,14 @@ export function PortConstantInput() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const currentKey = editingPort ? `${editingPort.nodeId}:${editingPort.portIndex}` : '';
+  const currentKey = editingPort ? `${editingPort.chipId}:${editingPort.portIndex}` : '';
   const currentValue = editingPort ? (portConstants.get(currentKey) ?? 0) : 0;
   const [localValue, setLocalValue] = useState(String(currentValue));
 
   // Sync local value when editing port changes
   useEffect(() => {
     if (editingPort) {
-      const key = `${editingPort.nodeId}:${editingPort.portIndex}`;
+      const key = `${editingPort.chipId}:${editingPort.portIndex}`;
       setLocalValue(String(portConstants.get(key) ?? 0));
       // Focus the input after render
       requestAnimationFrame(() => inputRef.current?.select());
@@ -31,7 +31,7 @@ export function PortConstantInput() {
     const num = Number(localValue);
     if (!Number.isNaN(num)) {
       const clamped = Math.max(-100, Math.min(100, Math.round(num)));
-      setPortConstant(editingPort.nodeId, editingPort.portIndex, clamped);
+      setPortConstant(editingPort.chipId, editingPort.portIndex, clamped);
     }
     stopEditingPort();
   }

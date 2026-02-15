@@ -23,28 +23,28 @@ export interface TopologicalResult {
  * Disconnected nodes (no edges) are included in the output.
  */
 export function topologicalSort(
-  nodeIds: NodeId[],
+  chipIds: NodeId[],
   wires: Wire[],
 ): Result<NodeId[], CycleError> {
   // Build adjacency list and in-degree map
   const inDegree = new Map<NodeId, number>();
   const adjacency = new Map<NodeId, NodeId[]>();
 
-  for (const id of nodeIds) {
+  for (const id of chipIds) {
     inDegree.set(id, 0);
     adjacency.set(id, []);
   }
 
   for (const wire of wires) {
-    const from = wire.source.nodeId;
-    const to = wire.target.nodeId;
+    const from = wire.source.chipId;
+    const to = wire.target.chipId;
     adjacency.get(from)!.push(to);
     inDegree.set(to, (inDegree.get(to) ?? 0) + 1);
   }
 
   // Seed queue with nodes that have zero in-degree
   const queue: NodeId[] = [];
-  for (const id of nodeIds) {
+  for (const id of chipIds) {
     if (inDegree.get(id) === 0) {
       queue.push(id);
     }
@@ -66,8 +66,8 @@ export function topologicalSort(
   }
 
   // If not all nodes were processed, a cycle exists
-  if (sorted.length !== nodeIds.length) {
-    const cyclePath = findCycle(nodeIds, wires, sorted);
+  if (sorted.length !== chipIds.length) {
+    const cyclePath = findCycle(chipIds, wires, sorted);
     return err({
       message: `Cycle detected: ${cyclePath.join(' → ')}`,
       cyclePath,
@@ -85,29 +85,29 @@ export function topologicalSort(
  * Nodes with no predecessors have depth 0.
  */
 export function topologicalSortWithDepths(
-  nodeIds: NodeId[],
+  chipIds: NodeId[],
   wires: Wire[],
 ): Result<TopologicalResult, CycleError> {
-  const sortResult = topologicalSort(nodeIds, wires);
+  const sortResult = topologicalSort(chipIds, wires);
   if (!sortResult.ok) return sortResult;
 
   const order = sortResult.value;
 
   // Build reverse adjacency: for each node, which nodes feed into it
   const predecessors = new Map<NodeId, NodeId[]>();
-  for (const id of nodeIds) {
+  for (const id of chipIds) {
     predecessors.set(id, []);
   }
   for (const wire of wires) {
-    predecessors.get(wire.target.nodeId)!.push(wire.source.nodeId);
+    predecessors.get(wire.target.chipId)!.push(wire.source.chipId);
   }
 
   // Compute depths in topological order (predecessors already processed)
   const depths = new Map<NodeId, number>();
   let maxDepth = 0;
 
-  for (const nodeId of order) {
-    const preds = predecessors.get(nodeId)!;
+  for (const chipId of order) {
+    const preds = predecessors.get(chipId)!;
     let depth = 0;
     for (const pred of preds) {
       const predDepth = depths.get(pred);
@@ -115,7 +115,7 @@ export function topologicalSortWithDepths(
         depth = predDepth + 1;
       }
     }
-    depths.set(nodeId, depth);
+    depths.set(chipId, depth);
     if (depth > maxDepth) maxDepth = depth;
   }
 
@@ -126,12 +126,12 @@ export function topologicalSortWithDepths(
  * Find one cycle among the unprocessed nodes using DFS.
  */
 function findCycle(
-  nodeIds: NodeId[],
+  chipIds: NodeId[],
   wires: Wire[],
   processed: NodeId[],
 ): NodeId[] {
   const processedSet = new Set(processed);
-  const remaining = nodeIds.filter((id) => !processedSet.has(id));
+  const remaining = chipIds.filter((id) => !processedSet.has(id));
 
   // Build adjacency restricted to remaining nodes
   const adjacency = new Map<NodeId, NodeId[]>();
@@ -140,8 +140,8 @@ function findCycle(
     adjacency.set(id, []);
   }
   for (const wire of wires) {
-    if (remainingSet.has(wire.source.nodeId) && remainingSet.has(wire.target.nodeId)) {
-      adjacency.get(wire.source.nodeId)!.push(wire.target.nodeId);
+    if (remainingSet.has(wire.source.chipId) && remainingSet.has(wire.target.chipId)) {
+      adjacency.get(wire.source.chipId)!.push(wire.target.chipId);
     }
   }
 

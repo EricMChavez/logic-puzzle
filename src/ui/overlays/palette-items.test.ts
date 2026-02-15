@@ -10,7 +10,7 @@ function makeUtilityEntry(utilityId: string, title: string): UtilityNodeEntry {
     inputCount: 1,
     outputCount: 1,
     bakeMetadata: { topoOrder: [], nodeConfigs: [], edges: [], inputCount: 1, outputCount: 1 },
-    board: { id: utilityId, nodes: new Map(), wires: [] },
+    board: { id: utilityId, chips: new Map(), paths: [] },
     versionHash: 'v1',
   };
 }

@@ -244,8 +244,8 @@ export interface InitialNodeDef {
 
 /** Serialized wire for initial puzzle state */
 export interface InitialWireDef {
-  source: { nodeId: string; portIndex: number };
-  target: { nodeId: string; portIndex: number };
+  source: { chipId: string; portIndex: number };
+  target: { chipId: string; portIndex: number };
 }
 
 /** Complete definition of a puzzle level */

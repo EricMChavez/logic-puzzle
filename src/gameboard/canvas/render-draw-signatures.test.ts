@@ -100,18 +100,18 @@ describe('Draw function contracts', () => {
       expect(content).toMatch(/buildMeterTargetArrays/);
     });
 
-    it('calls useGameStore.getState() exactly once', () => {
+    it('calls useGameStore.getState() exactly once per render frame (plus crop capture closure)', () => {
       const content = readCanvasFile('render-loop.ts');
       const matches = content.match(/useGameStore\.getState\(\)/g);
-      expect(matches).toHaveLength(1);
+      // 1 in render(), 1 in registerCropCapture closure (called on-demand, not per-frame)
+      expect(matches).toHaveLength(2);
     });
 
-    it('calls getThemeTokens() exactly once in the render function', () => {
+    it('calls getThemeTokens() exactly once per render frame (plus crop capture closure)', () => {
       const content = readCanvasFile('render-loop.ts');
-      const matches = content.match(/getThemeTokens\(\)/g);
-      // One in import (no parens), one call in render
+      // One in render(), one in registerCropCapture closure (called on-demand, not per-frame)
       const callMatches = content.match(/= getThemeTokens\(\)/g);
-      expect(callMatches).toHaveLength(1);
+      expect(callMatches).toHaveLength(2);
     });
   });
 });

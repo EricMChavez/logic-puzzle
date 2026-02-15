@@ -29,7 +29,7 @@ function SavePuzzleDialogInner() {
   const tutorialMessageDraft = useGameStore((s) => s.tutorialMessageDraft);
   const setTutorialMessageDraft = useGameStore((s) => s.setTutorialMessageDraft);
 
-  // Build list of all fundamental node types (including "Custom" for user-created nodes)
+  // Build list of all fundamental chip types (including "Custom" for user-created chips)
   const allNodeTypes = useMemo(() => {
     const types: Array<{ type: string; label: string }> = [];
     for (const def of nodeRegistry.all) {
@@ -51,7 +51,7 @@ function SavePuzzleDialogInner() {
   // Non-CP board nodes = starting nodes (auto-captured from current board state)
   const startingNodes = useMemo(() => {
     if (!activeBoard) return [];
-    return Array.from(activeBoard.nodes.values())
+    return Array.from(activeBoard.chips.values())
       .filter((node) => !isCreativeSlotNode(node.id));
   }, [activeBoard]);
 
@@ -102,7 +102,7 @@ function SavePuzzleDialogInner() {
     for (const [type, count] of startingNodeCounts) {
       const budget = quantities[type];
       if (budget !== undefined && budget !== -1 && budget < count) {
-        errors.push(`${getNodeLabel(type)}: budget ${budget} < ${count} starting nodes`);
+        errors.push(`${getNodeLabel(type)}: budget ${budget} < ${count} starting chips`);
       }
     }
     return errors;
@@ -164,20 +164,20 @@ function SavePuzzleDialogInner() {
 
     // Capture wires, remapping creative-slot CP IDs to standard CP IDs
     const startingNodeIds = new Set(startingNodes.map(n => n.id));
-    const initialWires: CustomPuzzle['initialWires'] = activeBoard.wires
+    const initialWires: CustomPuzzle['initialWires'] = activeBoard.paths
       .filter(w => {
         // Include wires where both endpoints are starting nodes or CP nodes
-        const sourceOk = startingNodeIds.has(w.source.nodeId) || creativeToLoadedId.has(w.source.nodeId);
-        const targetOk = startingNodeIds.has(w.target.nodeId) || creativeToLoadedId.has(w.target.nodeId);
+        const sourceOk = startingNodeIds.has(w.source.chipId) || creativeToLoadedId.has(w.source.chipId);
+        const targetOk = startingNodeIds.has(w.target.chipId) || creativeToLoadedId.has(w.target.chipId);
         return sourceOk && targetOk;
       })
       .map(w => ({
         source: {
-          nodeId: creativeToLoadedId.get(w.source.nodeId) ?? w.source.nodeId,
+          chipId: creativeToLoadedId.get(w.source.chipId) ?? w.source.chipId,
           portIndex: w.source.portIndex,
         },
         target: {
-          nodeId: creativeToLoadedId.get(w.target.nodeId) ?? w.target.nodeId,
+          chipId: creativeToLoadedId.get(w.target.chipId) ?? w.target.chipId,
           portIndex: w.target.portIndex,
         },
       }));
@@ -337,7 +337,7 @@ function SavePuzzleDialogInner() {
                 </span>
               </div>
               <div className={styles.summaryItem}>
-                <span className={styles.summaryLabel}>Starting nodes:</span>
+                <span className={styles.summaryLabel}>Starting chips:</span>
                 <span className={styles.summaryValue}>{startingNodes.length}</span>
               </div>
             </div>
@@ -345,7 +345,7 @@ function SavePuzzleDialogInner() {
 
           {alreadySolved && (
             <div className={styles.warning}>
-              Starting configuration already solves the puzzle. Remove some nodes/wires first.
+              Starting configuration already solves the puzzle. Remove some chips/paths first.
             </div>
           )}
 
@@ -357,7 +357,7 @@ function SavePuzzleDialogInner() {
 
           <div className={styles.checkboxSection}>
             <h3 className={styles.summaryTitle}>
-              Node Budgets
+              Chip Budgets
               <button type="button" className={styles.toggleAllButton} onClick={setAllUnlimited}>
                 All Unlimited
               </button>

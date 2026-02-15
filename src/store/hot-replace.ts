@@ -31,7 +31,7 @@ function patchNode(node: NodeState, patch: HotReplacePatch): NodeState {
 function patchBoard(board: GameboardState, nodeType: string, patch: HotReplacePatch): GameboardState | null {
   let changed = false;
   const nodes = new Map<string, NodeState>();
-  for (const [id, node] of board.nodes) {
+  for (const [id, node] of board.chips) {
     if (node.type === nodeType) {
       nodes.set(id, patchNode(node, patch));
       changed = true;
@@ -40,7 +40,7 @@ function patchBoard(board: GameboardState, nodeType: string, patch: HotReplacePa
     }
   }
   if (!changed) return null;
-  return { ...board, nodes };
+  return { ...board, chips: nodes };
 }
 
 /**

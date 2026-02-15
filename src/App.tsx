@@ -3,12 +3,13 @@ import { GameboardCanvas } from './gameboard/canvas/index.ts'
 import { SimulationControls } from './ui/controls/SimulationControls.tsx'
 import { GameboardButtons } from './ui/controls/GameboardButtons.tsx'
 import { CompletionCeremony } from './ui/puzzle/CompletionCeremony.tsx'
-import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, LevelSelectOverlay, SavePuzzleDialog, NodeCreationForm, SaveCancelDialog } from './ui/overlays/index.ts'
+import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, SavePuzzleDialog, NodeCreationForm, SaveCancelDialog } from './ui/overlays/index.ts'
 import { PortConstantInput } from './ui/controls/PortConstantInput.tsx'
 import { useGameStore } from './store/index.ts'
 import type { GameboardState } from './shared/types/index.ts'
-import { StartScreen } from './ui/screens/index.ts'
+import { MainMenu } from './ui/screens/index.ts'
 import { DevTools } from './dev/index.ts'
+import { createMotherboard } from './store/motherboard.ts'
 
 /** Compute 16:9-fitting container dimensions from the window size. */
 function useContainerSize() {
@@ -35,7 +36,7 @@ function useContainerSize() {
 
 /** Create an empty creative mode gameboard (slot nodes added when user configures CPs) */
 function createCreativeGameboard(): GameboardState {
-  return { id: 'creative-mode', nodes: new Map(), wires: [] };
+  return { id: 'creative-mode', chips: new Map(), paths: [] };
 }
 
 /** Initialize creative mode gameboard and meters. If saved state exists, restore it. */
@@ -75,11 +76,10 @@ function App() {
   useEffect(() => {
     const store = useGameStore.getState();
 
-    // On first load, show start screen
+    // On first load, show motherboard with menu nodes + main menu overlay
     if (!store.activeBoard) {
-      // Initialize a dormant creative mode board in the background
-      store.enterCreativeMode();
-      store.setActiveBoard(createCreativeGameboard());
+      const motherboard = createMotherboard(store.completedLevels, store.isLevelUnlocked, store.customPuzzles);
+      store.setActiveBoard(motherboard);
       store.initializeMeters([
         { active: false, direction: 'input' },
         { active: false, direction: 'input' },
@@ -88,9 +88,10 @@ function App() {
         { active: false, direction: 'output' },
         { active: false, direction: 'output' },
       ], 'off');
-
-      // Show start screen overlay
-      store.openOverlay({ type: 'start-screen' });
+      // Motherboard is read-only (no editing, just clicking)
+      useGameStore.setState({ activeBoardReadOnly: true });
+      // Show main menu on startup
+      store.openOverlay({ type: 'main-menu' });
     }
   }, [])
 
@@ -121,13 +122,12 @@ function App() {
         <ParameterPopover />
         <ContextMenu />
         <WaveformSelectorOverlay />
-        <LevelSelectOverlay />
         <SavePuzzleDialog />
         <SaveCancelDialog />
         <NodeCreationForm />
-        <StartScreen />
+        <MainMenu />
         <CompletionCeremony />
-        {/* {import.meta.env.DEV && <DevTools />} */}
+        {import.meta.env.DEV && <DevTools />}
       </div>
     </div>
   )

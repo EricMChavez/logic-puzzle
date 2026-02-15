@@ -187,7 +187,7 @@ describe('renderPlacementGhost', () => {
         inputCount: 1,
         outputCount: 1,
         bakeMetadata: { topoOrder: [], nodeConfigs: [], edges: [], inputCount: 1, outputCount: 1 },
-        board: { id: 'u1', nodes: new Map(), wires: [] },
+        board: { id: 'u1', chips: new Map(), wires: [] },
         versionHash: 'v1',
       }],
     ]);

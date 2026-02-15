@@ -34,6 +34,8 @@ import type { AuthoringSlice } from './slices/authoring-slice.ts';
 import { initPersistence } from './persistence.ts';
 import { initCustomPuzzlePersistence } from './custom-puzzle-persistence.ts';
 import { initCycleRunner } from '../simulation/cycle-runner.ts';
+import { initSoundEffects } from '../shared/audio/index.ts';
+import { initMeterAudioSubscriber } from '../simulation/meter-audio-subscriber.ts';
 
 export type GameStore = GameboardSlice & InteractionSlice & PlaypointSlice & PuzzleSlice & PaletteSlice & CeremonySlice & NavigationSlice & ProgressionSlice & HistorySlice & MeterSlice & RoutingSlice & OverlaySlice & AnimationSlice & CreativeSlice & CustomPuzzleSlice & AuthoringSlice;
 
@@ -70,6 +72,12 @@ initCustomPuzzlePersistence(useGameStore);
 
 // Set up cycle runner to auto-recompute on graph changes
 initCycleRunner(useGameStore);
+
+// Set up sound effects subscriber
+initSoundEffects(useGameStore);
+
+// Set up continuous meter audio (looping tones proportional to signal)
+initMeterAudioSubscriber(useGameStore);
 
 // DEBUG: expose store for browser console inspection
 if (typeof window !== 'undefined') {

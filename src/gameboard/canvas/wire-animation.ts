@@ -52,8 +52,8 @@ export function computeWireAnimationCache(
   const timings = new Map<string, WireBlipTiming>();
 
   for (const wire of wires) {
-    const sourceNodeId = wire.source.nodeId;
-    const targetNodeId = wire.target.nodeId;
+    const sourceNodeId = wire.source.chipId;
+    const targetNodeId = wire.target.chipId;
 
     // Determine depart phase from source node depth
     const srcDepth = nodeDepths.get(sourceNodeId);

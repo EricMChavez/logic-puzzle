@@ -1,28 +1,30 @@
 /**
- * Pure escape-key cascade handler.
- * Determines the correct action for the Escape key based on current state priority.
+ * Pure escape-key handler.
+ * Escape always toggles the main menu. If an active interaction or dismissible
+ * overlay exists, it cancels that first AND opens the menu in one action.
  *
- * Five-level cascade (highest to lowest priority):
- * 1. Close escape-dismissible overlay
- * 2. Block if non-dismissible overlay is open (noop)
- * 3. Cancel wire drawing
- * 4. Cancel placement or deselect node
- * 5. Zoom out (if navigationDepth > 0)
- * 6. Otherwise noop
+ * Priority:
+ * 1. Main menu is open → close it ('close-menu')
+ * 2. Zoom animation playing → block ('noop')
+ * 3. Ceremony active (victory-screen) → block ('noop')
+ * 4. Non-dismissible overlay → block ('noop')
+ * 5. Dismissible overlay / active interaction → cancel + open menu ('cancel-and-menu')
+ * 6. Nothing active → open menu ('open-menu')
  */
 
 export type EscapeAction =
-  | 'close-overlay'
-  | 'cancel-wiring'
-  | 'deselect'
-  | 'zoom-out'
+  | 'open-menu'
+  | 'close-menu'
+  | 'cancel-and-menu'
   | 'noop';
 
 /** Minimal state interface for escape handler — avoids importing full GameStore */
 export interface EscapeHandlerState {
+  activeOverlayType: string;
   hasActiveOverlay: () => boolean;
   isOverlayEscapeDismissible: () => boolean;
   closeOverlay: () => void;
+  openOverlay: (overlay: { type: 'main-menu' }) => void;
   interactionMode: { type: string };
   cancelWireDraw: () => void;
   cancelPlacing: () => void;
@@ -30,8 +32,8 @@ export interface EscapeHandlerState {
   commitKnobAdjust: () => void;
   selectedNodeId: string | null;
   clearSelection: () => void;
-  navigationDepth: number;
-  zoomOut: () => void;
+  zoomTransitionType: string;
+  ceremonyType: string;
 }
 
 /**
@@ -39,15 +41,27 @@ export interface EscapeHandlerState {
  * Pure function — no side effects.
  */
 export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
-  if (state.hasActiveOverlay()) {
-    return state.isOverlayEscapeDismissible() ? 'close-overlay' : 'noop';
-  }
-  if (state.interactionMode.type === 'drawing-wire' || state.interactionMode.type === 'keyboard-wiring') return 'cancel-wiring';
-  if (state.interactionMode.type === 'adjusting-knob') return 'deselect';
-  if (state.interactionMode.type === 'placing-node') return 'deselect';
-  if (state.selectedNodeId !== null) return 'deselect';
-  if (state.navigationDepth > 0) return 'zoom-out';
-  return 'noop';
+  // 1. Main menu open → close it
+  if (state.activeOverlayType === 'main-menu') return 'close-menu';
+
+  // 2. Zoom animation playing → block
+  if (state.zoomTransitionType !== 'idle') return 'noop';
+
+  // 3. Ceremony active → block
+  if (state.ceremonyType === 'victory-screen' || state.ceremonyType === 'it-works') return 'noop';
+
+  // 4. Non-dismissible overlay → block
+  if (state.hasActiveOverlay() && !state.isOverlayEscapeDismissible()) return 'noop';
+
+  // 5. Dismissible overlay or active interaction → cancel + open menu
+  if (state.hasActiveOverlay() && state.isOverlayEscapeDismissible()) return 'cancel-and-menu';
+  if (state.interactionMode.type === 'drawing-wire' || state.interactionMode.type === 'keyboard-wiring') return 'cancel-and-menu';
+  if (state.interactionMode.type === 'adjusting-knob') return 'cancel-and-menu';
+  if (state.interactionMode.type === 'placing-node') return 'cancel-and-menu';
+  if (state.selectedNodeId !== null) return 'cancel-and-menu';
+
+  // 6. Nothing active → open menu
+  return 'open-menu';
 }
 
 /**
@@ -55,28 +69,33 @@ export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
  */
 export function executeEscapeAction(state: EscapeHandlerState, action: EscapeAction): void {
   switch (action) {
-    case 'close-overlay':
+    case 'close-menu':
       state.closeOverlay();
       break;
-    case 'cancel-wiring':
-      if (state.interactionMode.type === 'keyboard-wiring') {
-        state.cancelKeyboardWiring();
-      } else {
-        state.cancelWireDraw();
-      }
+
+    case 'open-menu':
+      state.openOverlay({ type: 'main-menu' });
       break;
-    case 'deselect':
-      if (state.interactionMode.type === 'placing-node') {
+
+    case 'cancel-and-menu': {
+      // Cancel whatever is active
+      if (state.hasActiveOverlay()) {
+        state.closeOverlay();
+      } else if (state.interactionMode.type === 'keyboard-wiring') {
+        state.cancelKeyboardWiring();
+      } else if (state.interactionMode.type === 'drawing-wire') {
+        state.cancelWireDraw();
+      } else if (state.interactionMode.type === 'placing-node') {
         state.cancelPlacing();
       } else if (state.interactionMode.type === 'adjusting-knob') {
         state.commitKnobAdjust();
-      } else {
+      } else if (state.selectedNodeId !== null) {
         state.clearSelection();
       }
+      // Then open menu
+      state.openOverlay({ type: 'main-menu' });
       break;
-    case 'zoom-out':
-      state.zoomOut();
-      break;
+    }
   }
 }
 

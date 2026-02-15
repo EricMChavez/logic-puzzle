@@ -87,7 +87,7 @@ function buildGhostRenderState(
   return {
     puzzleNodes,
     utilityNodes,
-    nodes: new Map([['__ghost__', ghostNode]]),
+    chips: new Map([['__ghost__', ghostNode]]),
     selectedNodeId: null,
     hoveredNodeId: null,
     knobValues,

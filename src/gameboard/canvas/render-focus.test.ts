@@ -72,7 +72,7 @@ function makeMockCtx() {
 describe('drawKeyboardFocus', () => {
   it('does nothing when focusVisible is false', () => {
     const { ctx, calls } = makeMockCtx();
-    const target: KeyboardFocusTarget = { type: 'node', nodeId: 'n1' };
+    const target: KeyboardFocusTarget = { type: 'node', chipId: 'n1' };
     drawKeyboardFocus(ctx, makeTokens(), target, false, new Map(), [], 1280, 720, 40, null);
     // Only save/restore should not be called since early return
     expect(calls).toHaveLength(0);
@@ -88,7 +88,7 @@ describe('drawKeyboardFocus', () => {
     const { ctx, calls } = makeMockCtx();
     const nodes = new Map<string, NodeState>();
     nodes.set('n1', makeNode('n1', 5, 3));
-    const target: KeyboardFocusTarget = { type: 'node', nodeId: 'n1' };
+    const target: KeyboardFocusTarget = { type: 'node', chipId: 'n1' };
 
     drawKeyboardFocus(ctx, makeTokens(), target, true, nodes, [], 1280, 720, 40, null);
 
@@ -103,7 +103,7 @@ describe('drawKeyboardFocus', () => {
     nodes.set('n1', makeNode('n1', 5, 3));
     const target: KeyboardFocusTarget = {
       type: 'port',
-      portRef: { nodeId: 'n1', portIndex: 0, side: 'input' },
+      portRef: { chipId: 'n1', portIndex: 0, side: 'input' },
     };
 
     drawKeyboardFocus(ctx, makeTokens(), target, true, nodes, [], 1280, 720, 40, null);
@@ -126,9 +126,9 @@ describe('drawKeyboardFocus', () => {
     const { ctx, calls } = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: 'n1', portIndex: 0, side: 'output' },
-      target: { nodeId: 'n2', portIndex: 0, side: 'input' },
-      path: [{ col: 5, row: 3 }, { col: 10, row: 3 }, { col: 10, row: 6 }],
+      source: { chipId: 'n1', portIndex: 0, side: 'output' },
+      target: { chipId: 'n2', portIndex: 0, side: 'input' },
+      route: [{ col: 5, row: 3 }, { col: 10, row: 3 }, { col: 10, row: 6 }],
     };
     const target: KeyboardFocusTarget = { type: 'wire', wireId: 'w1' };
 
@@ -143,9 +143,9 @@ describe('drawKeyboardFocus', () => {
     const { ctx } = makeMockCtx();
     const wire: Wire = {
       id: 'w1',
-      source: { nodeId: 'n1', portIndex: 0, side: 'output' },
-      target: { nodeId: 'n2', portIndex: 0, side: 'input' },
-      path: [],
+      source: { chipId: 'n1', portIndex: 0, side: 'output' },
+      target: { chipId: 'n2', portIndex: 0, side: 'input' },
+      route: [],
     };
     const target: KeyboardFocusTarget = { type: 'wire', wireId: 'w1' };
 
@@ -160,10 +160,10 @@ describe('drawKeyboardFocus', () => {
     nodes.set('n1', makeNode('n1', 5, 3));
     nodes.set('n2', makeNode('n2', 10, 5));
 
-    const target: KeyboardFocusTarget = { type: 'port', portRef: { nodeId: 'n1', portIndex: 0, side: 'output' } };
+    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'output' } };
     const wiringState = {
-      fromPort: { nodeId: 'n1', portIndex: 0, side: 'output' as const },
-      validTargets: [{ nodeId: 'n2', portIndex: 0, side: 'input' as const }],
+      fromPort: { chipId: 'n1', portIndex: 0, side: 'output' as const },
+      validTargets: [{ chipId: 'n2', portIndex: 0, side: 'input' as const }],
       targetIndex: 0,
     };
 
@@ -179,12 +179,12 @@ describe('drawKeyboardFocus', () => {
     nodes.set('n1', makeNode('n1', 5, 3));
     nodes.set('n2', makeNode('n2', 10, 5, 2, 1));
 
-    const target: KeyboardFocusTarget = { type: 'port', portRef: { nodeId: 'n1', portIndex: 0, side: 'output' } };
+    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'output' } };
     const wiringState = {
-      fromPort: { nodeId: 'n1', portIndex: 0, side: 'output' as const },
+      fromPort: { chipId: 'n1', portIndex: 0, side: 'output' as const },
       validTargets: [
-        { nodeId: 'n2', portIndex: 0, side: 'input' as const },
-        { nodeId: 'n2', portIndex: 1, side: 'input' as const },
+        { chipId: 'n2', portIndex: 0, side: 'input' as const },
+        { chipId: 'n2', portIndex: 1, side: 'input' as const },
       ],
       targetIndex: 0,
     };

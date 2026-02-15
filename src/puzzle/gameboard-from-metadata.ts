@@ -11,7 +11,7 @@ import { PLAYABLE_START, PLAYABLE_END } from '../shared/grid/index.ts';
  *
  * Layout strategy:
  * - Input CPs: left column
- * - Processing nodes: topological order across middle columns
+ * - Processing chips: topological order across middle columns
  * - Output CPs: right column
  */
 export function gameboardFromBakeMetadata(
@@ -80,17 +80,17 @@ export function gameboardFromBakeMetadata(
   }
 
   // Build wires from edges
-  const wires: Wire[] = metadata.edges.map((edge, i) =>
+  const paths: Wire[] = metadata.edges.map((edge, i) =>
     createWire(
       `viewer-wire-${i}`,
-      { nodeId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
-      { nodeId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
+      { chipId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
+      { chipId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
     ),
   );
 
   return {
     id: `viewer-puzzle:${puzzleId}`,
-    nodes,
-    wires,
+    chips: nodes,
+    paths,
   };
 }

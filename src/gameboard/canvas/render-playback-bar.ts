@@ -35,14 +35,14 @@ function getTrapezoidPoints(cellSize: number) {
   const top = PLAYBACK_BAR.ROW_START * cellSize;
   const bottom = (PLAYBACK_BAR.ROW_END + 1) * cellSize;
   const width = right - left;
-  const inset = 2 * cellSize; // top edge is narrower by 2 grid cols on each side
+  const inset = 2 * cellSize; // bottom edge is narrower by 2 grid cols on each side
 
   return {
     // Top-left, top-right, bottom-right, bottom-left
-    topLeft: { x: left + inset, y: top },
-    topRight: { x: right - inset, y: top },
-    bottomRight: { x: right, y: bottom },
-    bottomLeft: { x: left, y: bottom },
+    topLeft: { x: left, y: top },
+    topRight: { x: right, y: top },
+    bottomRight: { x: right - inset, y: bottom },
+    bottomLeft: { x: left + inset, y: bottom },
     // Bounding box
     left, right, top, bottom, width,
     inset,
@@ -90,8 +90,8 @@ export function hitTestPlaybackBar(
   }
 
   // Check if point is inside the trapezoid using the sloped sides
-  // At height y, the left edge is interpolated between bottomLeft.x and topLeft.x
-  const t = (y - trap.bottom) / (trap.top - trap.bottom); // 0 at bottom, 1 at top
+  // At height y, the left edge is interpolated: wider at top, narrower at bottom
+  const t = (y - trap.top) / (trap.bottom - trap.top); // 0 at top (wider), 1 at bottom (narrower)
   const leftEdge = trap.left + t * trap.inset;
   const rightEdge = trap.right - t * trap.inset;
 

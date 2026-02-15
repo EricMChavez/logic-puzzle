@@ -17,8 +17,8 @@ function makeNode(id: string): NodeState {
 function makeWire(id: string, sourceId: NodeId, targetId: NodeId): Wire {
   return createWire(
     id,
-    { nodeId: sourceId, portIndex: 0, side: 'output' },
-    { nodeId: targetId, portIndex: 0, side: 'input' },
+    { chipId: sourceId, portIndex: 0, side: 'output' },
+    { chipId: targetId, portIndex: 0, side: 'input' },
   );
 }
 

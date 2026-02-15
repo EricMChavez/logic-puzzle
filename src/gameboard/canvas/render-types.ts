@@ -22,15 +22,15 @@ export interface KnobInfo {
 export interface RenderNodesState {
   puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
   utilityNodes: ReadonlyMap<string, UtilityNodeEntry>;
-  nodes: ReadonlyMap<string, NodeState>;
+  chips: ReadonlyMap<string, NodeState>;
   selectedNodeId: string | null;
   hoveredNodeId: string | null;
   knobValues: ReadonlyMap<string, KnobInfo>;
-  /** Signal value per port, keyed by `${nodeId}:input:${portIndex}` or `${nodeId}:output:${portIndex}`. */
+  /** Signal value per port, keyed by `${chipId}:input:${portIndex}` or `${chipId}:output:${portIndex}`. */
   portSignals: ReadonlyMap<string, number>;
   /** Node ID whose knob is showing a rejected-click flash (wired knob was clicked) */
   rejectedKnobNodeId: string | null;
-  /** Set of connected input port keys: `${nodeId}:${portIndex}` */
+  /** Set of connected input port keys: `${chipId}:${portIndex}` */
   connectedInputPorts: ReadonlySet<string>;
   /** Set of node IDs reachable from input sources (live nodes) */
   liveNodeIds: ReadonlySet<string>;

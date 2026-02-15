@@ -44,13 +44,13 @@ describe('overlay-slice', () => {
     it('replaces the current overlay', () => {
       const { get } = createTestSlice();
       get().openOverlay({ type: 'palette-modal' });
-      get().openOverlay({ type: 'parameter-popover', nodeId: 'n1' });
-      expect(get().activeOverlay).toEqual({ type: 'parameter-popover', nodeId: 'n1' });
+      get().openOverlay({ type: 'parameter-popover', chipId: 'n1' });
+      expect(get().activeOverlay).toEqual({ type: 'parameter-popover', chipId: 'n1' });
     });
 
     it('hasActiveOverlay returns true after opening', () => {
       const { get } = createTestSlice();
-      get().openOverlay({ type: 'inspect-modal', nodeId: 'n2' });
+      get().openOverlay({ type: 'inspect-modal', chipId: 'n2' });
       expect(get().hasActiveOverlay()).toBe(true);
     });
   });
@@ -74,9 +74,9 @@ describe('overlay-slice', () => {
   describe('isOverlayEscapeDismissible', () => {
     const dismissibleTypes: ActiveOverlay[] = [
       { type: 'palette-modal' },
-      { type: 'parameter-popover', nodeId: 'n1' },
+      { type: 'parameter-popover', chipId: 'n1' },
       { type: 'context-menu', position: { x: 10, y: 20 }, target: { type: 'empty' } },
-      { type: 'inspect-modal', nodeId: 'n3' },
+      { type: 'inspect-modal', chipId: 'n3' },
     ];
 
     for (const overlay of dismissibleTypes) {

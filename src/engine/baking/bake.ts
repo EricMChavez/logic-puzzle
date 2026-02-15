@@ -58,14 +58,14 @@ function classifyBidirectionalCps(
   const layout: ('input' | 'output' | 'off')[] = [];
 
   for (let i = 0; i < 6; i++) {
-    const nodeId = `__cp_bidir_${i}__`;
-    if (!nodes.has(nodeId)) {
+    const chipId = `__cp_bidir_${i}__`;
+    if (!nodes.has(chipId)) {
       layout.push('off');
       continue;
     }
 
-    const hasOutgoing = wires.some(w => w.source.nodeId === nodeId);
-    const hasIncoming = wires.some(w => w.target.nodeId === nodeId);
+    const hasOutgoing = wires.some(w => w.source.chipId === chipId);
+    const hasIncoming = wires.some(w => w.target.chipId === chipId);
 
     if (hasOutgoing && hasIncoming) {
       return err({ message: `Bidirectional CP ${i} has both incoming and outgoing wires` });
@@ -88,7 +88,7 @@ function transformBidirToStandard(
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: Wire[],
   cpLayout: ('input' | 'output' | 'off')[],
-): { nodes: Map<NodeId, NodeState>; wires: Wire[] } {
+): { chips: Map<NodeId, NodeState>; wires: Wire[] } {
   const newNodes = new Map<NodeId, NodeState>();
   let inputIndex = 0;
   let outputIndex = 0;
@@ -120,29 +120,29 @@ function transformBidirToStandard(
 
   const newWires: Wire[] = wires
     .filter(w => {
-      const srcBidir = isBidirectionalCpNode(w.source.nodeId);
-      const tgtBidir = isBidirectionalCpNode(w.target.nodeId);
-      if (srcBidir && !idMap.has(w.source.nodeId)) return false;
-      if (tgtBidir && !idMap.has(w.target.nodeId)) return false;
+      const srcBidir = isBidirectionalCpNode(w.source.chipId);
+      const tgtBidir = isBidirectionalCpNode(w.target.chipId);
+      if (srcBidir && !idMap.has(w.source.chipId)) return false;
+      if (tgtBidir && !idMap.has(w.target.chipId)) return false;
       return true;
     })
     .map(w => {
       let source = w.source;
       let target = w.target;
 
-      if (isBidirectionalCpNode(w.source.nodeId)) {
-        const newId = idMap.get(w.source.nodeId)!;
-        source = { ...source, nodeId: newId };
+      if (isBidirectionalCpNode(w.source.chipId)) {
+        const newId = idMap.get(w.source.chipId)!;
+        source = { ...source, chipId: newId };
       }
-      if (isBidirectionalCpNode(w.target.nodeId)) {
-        const newId = idMap.get(w.target.nodeId)!;
-        target = { ...target, nodeId: newId };
+      if (isBidirectionalCpNode(w.target.chipId)) {
+        const newId = idMap.get(w.target.chipId)!;
+        target = { ...target, chipId: newId };
       }
 
       return { ...w, source, target };
     });
 
-  return { nodes: newNodes, wires: newWires };
+  return { chips: newNodes, wires: newWires };
 }
 
 /**
@@ -168,13 +168,13 @@ export function bakeGraph(
     }
     cpLayout = classifyResult.value;
     const transformed = transformBidirToStandard(nodes, wires, cpLayout);
-    bakeNodes = transformed.nodes;
-    bakeWires = transformed.wires;
+    bakeNodes = transformed.chips;
+    bakeWires = transformed.paths;
   }
 
   // Step 1: Topological sort
-  const nodeIds = Array.from(bakeNodes.keys());
-  const sortResult = topologicalSort(nodeIds, bakeWires);
+  const chipIds = Array.from(bakeNodes.keys());
+  const sortResult = topologicalSort(chipIds, bakeWires);
   if (!sortResult.ok) {
     return err({
       message: sortResult.error.message,
@@ -256,8 +256,8 @@ export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
   const wires: Wire[] = metadata.edges.map((edge, i) =>
     createWire(
       `baked-wire-${i}`,
-      { nodeId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
-      { nodeId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
+      { chipId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
+      { chipId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
     ),
   );
 
@@ -288,10 +288,10 @@ function analyzeGraph(
   nodes: ReadonlyMap<NodeId, NodeState>,
   wires: Wire[],
 ): GraphAnalysis {
-  // Build wire lookup: target "nodeId:portIndex" → wire
+  // Build wire lookup: target "chipId:portIndex" → wire
   const wireByTarget = new Map<string, Wire>();
   for (const wire of wires) {
-    wireByTarget.set(`${wire.target.nodeId}:${wire.target.portIndex}`, wire);
+    wireByTarget.set(`${wire.target.chipId}:${wire.target.portIndex}`, wire);
   }
 
   const portSources = new Map<string, PortSource>();
@@ -301,25 +301,25 @@ function analyzeGraph(
   let inputCount = 0;
   let outputCount = 0;
 
-  for (const nodeId of topoOrder) {
-    const node = nodes.get(nodeId);
+  for (const chipId of topoOrder) {
+    const node = nodes.get(chipId);
     if (!node) continue;
 
-    if (isConnectionInputNode(nodeId)) {
-      const cpIndex = getConnectionPointIndex(nodeId);
+    if (isConnectionInputNode(chipId)) {
+      const cpIndex = getConnectionPointIndex(chipId);
       if (cpIndex >= inputCount) inputCount = cpIndex + 1;
       continue;
     }
 
-    if (isConnectionOutputNode(nodeId)) {
-      const cpIndex = getConnectionPointIndex(nodeId);
+    if (isConnectionOutputNode(chipId)) {
+      const cpIndex = getConnectionPointIndex(chipId);
       if (cpIndex >= outputCount) outputCount = cpIndex + 1;
 
-      const wire = wireByTarget.get(`${nodeId}:0`);
+      const wire = wireByTarget.get(`${chipId}:0`);
       if (wire) {
         outputMappings.push({
           cpIndex,
-          sourceNodeId: wire.source.nodeId,
+          sourceNodeId: wire.source.chipId,
           sourcePort: wire.source.portIndex,
         });
       }
@@ -327,8 +327,8 @@ function analyzeGraph(
     }
 
     // Utility slot nodes: treated like standard input/output CPs for baking
-    if (isUtilitySlotNode(nodeId)) {
-      const slotIndex = getUtilitySlotIndex(nodeId);
+    if (isUtilitySlotNode(chipId)) {
+      const slotIndex = getUtilitySlotIndex(chipId);
       if (node.type === 'connection-input') {
         // Utility input slots: use slot index directly as cpIndex
         if (slotIndex >= inputCount) inputCount = slotIndex + 1;
@@ -337,11 +337,11 @@ function analyzeGraph(
         // Left outputs get indices 0-2, right outputs get indices 3-5 — no collision
         const outputIndex = slotIndex;
         if (outputIndex >= 0 && outputIndex >= outputCount) outputCount = outputIndex + 1;
-        const wire = wireByTarget.get(`${nodeId}:0`);
+        const wire = wireByTarget.get(`${chipId}:0`);
         if (wire) {
           outputMappings.push({
             cpIndex: outputIndex,
-            sourceNodeId: wire.source.nodeId,
+            sourceNodeId: wire.source.chipId,
             sourcePort: wire.source.portIndex,
           });
         }
@@ -350,10 +350,10 @@ function analyzeGraph(
     }
 
     // Processing node
-    processingOrder.push(nodeId);
+    processingOrder.push(chipId);
 
     for (let portIndex = 0; portIndex < node.inputCount; portIndex++) {
-      const wireKey = `${nodeId}:${portIndex}`;
+      const wireKey = `${chipId}:${portIndex}`;
       const wire = wireByTarget.get(wireKey);
 
       if (!wire) {
@@ -361,7 +361,7 @@ function analyzeGraph(
         continue;
       }
 
-      const sourceNodeId = wire.source.nodeId;
+      const sourceNodeId = wire.source.chipId;
 
       if (isConnectionInputNode(sourceNodeId)) {
         const cpIndex = getConnectionPointIndex(sourceNodeId);
@@ -400,8 +400,8 @@ function buildMetadata(
   analysis: GraphAnalysis,
 ): BakeMetadata {
   const nodeConfigs: BakedNodeConfig[] = [];
-  for (const nodeId of topoOrder) {
-    const node = nodes.get(nodeId);
+  for (const chipId of topoOrder) {
+    const node = nodes.get(chipId);
     if (!node) continue;
     nodeConfigs.push({
       id: node.id,
@@ -413,9 +413,9 @@ function buildMetadata(
   }
 
   const edges: BakedEdge[] = wires.map((wire) => ({
-    fromNodeId: wire.source.nodeId,
+    fromNodeId: wire.source.chipId,
     fromPort: wire.source.portIndex,
-    toNodeId: wire.target.nodeId,
+    toNodeId: wire.target.chipId,
     toPort: wire.target.portIndex,
   }));
 
@@ -474,18 +474,18 @@ function buildClosure(
   const nodeSpecs: NodeSpec[] = [];
   const nodeStates = new Map<NodeId, NodeRuntimeState>();
 
-  for (const nodeId of processingOrder) {
-    const node = nodes.get(nodeId);
+  for (const chipId of processingOrder) {
+    const node = nodes.get(chipId);
     if (!node) continue;
 
     const inputSpecs: PortSource[] = [];
     for (let portIndex = 0; portIndex < node.inputCount; portIndex++) {
-      const key = `${nodeId}:${portIndex}`;
+      const key = `${chipId}:${portIndex}`;
       inputSpecs.push(portSources.get(key) ?? { kind: 'none' as const });
     }
 
     nodeSpecs.push({
-      id: nodeId,
+      id: chipId,
       type: node.type,
       params: node.params,
       inputSpecs,
@@ -494,7 +494,7 @@ function buildClosure(
 
     const def = getNodeDefinition(node.type);
     if (def?.createState) {
-      nodeStates.set(nodeId, def.createState());
+      nodeStates.set(chipId, def.createState());
     }
   }
 

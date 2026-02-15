@@ -19,9 +19,9 @@ function makeNode(id: string, type: string, col: number, row: number, inputs = 1
 function makeWire(id: string, sourceNodeId: string, sourcePort: number, targetNodeId: string, targetPort: number): Wire {
   return {
     id,
-    source: { nodeId: sourceNodeId, portIndex: sourcePort, side: 'output' },
-    target: { nodeId: targetNodeId, portIndex: targetPort, side: 'input' },
-    path: [],
+    source: { chipId: sourceNodeId, portIndex: sourcePort, side: 'output' },
+    target: { chipId: targetNodeId, portIndex: targetPort, side: 'input' },
+    route: [],
   };
 }
 
@@ -49,7 +49,7 @@ describe('keyboard-focus', () => {
     });
 
     it('setFocusTarget and getFocusTarget round-trip', () => {
-      const target = { type: 'node' as const, nodeId: 'n1' };
+      const target = { type: 'node' as const, chipId: 'n1' };
       setFocusTarget(target);
       expect(getFocusTarget()).toEqual(target);
     });
@@ -70,7 +70,7 @@ describe('keyboard-focus', () => {
       nodes.set('n3', makeNode('n3', 'mix', 5, 2));
 
       const order = computeTabOrder(nodes, [], null, null);
-      expect(order.map((t) => (t as { type: 'node'; nodeId: string }).nodeId)).toEqual(['n1', 'n3', 'n2']);
+      expect(order.map((t) => (t as { type: 'node'; chipId: string }).chipId)).toEqual(['n1', 'n3', 'n2']);
     });
 
     it('skips connection-point virtual nodes', () => {
@@ -81,7 +81,7 @@ describe('keyboard-focus', () => {
 
       const order = computeTabOrder(nodes, [], null, null);
       expect(order).toHaveLength(1);
-      expect(order[0]).toEqual({ type: 'node', nodeId: 'n1' });
+      expect(order[0]).toEqual({ type: 'node', chipId: 'n1' });
     });
 
     it('splices ports and wires after expanded node', () => {
@@ -95,12 +95,12 @@ describe('keyboard-focus', () => {
 
       // n1, n1 input:0, n1 input:1, n1 output:0, w1 (connected to n1), n2
       expect(order).toHaveLength(6);
-      expect(order[0]).toEqual({ type: 'node', nodeId: 'n1' });
-      expect(order[1]).toEqual({ type: 'port', portRef: { nodeId: 'n1', portIndex: 0, side: 'input' } });
-      expect(order[2]).toEqual({ type: 'port', portRef: { nodeId: 'n1', portIndex: 1, side: 'input' } });
-      expect(order[3]).toEqual({ type: 'port', portRef: { nodeId: 'n1', portIndex: 0, side: 'output' } });
+      expect(order[0]).toEqual({ type: 'node', chipId: 'n1' });
+      expect(order[1]).toEqual({ type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'input' } });
+      expect(order[2]).toEqual({ type: 'port', portRef: { chipId: 'n1', portIndex: 1, side: 'input' } });
+      expect(order[3]).toEqual({ type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'output' } });
       expect(order[4]).toEqual({ type: 'wire', wireId: 'w1' });
-      expect(order[5]).toEqual({ type: 'node', nodeId: 'n2' });
+      expect(order[5]).toEqual({ type: 'node', chipId: 'n2' });
     });
 
     it('appends active connection points (inputs then outputs)', () => {
@@ -129,20 +129,20 @@ describe('keyboard-focus', () => {
       nodes.set('n1', makeNode('n1', 'invert', 3, 2, 1, 1));
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5, 2, 1));
 
-      const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
+      const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, []);
 
       // n2 has 2 input ports
       expect(targets).toHaveLength(2);
-      expect(targets[0]).toEqual({ nodeId: 'n2', portIndex: 0, side: 'input' });
-      expect(targets[1]).toEqual({ nodeId: 'n2', portIndex: 1, side: 'input' });
+      expect(targets[0]).toEqual({ chipId: 'n2', portIndex: 0, side: 'input' });
+      expect(targets[1]).toEqual({ chipId: 'n2', portIndex: 1, side: 'input' });
     });
 
     it('excludes same-node ports', () => {
       const nodes = new Map<string, NodeState>();
       nodes.set('n1', makeNode('n1', 'mix', 3, 2, 2, 1));
 
-      const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
+      const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, []);
       expect(targets).toHaveLength(0);
     });
@@ -153,12 +153,12 @@ describe('keyboard-focus', () => {
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5, 2, 1));
 
       const wires = [makeWire('w1', 'n1', 0, 'n2', 0)];
-      const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
+      const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, wires);
 
       // Only n2:input:1 since n2:input:0 is occupied
       expect(targets).toHaveLength(1);
-      expect(targets[0]).toEqual({ nodeId: 'n2', portIndex: 1, side: 'input' });
+      expect(targets[0]).toEqual({ chipId: 'n2', portIndex: 1, side: 'input' });
     });
 
     it('excludes ports wired to a different source', () => {
@@ -169,14 +169,14 @@ describe('keyboard-focus', () => {
 
       // n2:output:0 → n3:input:0 already wired
       const wires = [makeWire('w1', 'n2', 0, 'n3', 0)];
-      const fromPort: PortRef = { nodeId: 'n1', portIndex: 0, side: 'output' };
+      const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, wires);
 
       // n2:input:0 is free, n3:input:0 is occupied, n3:input:1 is free
       expect(targets).toHaveLength(2);
       expect(targets).toEqual(expect.arrayContaining([
-        { nodeId: 'n2', portIndex: 0, side: 'input' },
-        { nodeId: 'n3', portIndex: 1, side: 'input' },
+        { chipId: 'n2', portIndex: 0, side: 'input' },
+        { chipId: 'n3', portIndex: 1, side: 'input' },
       ]));
     });
 
@@ -185,12 +185,12 @@ describe('keyboard-focus', () => {
       nodes.set('n1', makeNode('n1', 'invert', 3, 2, 1, 1));
       nodes.set('__cp_input_0__', makeNode('__cp_input_0__', 'connection-input', 0, 0, 0, 1));
 
-      const fromPort: PortRef = { nodeId: '__cp_input_0__', portIndex: 0, side: 'output' };
+      const fromPort: PortRef = { chipId: '__cp_input_0__', portIndex: 0, side: 'output' };
       const targets = computeValidWiringTargets(fromPort, nodes, []);
 
       // n1 has 1 input port
       expect(targets).toHaveLength(1);
-      expect(targets[0]).toEqual({ nodeId: 'n1', portIndex: 0, side: 'input' });
+      expect(targets[0]).toEqual({ chipId: 'n1', portIndex: 0, side: 'input' });
     });
   });
 
@@ -200,7 +200,7 @@ describe('keyboard-focus', () => {
       nodes.set('n1', makeNode('n1', 'invert', 3, 2));
 
       advanceFocus(1, nodes, [], null, null);
-      expect(getFocusTarget()).toEqual({ type: 'node', nodeId: 'n1' });
+      expect(getFocusTarget()).toEqual({ type: 'node', chipId: 'n1' });
       expect(isFocusVisible()).toBe(true);
     });
 
@@ -210,7 +210,7 @@ describe('keyboard-focus', () => {
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5));
 
       advanceFocus(-1, nodes, [], null, null);
-      expect(getFocusTarget()).toEqual({ type: 'node', nodeId: 'n2' });
+      expect(getFocusTarget()).toEqual({ type: 'node', chipId: 'n2' });
     });
 
     it('wraps forward from last to first', () => {
@@ -218,9 +218,9 @@ describe('keyboard-focus', () => {
       nodes.set('n1', makeNode('n1', 'invert', 3, 2));
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5));
 
-      setFocusTarget({ type: 'node', nodeId: 'n2' });
+      setFocusTarget({ type: 'node', chipId: 'n2' });
       advanceFocus(1, nodes, [], null, null);
-      expect(getFocusTarget()).toEqual({ type: 'node', nodeId: 'n1' });
+      expect(getFocusTarget()).toEqual({ type: 'node', chipId: 'n1' });
     });
 
     it('wraps backward from first to last', () => {
@@ -228,18 +228,18 @@ describe('keyboard-focus', () => {
       nodes.set('n1', makeNode('n1', 'invert', 3, 2));
       nodes.set('n2', makeNode('n2', 'multiply', 10, 5));
 
-      setFocusTarget({ type: 'node', nodeId: 'n1' });
+      setFocusTarget({ type: 'node', chipId: 'n1' });
       advanceFocus(-1, nodes, [], null, null);
-      expect(getFocusTarget()).toEqual({ type: 'node', nodeId: 'n2' });
+      expect(getFocusTarget()).toEqual({ type: 'node', chipId: 'n2' });
     });
 
     it('advances through ports when node is expanded', () => {
       const nodes = new Map<string, NodeState>();
       nodes.set('n1', makeNode('n1', 'mix', 3, 2, 2, 1));
 
-      setFocusTarget({ type: 'node', nodeId: 'n1' });
+      setFocusTarget({ type: 'node', chipId: 'n1' });
       advanceFocus(1, nodes, [], 'n1', null);
-      expect(getFocusTarget()).toEqual({ type: 'port', portRef: { nodeId: 'n1', portIndex: 0, side: 'input' } });
+      expect(getFocusTarget()).toEqual({ type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'input' } });
     });
 
     it('does nothing for empty order', () => {
@@ -251,9 +251,9 @@ describe('keyboard-focus', () => {
       const nodes = new Map<string, NodeState>();
       nodes.set('n1', makeNode('n1', 'invert', 3, 2));
 
-      setFocusTarget({ type: 'node', nodeId: 'deleted' });
+      setFocusTarget({ type: 'node', chipId: 'deleted' });
       advanceFocus(1, nodes, [], null, null);
-      expect(getFocusTarget()).toEqual({ type: 'node', nodeId: 'n1' });
+      expect(getFocusTarget()).toEqual({ type: 'node', chipId: 'n1' });
     });
   });
 });

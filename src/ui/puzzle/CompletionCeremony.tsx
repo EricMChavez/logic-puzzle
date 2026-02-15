@@ -33,7 +33,7 @@ export function CompletionCeremony() {
     } else {
       // Last level completed — go to sandbox
       store.unloadPuzzle();
-      store.setActiveBoard({ id: 'sandbox', nodes: new Map(), wires: [] });
+      store.setActiveBoard({ id: 'sandbox', chips: new Map(), paths: [] });
     }
   }
 

@@ -7,8 +7,8 @@ import type { Wire, NodeId } from '../../shared/types/index.ts';
 function wire(sourceId: NodeId, targetId: NodeId): Wire {
   return createWire(
     `${sourceId}->${targetId}`,
-    { nodeId: sourceId, portIndex: 0, side: 'output' },
-    { nodeId: targetId, portIndex: 0, side: 'input' },
+    { chipId: sourceId, portIndex: 0, side: 'output' },
+    { chipId: targetId, portIndex: 0, side: 'input' },
   );
 }
 

@@ -38,21 +38,21 @@ describe('gameboardFromBakeMetadata', () => {
 
     const board = gameboardFromBakeMetadata('inv1', meta);
 
-    expect(board.nodes.size).toBe(3);
-    expect(board.nodes.has(cpInputId(0))).toBe(true);
-    expect(board.nodes.has(cpOutputId(0))).toBe(true);
-    expect(board.nodes.has('n1')).toBe(true);
+    expect(board.chips.size).toBe(3);
+    expect(board.chips.has(cpInputId(0))).toBe(true);
+    expect(board.chips.has(cpOutputId(0))).toBe(true);
+    expect(board.chips.has('n1')).toBe(true);
 
-    const n1 = board.nodes.get('n1')!;
+    const n1 = board.chips.get('n1')!;
     expect(n1.type).toBe('invert');
     expect(n1.inputCount).toBe(1);
     expect(n1.outputCount).toBe(1);
 
-    expect(board.wires).toHaveLength(2);
-    expect(board.wires[0].source.nodeId).toBe(cpInputId(0));
-    expect(board.wires[0].target.nodeId).toBe('n1');
-    expect(board.wires[1].source.nodeId).toBe('n1');
-    expect(board.wires[1].target.nodeId).toBe(cpOutputId(0));
+    expect(board.paths).toHaveLength(2);
+    expect(board.paths[0].source.chipId).toBe(cpInputId(0));
+    expect(board.paths[0].target.chipId).toBe('n1');
+    expect(board.paths[1].source.chipId).toBe('n1');
+    expect(board.paths[1].target.chipId).toBe(cpOutputId(0));
   });
 
   it('multi-node graph → all nodes present, non-overlapping positions', () => {
@@ -80,15 +80,15 @@ describe('gameboardFromBakeMetadata', () => {
     const board = gameboardFromBakeMetadata('multi', meta);
 
     // 2 input CPs + 1 output CP + 3 processing = 6
-    expect(board.nodes.size).toBe(6);
+    expect(board.chips.size).toBe(6);
 
     // All processing nodes present
-    expect(board.nodes.has('a')).toBe(true);
-    expect(board.nodes.has('b')).toBe(true);
-    expect(board.nodes.has('c')).toBe(true);
+    expect(board.chips.has('a')).toBe(true);
+    expect(board.chips.has('b')).toBe(true);
+    expect(board.chips.has('c')).toBe(true);
 
     // Check non-overlapping positions for processing nodes
-    const positions = ['a', 'b', 'c'].map((id) => board.nodes.get(id)!.position);
+    const positions = ['a', 'b', 'c'].map((id) => board.chips.get(id)!.position);
     for (let i = 0; i < positions.length; i++) {
       for (let j = i + 1; j < positions.length; j++) {
         const same = positions[i].col === positions[j].col && positions[i].row === positions[j].row;
@@ -113,11 +113,11 @@ describe('gameboardFromBakeMetadata', () => {
 
     const board = gameboardFromBakeMetadata('passthrough', meta);
 
-    expect(board.nodes.size).toBe(2);
-    for (const [id] of board.nodes) {
+    expect(board.chips.size).toBe(2);
+    for (const [id] of board.chips) {
       expect(isConnectionPointNode(id)).toBe(true);
     }
-    expect(board.wires).toHaveLength(1);
+    expect(board.paths).toHaveLength(1);
   });
 
   it('preserves node params from metadata', () => {
@@ -133,7 +133,7 @@ describe('gameboardFromBakeMetadata', () => {
     });
 
     const board = gameboardFromBakeMetadata('param-test', meta);
-    const n1 = board.nodes.get('n1')!;
+    const n1 = board.chips.get('n1')!;
     expect(n1.params).toEqual({ threshold: 42 });
   });
 });

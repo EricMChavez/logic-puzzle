@@ -104,20 +104,20 @@ export function getWireSignal(
  * Handles both regular nodes and connection point virtual nodes.
  */
 function getPortPixelPosition(
-  nodeId: string,
+  chipId: string,
   side: 'input' | 'output',
   portIndex: number,
   nodes: ReadonlyMap<string, NodeState>,
   cellSize: number,
 ): { x: number; y: number } | null {
-  if (isConnectionPointNode(nodeId)) {
+  if (isConnectionPointNode(chipId)) {
     // All CP node types encode a slot index (0-5). Derive physical side and per-side index.
-    const slotIndex = getCpSlotIndex(nodeId, nodes);
+    const slotIndex = getCpSlotIndex(chipId, nodes);
     const physicalSide = slotSide(slotIndex);
     const meterIndex = slotPerSideIndex(slotIndex);
     return getConnectionPointPosition(physicalSide, meterIndex, cellSize);
   }
-  const node = nodes.get(nodeId);
+  const node = nodes.get(chipId);
   if (!node) return null;
   return getNodePortPosition(node, side, portIndex, cellSize);
 }
@@ -128,23 +128,23 @@ function getPortPixelPosition(
  * Standard puzzle CP nodes use physicalSide+meterIndex params or direction-based fallback.
  */
 function getCpSlotIndex(
-  nodeId: string,
+  chipId: string,
   nodes: ReadonlyMap<string, NodeState>,
 ): number {
-  if (isCreativeSlotNode(nodeId)) return getCreativeSlotIndex(nodeId);
-  if (isUtilitySlotNode(nodeId)) return getUtilitySlotIndex(nodeId);
-  if (isBidirectionalCpNode(nodeId)) return getBidirectionalCpIndex(nodeId);
+  if (isCreativeSlotNode(chipId)) return getCreativeSlotIndex(chipId);
+  if (isUtilitySlotNode(chipId)) return getUtilitySlotIndex(chipId);
+  if (isBidirectionalCpNode(chipId)) return getBidirectionalCpIndex(chipId);
 
   // Standard puzzle CP: check for physicalSide in params (custom puzzles)
-  const node = nodes.get(nodeId);
+  const node = nodes.get(chipId);
   if (node?.params.physicalSide) {
     const pSide = node.params.physicalSide as 'left' | 'right';
     const idx = node.params.meterIndex as number;
     return sideToSlot(pSide, idx);
   }
   // Fallback: input→left, output→right, per-direction index as per-side index
-  const isInput = isConnectionInputNode(nodeId);
-  const cpIndex = getConnectionPointIndex(nodeId);
+  const isInput = isConnectionInputNode(chipId);
+  const cpIndex = getConnectionPointIndex(chipId);
   return sideToSlot(isInput ? 'left' : 'right', cpIndex);
 }
 
@@ -160,10 +160,10 @@ export function buildWirePixelPath(
   nodes?: ReadonlyMap<string, NodeState>,
 ): Array<{ x: number; y: number }> {
   // Allow wires with empty paths if we can resolve endpoints from nodes
-  if (wire.path.length === 0 && !nodes) return [];
+  if (wire.route.length === 0 && !nodes) return [];
 
-  // Pre-compute pixel positions for path cells (at gridline intersections)
-  const pathPts = wire.path.map((gp) => ({
+  // Pre-compute pixel positions for route cells (at gridline intersections)
+  const pathPts = wire.route.map((gp) => ({
     x: gp.col * cellSize,
     y: gp.row * cellSize,
   }));
@@ -173,7 +173,7 @@ export function buildWirePixelPath(
 
   if (nodes) {
     const sourcePos = getPortPixelPosition(
-      wire.source.nodeId,
+      wire.source.chipId,
       wire.source.side,
       wire.source.portIndex,
       nodes,
@@ -186,7 +186,7 @@ export function buildWirePixelPath(
 
   if (nodes) {
     const targetPos = getPortPixelPosition(
-      wire.target.nodeId,
+      wire.target.chipId,
       wire.target.side,
       wire.target.portIndex,
       nodes,
@@ -225,6 +225,7 @@ export function drawWires(
   neutralOnly?: boolean,
   liveWireIds?: ReadonlySet<string>,
   glowBoost?: number,
+  colorFade?: number,
 ): void {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
@@ -232,6 +233,7 @@ export function drawWires(
   const wireWidth = useOverrides ? devOverrides.wireStyle.baseWidth : (Number(tokens.wireWidthBase) || 6);
   const baseOpacity = useOverrides ? devOverrides.wireStyle.baseOpacity : 1;
   const neutralColor = useOverrides ? devOverrides.colors.colorNeutral : tokens.colorNeutral;
+  const fadeAlpha = colorFade ?? 1;
 
   for (const wire of wires) {
     const dedupedPts = buildWirePixelPath(wire, cellSize, nodes);
@@ -262,15 +264,35 @@ export function drawWires(
     const wireSignal = getWireSignal(wire.id, wireValues);
 
     // ── Pass 2: glow (|signal| > 75) — single polyline ──
-    const glow = signalToGlow(wireSignal, glowBoost);
-    if (glow > 0) {
+    if (fadeAlpha > 0) {
+      const glow = signalToGlow(wireSignal, glowBoost);
+      if (glow > 0) {
+        ctx.save();
+        ctx.globalAlpha = fadeAlpha;
+        ctx.strokeStyle = signalToColor(wireSignal, tokens);
+        ctx.lineWidth = wireWidth;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = glow * fadeAlpha;
+        ctx.beginPath();
+        ctx.moveTo(dedupedPts[0].x, dedupedPts[0].y);
+        for (let i = 1; i < dedupedPts.length; i++) {
+          ctx.lineTo(dedupedPts[i].x, dedupedPts[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ── Pass 3: polarity colour — single polyline ──
+    if (fadeAlpha > 0) {
       ctx.save();
+      ctx.globalAlpha = fadeAlpha;
       ctx.strokeStyle = signalToColor(wireSignal, tokens);
       ctx.lineWidth = wireWidth;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
-      ctx.shadowColor = ctx.strokeStyle;
-      ctx.shadowBlur = glow;
       ctx.beginPath();
       ctx.moveTo(dedupedPts[0].x, dedupedPts[0].y);
       for (let i = 1; i < dedupedPts.length; i++) {
@@ -279,19 +301,5 @@ export function drawWires(
       ctx.stroke();
       ctx.restore();
     }
-
-    // ── Pass 3: polarity colour — single polyline ──
-    ctx.save();
-    ctx.strokeStyle = signalToColor(wireSignal, tokens);
-    ctx.lineWidth = wireWidth;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(dedupedPts[0].x, dedupedPts[0].y);
-    for (let i = 1; i < dedupedPts.length; i++) {
-      ctx.lineTo(dedupedPts[i].x, dedupedPts[i].y);
-    }
-    ctx.stroke();
-    ctx.restore();
   }
 }

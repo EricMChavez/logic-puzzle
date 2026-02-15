@@ -23,9 +23,9 @@ function makeNode(id: string, type: string, col: number, row: number, inputs = 1
   return { id, type, position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
 }
 
-function makeWire(id: string, path: Array<{ col: number; row: number }>): Wire {
-  const w = createWire(id, { nodeId: 'a', portIndex: 0, side: 'output' }, { nodeId: 'b', portIndex: 0, side: 'input' });
-  w.path = path;
+function makeWire(id: string, route: Array<{ col: number; row: number }>): Wire {
+  const w = createWire(id, { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
+  w.route = route;
   return w;
 }
 
@@ -48,7 +48,7 @@ describe('hitTest node body', () => {
       nodes, canvasWidth, canvasHeight, cellSize,
     );
     expect(result.type).toBe('node');
-    if (result.type === 'node') expect(result.nodeId).toBe('n1');
+    if (result.type === 'node') expect(result.chipId).toBe('n1');
   });
 
   it('does not hit outside fundamental node bounds (with body offset)', () => {
@@ -82,7 +82,7 @@ describe('hitTest node body', () => {
       nodes, canvasWidth, canvasHeight, cellSize,
     );
     expect(result.type).toBe('node');
-    if (result.type === 'node') expect(result.nodeId).toBe('u1');
+    if (result.type === 'node') expect(result.chipId).toBe('u1');
   });
 
   it('does not hit utility node outside 5x3 bounds (with body offset)', () => {
@@ -125,7 +125,7 @@ describe('hitTest node body', () => {
       nodes, canvasWidth, canvasHeight, cellSize,
     );
     expect(result.type).toBe('node');
-    if (result.type === 'node') expect(result.nodeId).toBe('p1');
+    if (result.type === 'node') expect(result.chipId).toBe('p1');
   });
 });
 
@@ -333,7 +333,7 @@ describe('hitTest CP node filtering', () => {
     const y = 5 * cellSize + cellSize / 2;
     const result = hitTest(x, y, nodes, canvasWidth, canvasHeight, cellSize);
     expect(result.type).toBe('node');
-    if (result.type === 'node') expect(result.nodeId).toBe('n1');
+    if (result.type === 'node') expect(result.chipId).toBe('n1');
   });
 });
 
@@ -357,7 +357,7 @@ describe('findNearestSnapTarget', () => {
     expect(result).not.toBeNull();
     expect(result!.type).toBe('port');
     if (result!.type === 'port') {
-      expect(result!.portRef.nodeId).toBe('n1');
+      expect(result!.portRef.chipId).toBe('n1');
       expect(result!.portRef.side).toBe('output');
     }
   });
@@ -417,7 +417,7 @@ describe('findNearestSnapTarget', () => {
     expect(result).not.toBeNull();
     expect(result!.type).toBe('port');
     if (result!.type === 'port') {
-      expect(result!.portRef.nodeId).toBe('b');
+      expect(result!.portRef.chipId).toBe('b');
     }
   });
 

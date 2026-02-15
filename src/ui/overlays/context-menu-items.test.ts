@@ -15,51 +15,51 @@ describe('buildContextMenuItems', () => {
   });
 
   it('returns Delete for max node (no Set Parameters)', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'max' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'max' });
     expect(items.find((i) => i.action === 'set-params')).toBeFalsy();
     expect(items.find((i) => i.action === 'delete-node')).toBeTruthy();
   });
 
   it('returns Inspect for puzzle node', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'puzzle:half-wave' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'puzzle:half-wave' });
     expect(items.find((i) => i.action === 'inspect')).toBeTruthy();
   });
 
   it('returns Edit for utility node', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'utility:filter' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'utility:filter' });
     expect(items.find((i) => i.action === 'edit')).toBeTruthy();
   });
 
   it('returns Edit for custom-blank node', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'custom-blank' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'custom-blank' });
     expect(items.find((i) => i.action === 'edit')).toBeTruthy();
     expect(items.find((i) => i.action === 'delete-node')).toBeTruthy();
   });
 
   it('omits Delete in read-only mode', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'max' }, true);
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'max' }, true);
     expect(items.find((i) => i.action === 'delete-node')).toBeFalsy();
   });
 
   it('returns only Delete for min node (no params)', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'min' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'min' });
     expect(items.length).toBe(1);
     expect(items[0].action).toBe('delete-node');
   });
 
   it('returns Delete for memory node', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'memory' });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'memory' });
     expect(items.find((i) => i.action === 'delete-node')).toBeTruthy();
     expect(items.find((i) => i.action === 'set-params')).toBeFalsy();
   });
 
   it('omits Delete for locked node', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'min', locked: true });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'min', locked: true });
     expect(items.find((i) => i.action === 'delete-node')).toBeFalsy();
   });
 
   it('omits Delete for locked node with editable params', () => {
-    const items = buildContextMenuItems({ type: 'node', nodeId: 'n1', nodeType: 'scale', locked: true });
+    const items = buildContextMenuItems({ type: 'node', chipId: 'n1', nodeType: 'scale', locked: true });
     expect(items.find((i) => i.action === 'set-params')).toBeFalsy();
     expect(items.find((i) => i.action === 'delete-node')).toBeFalsy();
   });

@@ -27,7 +27,7 @@ function PaletteModalInner() {
   const allowedNodes = activePuzzle?.allowedNodes ?? null;
   const remainingBudgets = computeRemainingBudgets(
     allowedNodes,
-    activeBoard?.nodes ?? new Map(),
+    activeBoard?.chips ?? new Map(),
   );
   const allItems = buildPaletteItems(allowedNodes, utilityNodes, remainingBudgets);
   const filtered = filterPaletteItems(allItems, query);
@@ -97,14 +97,14 @@ function PaletteModalInner() {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         role="dialog"
-        aria-label="Node Palette"
+        aria-label="Chip Palette"
       >
         <div className={styles.searchWrap}>
           <input
             ref={inputRef}
             type="text"
             className={styles.searchInput}
-            placeholder="Search nodes..."
+            placeholder="Search chips..."
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
           />
@@ -168,7 +168,7 @@ function PaletteModalInner() {
                           e.stopPropagation();
                           setConfirmingDeleteId(utilityId!);
                         }}
-                        title="Delete utility node"
+                        title="Delete utility chip"
                         aria-label={`Delete ${item.label}`}
                       >
                         &#x2715;
@@ -192,7 +192,7 @@ function PaletteModalInner() {
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className={styles.emptyMsg}>No nodes match your search</div>
+            <div className={styles.emptyMsg}>No chips match your search</div>
           )}
         </div>
       </div>

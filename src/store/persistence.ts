@@ -3,14 +3,14 @@ import type { GameboardState, NodeId, NodeState, Wire } from '../shared/types/in
 import type { BakeMetadata } from '../engine/baking/index.ts';
 
 const STORAGE_KEY = 'wavelength-save';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 // --- Serialized types ---
 
 interface SerializedGameboard {
   id: string;
-  nodes: [NodeId, NodeState][];
-  wires: Wire[];
+  chips: [NodeId, NodeState][];
+  paths: Wire[];
 }
 
 interface SerializedUtilityEntry {
@@ -44,16 +44,87 @@ export interface HydratableState {
 export function serializeGameboard(board: GameboardState): SerializedGameboard {
   return {
     id: board.id,
-    nodes: Array.from(board.nodes.entries()),
-    wires: board.wires,
+    chips: Array.from(board.chips.entries()),
+    paths: board.paths,
   };
 }
 
 export function deserializeGameboard(data: SerializedGameboard): GameboardState {
   return {
     id: data.id,
-    nodes: new Map(data.nodes),
-    wires: data.wires,
+    chips: new Map(data.chips),
+    paths: data.paths,
+  };
+}
+
+// --- V1 → V2 migration ---
+
+interface V1PortRef {
+  nodeId: string;
+  portIndex: number;
+  side: 'input' | 'output';
+}
+
+interface V1Wire {
+  id: string;
+  source: V1PortRef;
+  target: V1PortRef;
+  path?: unknown[];
+}
+
+interface V1SerializedGameboard {
+  id: string;
+  nodes?: [string, NodeState][];
+  chips?: [string, NodeState][];
+  wires?: V1Wire[];
+  paths?: Wire[];
+}
+
+function migratePortRef(ref: V1PortRef | Wire['source']): Wire['source'] {
+  if ('nodeId' in ref) {
+    return { chipId: ref.nodeId, portIndex: ref.portIndex, side: ref.side };
+  }
+  return ref as Wire['source'];
+}
+
+function migrateWire(w: V1Wire | Wire): Wire {
+  const migrated: Wire = {
+    id: w.id,
+    source: migratePortRef(w.source),
+    target: migratePortRef(w.target),
+    route: [],
+  };
+  // Migrate path → route if present
+  if ('route' in w && Array.isArray(w.route)) {
+    migrated.route = w.route;
+  } else if ('path' in w && Array.isArray((w as V1Wire).path)) {
+    migrated.route = (w as V1Wire).path as Wire['route'];
+  }
+  return migrated;
+}
+
+function migrateGameboard(data: V1SerializedGameboard): SerializedGameboard {
+  return {
+    id: data.id,
+    chips: data.chips ?? data.nodes ?? [],
+    paths: (data.paths ?? data.wires ?? []).map(migrateWire),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateV1toV2(data: any): PersistedState {
+  return {
+    version: 2,
+    completedLevels: data.completedLevels ?? [],
+    currentLevelIndex: data.currentLevelIndex ?? 0,
+    puzzleNodes: data.puzzleNodes ?? [],
+    utilityNodes: (data.utilityNodes ?? []).map(([key, entry]: [string, any]) => [
+      key,
+      {
+        ...entry,
+        board: migrateGameboard(entry.board),
+      },
+    ]),
   };
 }
 
@@ -82,15 +153,24 @@ export function serializeState(state: HydratableState): PersistedState {
 
 export function deserializeState(json: string): HydratableState | null {
   try {
-    const data: PersistedState = JSON.parse(json);
+    const data = JSON.parse(json);
     if (!data || typeof data.version !== 'number') return null;
-    if (data.version !== SCHEMA_VERSION) return null;
+
+    // Migrate v1 → v2
+    let persisted: PersistedState;
+    if (data.version === 1) {
+      persisted = migrateV1toV2(data);
+    } else if (data.version === SCHEMA_VERSION) {
+      persisted = data as PersistedState;
+    } else {
+      return null; // Unknown version
+    }
 
     // Validate field types (guard against corrupted/tampered data)
-    const completedLevels = Array.isArray(data.completedLevels) ? data.completedLevels : [];
-    const currentLevelIndex = typeof data.currentLevelIndex === 'number' ? data.currentLevelIndex : 0;
-    const puzzleNodes = Array.isArray(data.puzzleNodes) ? data.puzzleNodes : [];
-    const utilityNodes = Array.isArray(data.utilityNodes) ? data.utilityNodes : [];
+    const completedLevels = Array.isArray(persisted.completedLevels) ? persisted.completedLevels : [];
+    const currentLevelIndex = typeof persisted.currentLevelIndex === 'number' ? persisted.currentLevelIndex : 0;
+    const puzzleNodes = Array.isArray(persisted.puzzleNodes) ? persisted.puzzleNodes : [];
+    const utilityNodes = Array.isArray(persisted.utilityNodes) ? persisted.utilityNodes : [];
 
     return {
       completedLevels: new Set(completedLevels),

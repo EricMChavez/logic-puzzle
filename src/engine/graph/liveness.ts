@@ -19,11 +19,11 @@ export function computeLiveNodes(
   wires: ReadonlyArray<Wire>,
   sourceNodeIds: ReadonlySet<NodeId>,
 ): Set<NodeId> {
-  // Build adjacency list: nodeId → set of downstream nodeIds
+  // Build adjacency list: chipId → set of downstream chipIds
   const adjacency = new Map<NodeId, Set<NodeId>>();
   for (const wire of wires) {
-    const srcId = wire.source.nodeId;
-    const tgtId = wire.target.nodeId;
+    const srcId = wire.source.chipId;
+    const tgtId = wire.target.chipId;
     let neighbors = adjacency.get(srcId);
     if (!neighbors) {
       neighbors = new Set();

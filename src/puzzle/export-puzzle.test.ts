@@ -92,13 +92,13 @@ describe('exportCustomPuzzleAsSource', () => {
   it('exports initialWires when present', () => {
     const puzzle = makeCustomPuzzle({
       initialWires: [
-        { source: { nodeId: 'node-1', portIndex: 0 }, target: { nodeId: 'node-2', portIndex: 0 } },
+        { source: { chipId: 'node-1', portIndex: 0 }, target: { chipId: 'node-2', portIndex: 0 } },
       ],
     });
     const result = exportCustomPuzzleAsSource(puzzle);
     expect(result).toContain('initialWires: [');
-    expect(result).toContain("nodeId: 'node-1'");
-    expect(result).toContain("nodeId: 'node-2'");
+    expect(result).toContain("chipId: 'node-1'");
+    expect(result).toContain("chipId: 'node-2'");
   });
 
   it('omits initialNodes when empty', () => {

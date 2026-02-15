@@ -39,3 +39,24 @@ export function unregisterViewportCapture(): void {
 export function captureViewportSnapshot(): OffscreenCanvas | null {
   return _viewportCapture ? _viewportCapture() : null;
 }
+
+// ── Crop capture (high-res single-node render for zoom portal) ──
+
+import type { GridRect } from '../../shared/grid/types.ts';
+
+let _cropCapture: ((chipId: string, targetRect: GridRect) => OffscreenCanvas | null) | null = null;
+
+/** Register the crop capture function. Called from render-loop setup. */
+export function registerCropCapture(fn: (chipId: string, targetRect: GridRect) => OffscreenCanvas | null): void {
+  _cropCapture = fn;
+}
+
+/** Unregister the crop capture function. Called on cleanup. */
+export function unregisterCropCapture(): void {
+  _cropCapture = null;
+}
+
+/** Capture a high-res render of a single node for zoom portal curtain. */
+export function captureCropSnapshot(chipId: string, targetRect: GridRect): OffscreenCanvas | null {
+  return _cropCapture ? _cropCapture(chipId, targetRect) : null;
+}

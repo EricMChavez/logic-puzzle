@@ -200,10 +200,10 @@ function getDotMatrixCache(cellSize: number, color: string, opacity: number): Of
     // Offset relative to playable start since canvas starts at playableX
     const x = (col - PLAYABLE_START) * cellSize;
     for (let row = 1; row < GRID_ROWS; row++) {
-      // Skip dots inside the playback bar trapezoid (top edge inset by 2 cols each side)
+      // Skip dots inside the playback bar trapezoid (bottom edge inset by 2 cols each side)
       if (row >= PLAYBACK_BAR.ROW_START && row <= PLAYBACK_BAR.ROW_END) {
-        // t: 0 at bottom, 1 at top — matches getTrapezoidPoints() inset
-        const t = (row - (PLAYBACK_BAR.ROW_END + 1)) / (PLAYBACK_BAR.ROW_START - (PLAYBACK_BAR.ROW_END + 1));
+        // t: 0 at top (wider), 1 at bottom (narrower) — matches getTrapezoidPoints() inset
+        const t = (row - PLAYBACK_BAR.ROW_START) / (PLAYBACK_BAR.ROW_END + 1 - PLAYBACK_BAR.ROW_START);
         const leftEdge = PLAYBACK_BAR.COL_START + t * 2;
         const rightEdge = PLAYBACK_BAR.COL_END + 1 - t * 2;
         if (col >= leftEdge && col <= rightEdge) continue;

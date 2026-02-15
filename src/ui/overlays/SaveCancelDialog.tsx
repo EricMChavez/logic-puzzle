@@ -25,7 +25,7 @@ function startZoomOut(state: ReturnType<typeof useGameStore.getState>): void {
 
   const lastEntry = state.boardStack[state.boardStack.length - 1];
   if (lastEntry) {
-    const parentNode = lastEntry.board.nodes.get(lastEntry.nodeIdInParent);
+    const parentNode = lastEntry.board.chips.get(lastEntry.chipIdInParent);
     if (parentNode) {
       const { cols, rows } = getNodeGridSize(parentNode);
       const targetRect = { col: parentNode.position.col, row: parentNode.position.row, cols, rows };
@@ -47,7 +47,7 @@ export function SaveCancelDialog() {
     const editingUtilityId = state.editingUtilityId;
     if (!editingUtilityId || !state.activeBoard) return;
 
-    const bakeResult = bakeGraph(state.activeBoard.nodes, state.activeBoard.wires);
+    const bakeResult = bakeGraph(state.activeBoard.chips, state.activeBoard.paths);
     if (!bakeResult.ok) {
       state.closeOverlay();
       return;
@@ -56,7 +56,7 @@ export function SaveCancelDialog() {
     const { metadata } = bakeResult.value;
     const cpLayout = metadata.cpLayout;
     const existingEntry = state.utilityNodes.get(editingUtilityId);
-    const nodeIdInParent = state.editingNodeIdInParent;
+    const chipIdInParent = state.editingNodeIdInParent;
 
     if (existingEntry) {
       const overwrite = window.confirm(`Overwrite "${existingEntry.title}"?`);
@@ -65,7 +65,7 @@ export function SaveCancelDialog() {
         startZoomOut(state);
         state.finishEditingUtility();
       } else {
-        const newName = window.prompt('Name for new custom node:');
+        const newName = window.prompt('Name for new custom chip:');
         if (!newName) return;
         const newUtilityId = generateId();
         state.addUtilityNode({
@@ -79,8 +79,8 @@ export function SaveCancelDialog() {
           cpLayout,
         });
         startZoomOut(state);
-        const swap: NodeSwap | undefined = nodeIdInParent ? {
-          nodeId: nodeIdInParent,
+        const swap: NodeSwap | undefined = chipIdInParent ? {
+          chipId: chipIdInParent,
           newType: `utility:${newUtilityId}`,
           inputCount: metadata.inputCount,
           outputCount: metadata.outputCount,
@@ -89,7 +89,7 @@ export function SaveCancelDialog() {
         state.finishEditingUtility(swap);
       }
     } else {
-      const name = window.prompt('Name for this custom node:');
+      const name = window.prompt('Name for this custom chip:');
       if (!name) return;
       state.addUtilityNode({
         utilityId: editingUtilityId,
@@ -102,8 +102,8 @@ export function SaveCancelDialog() {
         cpLayout,
       });
       startZoomOut(state);
-      const swap: NodeSwap | undefined = nodeIdInParent ? {
-        nodeId: nodeIdInParent,
+      const swap: NodeSwap | undefined = chipIdInParent ? {
+        chipId: chipIdInParent,
         newType: `utility:${editingUtilityId}`,
         inputCount: metadata.inputCount,
         outputCount: metadata.outputCount,
@@ -133,7 +133,7 @@ export function SaveCancelDialog() {
       <div className={styles.dialog}>
         <h3 className={styles.title}>Unsaved Changes</h3>
         <p className={styles.message}>
-          You have unsaved changes to this custom node. What would you like to do?
+          You have unsaved changes to this custom chip. What would you like to do?
         </p>
         <div className={styles.buttons}>
           <button className={`${styles.btn} ${styles.btnCancel}`} onClick={handleKeepEditing}>

@@ -25,13 +25,13 @@ import {
 export type KeyboardAction =
   | { type: 'advance-focus'; direction: 1 | -1 }
   | { type: 'cycle-wiring-target'; direction: 1 | -1 }
-  | { type: 'enter-node'; nodeId: string }
-  | { type: 'open-params'; nodeId: string }
+  | { type: 'enter-node'; chipId: string }
+  | { type: 'open-params'; chipId: string }
   | { type: 'start-wiring'; portRef: PortRef }
   | { type: 'start-wiring-cp'; side: 'input' | 'output'; index: number }
   | { type: 'complete-wiring' }
   | { type: 'place-node' }
-  | { type: 'delete-node'; nodeId: string }
+  | { type: 'delete-node'; chipId: string }
   | { type: 'delete-wire'; wireId: string }
   | { type: 'move-ghost'; delta: GridPoint }
   | { type: 'open-palette' }
@@ -48,7 +48,7 @@ export interface KeyboardHandlerState {
   activeBoardReadOnly: boolean;
   interactionMode: InteractionMode;
   selectedNodeId: string | null;
-  activeBoard: { nodes: ReadonlyMap<string, NodeState>; wires: ReadonlyArray<Wire> } | null;
+  activeBoard: { chips: ReadonlyMap<string, NodeState>; paths: ReadonlyArray<Wire> } | null;
   activePuzzle: PuzzleDefinition | null;
   keyboardGhostPosition: GridPoint | null;
   playMode: 'playing' | 'paused';
@@ -124,16 +124,16 @@ export function getKeyboardAction(key: string, e: { shiftKey: boolean; ctrlKey: 
     if (!focus) return { type: 'noop' };
 
     if (focus.type === 'node' && state.activeBoard) {
-      const node = state.activeBoard.nodes.get(focus.nodeId);
+      const node = state.activeBoard.chips.get(focus.chipId);
       if (!node) return { type: 'noop' };
       // Utility/puzzle nodes → enter (zoom into)
       if (node.type.startsWith('utility:') || node.type.startsWith('puzzle:')) {
-        return { type: 'enter-node', nodeId: focus.nodeId };
+        return { type: 'enter-node', chipId: focus.chipId };
       }
       // Fundamental with editable params → open parameter popover
       const def = getNodeDefinition(node.type);
       if (def && (def.params?.length ?? 0) > 0) {
-        return { type: 'open-params', nodeId: focus.nodeId };
+        return { type: 'open-params', chipId: focus.chipId };
       }
     }
 
@@ -159,9 +159,9 @@ export function getKeyboardAction(key: string, e: { shiftKey: boolean; ctrlKey: 
 
     if (focus.type === 'node') {
       // Locked nodes cannot be deleted
-      const node = state.activeBoard?.nodes.get(focus.nodeId);
+      const node = state.activeBoard?.chips.get(focus.chipId);
       if (node?.locked) return { type: 'noop' };
-      return { type: 'delete-node', nodeId: focus.nodeId };
+      return { type: 'delete-node', chipId: focus.chipId };
     }
     if (focus.type === 'wire') {
       return { type: 'delete-wire', wireId: focus.wireId };
@@ -203,9 +203,9 @@ export interface KeyboardActionExecutor {
   undo: () => void;
   redo: () => void;
   openOverlay: (overlay: ActiveOverlay) => void;
-  removeNode: (nodeId: string) => void;
+  removeNode: (chipId: string) => void;
   removeWire: (wireId: string) => void;
-  selectNode: (nodeId: string) => void;
+  selectNode: (chipId: string) => void;
   clearSelection: () => void;
   startKeyboardWiring: (fromPort: PortRef, validTargets: PortRef[]) => void;
   cycleWiringTarget: (direction: 1 | -1) => void;
@@ -213,11 +213,11 @@ export interface KeyboardActionExecutor {
   setKeyboardGhostPosition: (pos: GridPoint | null) => void;
   rotatePlacement: () => void;
   interactionMode: InteractionMode;
-  activeBoard: { nodes: ReadonlyMap<string, NodeState>; wires: ReadonlyArray<Wire> } | null;
+  activeBoard: { chips: ReadonlyMap<string, NodeState>; paths: ReadonlyArray<Wire> } | null;
   activePuzzle: PuzzleDefinition | null;
   keyboardGhostPosition: GridPoint | null;
   /** Callback for node enter (zoom-in) requiring snapshot capture */
-  onEnterNode?: (nodeId: string) => void;
+  onEnterNode?: (chipId: string) => void;
   /** Callback for completing a wire */
   onCompleteWire?: (fromPort: PortRef, toPort: PortRef) => void;
   /** Callback for placing a node at keyboard ghost position */
@@ -234,15 +234,15 @@ export function executeKeyboardAction(action: KeyboardAction, executor: Keyboard
       if (!executor.activeBoard) break;
       advanceFocus(
         action.direction,
-        executor.activeBoard.nodes,
-        executor.activeBoard.wires,
+        executor.activeBoard.chips,
+        executor.activeBoard.paths,
         null, // expandedNodeId not tracked in executor; pass null for top-level navigation
         executor.activePuzzle,
       );
       // Select the focused node for visual consistency
       const ft = getFocusTarget();
       if (ft?.type === 'node') {
-        executor.selectNode(ft.nodeId);
+        executor.selectNode(ft.chipId);
       } else {
         executor.clearSelection();
       }
@@ -252,14 +252,14 @@ export function executeKeyboardAction(action: KeyboardAction, executor: Keyboard
       executor.cycleWiringTarget(action.direction);
       break;
     case 'enter-node':
-      executor.onEnterNode?.(action.nodeId);
+      executor.onEnterNode?.(action.chipId);
       break;
     case 'open-params':
-      executor.openOverlay({ type: 'parameter-popover', nodeId: action.nodeId });
+      executor.openOverlay({ type: 'parameter-popover', chipId: action.chipId });
       break;
     case 'start-wiring': {
       if (!executor.activeBoard) break;
-      const targets = computeValidWiringTargets(action.portRef, executor.activeBoard.nodes, executor.activeBoard.wires);
+      const targets = computeValidWiringTargets(action.portRef, executor.activeBoard.chips, executor.activeBoard.paths);
       if (targets.length > 0) {
         executor.startKeyboardWiring(action.portRef, targets);
       }
@@ -271,13 +271,13 @@ export function executeKeyboardAction(action: KeyboardAction, executor: Keyboard
       const cpNodeId = action.side === 'input'
         ? `__cp_input_${action.index}__`
         : `__cp_output_${action.index}__`;
-      if (!executor.activeBoard.nodes.has(cpNodeId)) break;
+      if (!executor.activeBoard.chips.has(cpNodeId)) break;
       const portRef: PortRef = {
-        nodeId: cpNodeId,
+        chipId: cpNodeId,
         portIndex: 0,
         side: action.side === 'input' ? 'output' : 'input',
       };
-      const targets = computeValidWiringTargets(portRef, executor.activeBoard.nodes, executor.activeBoard.wires);
+      const targets = computeValidWiringTargets(portRef, executor.activeBoard.chips, executor.activeBoard.paths);
       if (targets.length > 0) {
         executor.startKeyboardWiring(portRef, targets);
       }
@@ -301,7 +301,7 @@ export function executeKeyboardAction(action: KeyboardAction, executor: Keyboard
       break;
     }
     case 'delete-node': {
-      executor.removeNode(action.nodeId);
+      executor.removeNode(action.chipId);
       setFocusTarget(null);
       break;
     }

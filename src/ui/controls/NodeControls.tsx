@@ -13,8 +13,11 @@ export function NodeControls() {
   const zoomIntoNode = useGameStore((s) => s.zoomIntoNode);
 
   if (!selectedNodeId || !activeBoard) return null;
-  const node = activeBoard.nodes.get(selectedNodeId);
+  const node = activeBoard.chips.get(selectedNodeId);
   if (!node) return null;
+
+  // Menu nodes don't show controls (click navigates immediately)
+  if (node.type.startsWith('menu:')) return null;
 
   const isPuzzleNode = node.type.startsWith('puzzle:');
   const isUtilityNode = node.type.startsWith('utility:');
@@ -40,7 +43,7 @@ export function NodeControls() {
     const state = useGameStore.getState();
     if (state.zoomTransitionState.type !== 'idle') return;
     if (!state.activeBoard) return;
-    const node = state.activeBoard.nodes.get(selectedNodeId!);
+    const node = state.activeBoard.chips.get(selectedNodeId!);
     if (!node) return;
 
     const snapshot = captureViewportSnapshot();
@@ -77,7 +80,7 @@ export function NodeControls() {
                 removeNode(selectedNodeId);
                 clearSelection();
               }}
-              title="Delete node"
+              title="Delete chip"
             >
               ×
             </button>

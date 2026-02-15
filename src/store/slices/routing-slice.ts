@@ -14,15 +14,15 @@ export const createRoutingSlice: StateCreator<GameStore, [], [], RoutingSlice> =
     const state = get();
     if (!state.activeBoard) return;
 
-    const { nodes, wires } = state.activeBoard;
+    const { chips: nodes, paths: wires } = state.activeBoard;
     const { occupancy } = state;
 
     // Transient wire occupancy for collision avoidance
     const wireOccupancy = createOccupancyGrid();
 
     const updatedWires = wires.map((wire) => {
-      const sourceNode = nodes.get(wire.source.nodeId);
-      const targetNode = nodes.get(wire.target.nodeId);
+      const sourceNode = nodes.get(wire.source.chipId);
+      const targetNode = nodes.get(wire.target.chipId);
       if (!sourceNode || !targetNode) return wire;
 
       const sourceAnchor = getPortGridAnchor(
@@ -54,7 +54,7 @@ export const createRoutingSlice: StateCreator<GameStore, [], [], RoutingSlice> =
         }
       }
 
-      return { ...wire, path: path ?? [] };
+      return { ...wire, route: path ?? [] };
     });
 
     state.updateWires(updatedWires);
