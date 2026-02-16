@@ -356,11 +356,12 @@ export function GameboardCanvas() {
       if (e.key === 'Escape') {
         const state = useGameStore.getState();
         const escState: import('../interaction/escape-handler.ts').EscapeHandlerState = {
-          activeOverlayType: state.activeOverlay.type,
+          activeScreen: state.activeScreen,
+          revealScreen: state.revealScreen,
+          dismissScreen: state.dismissScreen,
           hasActiveOverlay: state.hasActiveOverlay,
           isOverlayEscapeDismissible: state.isOverlayEscapeDismissible,
           closeOverlay: state.closeOverlay,
-          openOverlay: state.openOverlay,
           interactionMode: state.interactionMode,
           cancelWireDraw: state.cancelWireDraw,
           cancelPlacing: state.cancelPlacing,

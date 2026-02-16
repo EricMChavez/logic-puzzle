@@ -31,13 +31,15 @@ import { createCustomPuzzleSlice } from './slices/custom-puzzle-slice.ts';
 import type { CustomPuzzleSlice } from './slices/custom-puzzle-slice.ts';
 import { createAuthoringSlice } from './slices/authoring-slice.ts';
 import type { AuthoringSlice } from './slices/authoring-slice.ts';
+import { createScreenSlice } from './slices/screen-slice.ts';
+import type { ScreenSlice } from './slices/screen-slice.ts';
 import { initPersistence } from './persistence.ts';
 import { initCustomPuzzlePersistence } from './custom-puzzle-persistence.ts';
 import { initCycleRunner } from '../simulation/cycle-runner.ts';
 import { initSoundEffects } from '../shared/audio/index.ts';
 import { initMeterAudioSubscriber } from '../simulation/meter-audio-subscriber.ts';
 
-export type GameStore = GameboardSlice & InteractionSlice & PlaypointSlice & PuzzleSlice & PaletteSlice & CeremonySlice & NavigationSlice & ProgressionSlice & HistorySlice & MeterSlice & RoutingSlice & OverlaySlice & AnimationSlice & CreativeSlice & CustomPuzzleSlice & AuthoringSlice;
+export type GameStore = GameboardSlice & InteractionSlice & PlaypointSlice & PuzzleSlice & PaletteSlice & CeremonySlice & NavigationSlice & ProgressionSlice & HistorySlice & MeterSlice & RoutingSlice & OverlaySlice & AnimationSlice & CreativeSlice & CustomPuzzleSlice & AuthoringSlice & ScreenSlice;
 
 export const useGameStore = create<GameStore>()((...a) => ({
   ...createGameboardSlice(...a),
@@ -56,6 +58,7 @@ export const useGameStore = create<GameStore>()((...a) => ({
   ...createCreativeSlice(...a),
   ...createCustomPuzzleSlice(...a),
   ...createAuthoringSlice(...a),
+  ...createScreenSlice(...a),
 }));
 
 // Set up undo/redo auto-capture via graphVersion subscriber

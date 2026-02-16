@@ -1,10 +1,11 @@
 /**
  * Pure escape-key handler.
- * Escape always toggles the main menu. If an active interaction or dismissible
- * overlay exists, it cancels that first AND opens the menu in one action.
+ * Escape always toggles the main menu screen. If an active interaction or
+ * dismissible overlay exists, it cancels that first AND opens the menu in
+ * one action.
  *
  * Priority:
- * 1. Main menu is open → close it ('close-menu')
+ * 1. Retro screen is active → close it ('close-menu')
  * 2. Zoom animation playing → block ('noop')
  * 3. Ceremony active (victory-screen) → block ('noop')
  * 4. Non-dismissible overlay → block ('noop')
@@ -20,11 +21,12 @@ export type EscapeAction =
 
 /** Minimal state interface for escape handler — avoids importing full GameStore */
 export interface EscapeHandlerState {
-  activeOverlayType: string;
+  activeScreen: string | null;
+  revealScreen: (page: 'main-menu') => void;
+  dismissScreen: () => void;
   hasActiveOverlay: () => boolean;
   isOverlayEscapeDismissible: () => boolean;
   closeOverlay: () => void;
-  openOverlay: (overlay: { type: 'main-menu' }) => void;
   interactionMode: { type: string };
   cancelWireDraw: () => void;
   cancelPlacing: () => void;
@@ -41,8 +43,8 @@ export interface EscapeHandlerState {
  * Pure function — no side effects.
  */
 export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
-  // 1. Main menu open → close it
-  if (state.activeOverlayType === 'main-menu') return 'close-menu';
+  // 1. Screen active → close it (handled by RetroPageHost capture-phase listener)
+  if (state.activeScreen !== null) return 'close-menu';
 
   // 2. Zoom animation playing → block
   if (state.zoomTransitionType !== 'idle') return 'noop';
@@ -70,11 +72,11 @@ export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
 export function executeEscapeAction(state: EscapeHandlerState, action: EscapeAction): void {
   switch (action) {
     case 'close-menu':
-      state.closeOverlay();
+      state.dismissScreen();
       break;
 
     case 'open-menu':
-      state.openOverlay({ type: 'main-menu' });
+      state.revealScreen('main-menu');
       break;
 
     case 'cancel-and-menu': {
@@ -93,7 +95,7 @@ export function executeEscapeAction(state: EscapeHandlerState, action: EscapeAct
         state.clearSelection();
       }
       // Then open menu
-      state.openOverlay({ type: 'main-menu' });
+      state.revealScreen('main-menu');
       break;
     }
   }

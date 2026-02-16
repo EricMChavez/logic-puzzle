@@ -4,11 +4,12 @@ import type { EscapeHandlerState } from './escape-handler.ts';
 
 function makeState(overrides: Partial<EscapeHandlerState> = {}): EscapeHandlerState {
   return {
-    activeOverlayType: 'none',
+    activeScreen: null,
+    revealScreen: vi.fn(),
+    dismissScreen: vi.fn(),
     hasActiveOverlay: vi.fn(() => false),
     isOverlayEscapeDismissible: vi.fn(() => false),
     closeOverlay: vi.fn(),
-    openOverlay: vi.fn(),
     interactionMode: { type: 'idle' },
     cancelWireDraw: vi.fn(),
     cancelPlacing: vi.fn(),
@@ -27,16 +28,15 @@ describe('escape-handler', () => {
     it('opens menu when nothing is active', () => {
       const state = makeState();
       expect(handleEscape(state)).toBe('open-menu');
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
-    it('closes menu when menu is open', () => {
+    it('closes menu when screen is active', () => {
       const state = makeState({
-        activeOverlayType: 'main-menu',
-        hasActiveOverlay: vi.fn(() => true),
+        activeScreen: 'main-menu',
       });
       expect(handleEscape(state)).toBe('close-menu');
-      expect(state.closeOverlay).toHaveBeenCalledOnce();
+      expect(state.dismissScreen).toHaveBeenCalledOnce();
     });
   });
 
@@ -58,7 +58,6 @@ describe('escape-handler', () => {
 
     it('returns noop for non-dismissible overlay', () => {
       const state = makeState({
-        activeOverlayType: 'save-dialog',
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => false),
       });
@@ -69,13 +68,12 @@ describe('escape-handler', () => {
   describe('cancel-and-menu', () => {
     it('closes dismissible overlay then opens menu', () => {
       const state = makeState({
-        activeOverlayType: 'palette-modal',
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => true),
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.closeOverlay).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
     it('cancels wire drawing then opens menu', () => {
@@ -84,7 +82,7 @@ describe('escape-handler', () => {
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelWireDraw).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
     it('cancels keyboard wiring then opens menu', () => {
@@ -93,7 +91,7 @@ describe('escape-handler', () => {
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelKeyboardWiring).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
     it('cancels node placement then opens menu', () => {
@@ -102,7 +100,7 @@ describe('escape-handler', () => {
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelPlacing).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
     it('commits knob adjust then opens menu', () => {
@@ -111,7 +109,7 @@ describe('escape-handler', () => {
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.commitKnobAdjust).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
 
     it('clears selection then opens menu', () => {
@@ -120,15 +118,14 @@ describe('escape-handler', () => {
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.clearSelection).toHaveBeenCalledOnce();
-      expect(state.openOverlay).toHaveBeenCalledWith({ type: 'main-menu' });
+      expect(state.revealScreen).toHaveBeenCalledWith('main-menu');
     });
   });
 
   describe('precedence ordering', () => {
-    it('main menu close takes highest precedence', () => {
+    it('screen close takes highest precedence', () => {
       const state = makeState({
-        activeOverlayType: 'main-menu',
-        hasActiveOverlay: vi.fn(() => true),
+        activeScreen: 'main-menu',
         interactionMode: { type: 'drawing-wire' },
       });
       expect(getEscapeAction(state)).toBe('close-menu');
@@ -145,7 +142,6 @@ describe('escape-handler', () => {
 
     it('dismissible overlay cancel-and-menu takes precedence over wire cancel', () => {
       const state = makeState({
-        activeOverlayType: 'palette-modal',
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => true),
         interactionMode: { type: 'drawing-wire' },

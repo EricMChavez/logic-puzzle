@@ -17,12 +17,11 @@ export type ActiveOverlay =
   | { type: 'save-dialog' }
   | { type: 'unsaved-changes' }
   | { type: 'waveform-selector'; slotIndex: number }
-  | { type: 'main-menu' }
   | { type: 'save-puzzle-dialog' }
   | { type: 'node-creation-form' };
 
 /** Overlay types that cannot be dismissed by Escape */
-const ESCAPE_IMMUNE = new Set<ActiveOverlay['type']>(['save-dialog', 'unsaved-changes', 'main-menu', 'save-puzzle-dialog']);
+const ESCAPE_IMMUNE = new Set<ActiveOverlay['type']>(['save-dialog', 'unsaved-changes', 'save-puzzle-dialog']);
 
 export interface OverlaySlice {
   activeOverlay: ActiveOverlay;

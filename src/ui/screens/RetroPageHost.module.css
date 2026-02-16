@@ -1,0 +1,112 @@
+/* RetroPageHost — full-screen overlay with slide transitions */
+
+.host {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.pageContainer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #706858;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.03) 2px, rgba(0, 0, 0, 0.03) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0, 0, 0, 0.02) 2px, rgba(0, 0, 0, 0.02) 4px);
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+/* ===== Page-to-page slide transitions ===== */
+
+/* Idle: page is in place */
+.idle {
+  transform: translateX(0);
+}
+
+/* Outgoing page: starts in place, slides out */
+.slideOutLeft {
+  animation: slideOutLeft 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.slideOutRight {
+  animation: slideOutRight 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Incoming page: starts off-screen, slides in */
+.slideInFromRight {
+  animation: slideInFromRight 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.slideInFromLeft {
+  animation: slideInFromLeft 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ===== Screen-to-gameboard transitions ===== */
+
+.slideDown {
+  animation: slideDown 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.slideUp {
+  animation: slideUp 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ===== Keyframes ===== */
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+/* ===== Reduced Motion ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .slideOutLeft,
+  .slideOutRight,
+  .slideInFromRight,
+  .slideInFromLeft,
+  .slideDown,
+  .slideUp {
+    animation-duration: 0ms;
+  }
+}
+
+/* ===== Mobile ===== */
+
+@media (max-width: 767px) {
+  .pageContainer {
+    padding: 0;
+    background: #e8e0cc;
+  }
+}

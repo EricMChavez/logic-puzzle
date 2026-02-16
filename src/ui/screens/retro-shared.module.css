@@ -1,0 +1,529 @@
+/* Retro computer aesthetic — fixed colors independent of game theme */
+
+/* ===== Machine Housing ===== */
+.machine {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  background: #e8e0cc;
+  border-radius: 18px;
+  padding: 36px 40px 44px;
+  position: relative;
+  box-shadow:
+    0 2px 0 0 #f0eade,
+    0 -2px 0 0 #b8ad96,
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+  background-image:
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 40%, rgba(0, 0, 0, 0.04) 100%);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.machine::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  border-radius: 14px 14px 0 0;
+  pointer-events: none;
+}
+
+/* ===== Screws ===== */
+.screw {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #b8ad96, #a89e88);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.15);
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screw::after {
+  content: '+';
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.25);
+  font-weight: bold;
+  line-height: 1;
+}
+
+.screwTL { top: 16px; left: 16px; }
+.screwTR { top: 16px; right: 16px; }
+.screwBL { bottom: 16px; left: 16px; }
+.screwBR { bottom: 16px; right: 16px; }
+
+/* ===== Vents ===== */
+.vents {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+  padding-right: 8px;
+}
+
+.vent {
+  width: 28px;
+  height: 3px;
+  background: #b8ad96;
+  border-radius: 1px;
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Brand ===== */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding-left: 4px;
+}
+
+.brandLogo {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #888 0%, #aaa 50%, #777 100%);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.brandLogo::after {
+  content: '\25C6';
+  color: #ddd;
+  font-size: 18px;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.brandName {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: #6b6252;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.brandModel {
+  font-size: 10px;
+  color: #998d76;
+  letter-spacing: 3px;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
+/* ===== CRT Screen ===== */
+.screenHousing {
+  background: #3a3428;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 28px;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.screen {
+  background: #2a3a1a;
+  border-radius: 6px;
+  padding: 20px 24px;
+  min-height: 120px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Scanlines */
+.screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Vignette */
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.screenText {
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  color: #33ff66;
+  line-height: 1.6;
+  text-shadow: 0 0 8px rgba(51, 255, 102, 0.4);
+  position: relative;
+  z-index: 1;
+}
+
+.cursorBlink {
+  display: inline-block;
+  width: 10px;
+  height: 18px;
+  background: #33ff66;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+  box-shadow: 0 0 6px rgba(51, 255, 102, 0.5);
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ===== Groove Panels ===== */
+.groovePanel {
+  background: #d8d0bc;
+  border-radius: 8px;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ===== Section Labels ===== */
+.sectionLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #6b6252;
+  margin-bottom: 12px;
+  padding-left: 2px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ===== Divider ===== */
+.divider {
+  height: 2px;
+  background: linear-gradient(180deg, #a89e88 0%, #d8d0bc 100%);
+  margin: 20px 0;
+  border-radius: 1px;
+}
+
+/* ===== LED Indicators ===== */
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  vertical-align: middle;
+}
+
+.ledOff {
+  background: #4a4a3a;
+}
+
+.ledGreen {
+  background: #33ff33;
+  box-shadow:
+    0 0 6px #33ff33,
+    0 0 12px rgba(51, 255, 51, 0.3),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.ledAmber {
+  background: #ffaa00;
+  box-shadow:
+    0 0 6px #ffaa00,
+    0 0 12px rgba(255, 170, 0, 0.3),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== Keycap System ===== */
+.keycap {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+}
+
+.keycapBase {
+  position: relative;
+  display: inline-flex;
+  border-radius: 6px;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+.keycapTop {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  z-index: 1;
+  top: 3px;
+  bottom: 8px;
+  left: 7px;
+  right: 7px;
+}
+
+.keyLabel {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+/* Size classes */
+.sizeSm { width: 44px; height: 44px; }
+.sizeMd { width: 78px; height: 44px; }
+.sizeLg { width: 108px; height: 44px; }
+.sizeXl { width: 148px; height: 44px; }
+.sizeWide { height: 44px; width: 100%; }
+
+/* ===== Light Keycap ===== */
+.keycapLight .keycapBase {
+  background: linear-gradient(180deg, #ccc4ae 0%, #c0b8a0 50%, #b4ac96 100%);
+  box-shadow:
+    0 5px 0 -1px #a49c88,
+    0 6px 0 -1px #928a78,
+    0 7px 0 -1px #847c6c,
+    0 9px 8px -2px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.keycapLight .keycapTop {
+  background: linear-gradient(180deg, #ece4d2 0%, #e2dac8 50%, #dcd4c0 100%);
+  color: #4a4236;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
+}
+
+.keycapLight:hover .keycapTop {
+  background: linear-gradient(180deg, #f0e8d6 0%, #e8e0cc 50%, #e2dac6 100%);
+}
+
+.keycapLight:active .keycapBase {
+  transform: translateY(4px);
+  box-shadow:
+    0 1px 0 -1px #a49c88,
+    0 2px 0 -1px #928a78,
+    inset 0 1px 3px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.keycapLight:active .keycapTop {
+  background: linear-gradient(180deg, #ddd6c2 0%, #d6ceb8 50%, #d0c8b2 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* ===== Dark Keycap ===== */
+.keycapDark .keycapBase {
+  background: linear-gradient(180deg, #3a3630 0%, #302c26 50%, #282420 100%);
+  box-shadow:
+    0 5px 0 -1px #201e1a,
+    0 6px 0 -1px #1a1816,
+    0 7px 0 -1px #121110,
+    0 9px 8px -2px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.keycapDark .keycapTop {
+  background: linear-gradient(180deg, #555048 0%, #4a4640 50%, #42403a 100%);
+  color: #d4ccbc;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom-color: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.06);
+}
+
+.keycapDark:hover .keycapTop {
+  background: linear-gradient(180deg, #5e5a52 0%, #524e48 50%, #4a4842 100%);
+}
+
+.keycapDark:active .keycapBase {
+  transform: translateY(4px);
+  box-shadow:
+    0 1px 0 -1px #201e1a,
+    0 2px 0 -1px #1a1816,
+    inset 0 1px 3px rgba(0, 0, 0, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.keycapDark:active .keycapTop {
+  background: linear-gradient(180deg, #464240 0%, #3e3a38 50%, #363432 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Accent Keycap (orange) ===== */
+.keycapAccent .keycapBase {
+  background: linear-gradient(180deg, #c05224 0%, #aa481c 50%, #984016 100%);
+  box-shadow:
+    0 5px 0 -1px #843812,
+    0 6px 0 -1px #72300e,
+    0 7px 0 -1px #62280a,
+    0 9px 8px -2px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.keycapAccent .keycapTop {
+  background: linear-gradient(180deg, #ea7a48 0%, #de6a38 50%, #d46030 100%);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.keycapAccent:hover .keycapTop {
+  background: linear-gradient(180deg, #f08450 0%, #e87440 50%, #de6a38 100%);
+}
+
+.keycapAccent:active .keycapBase {
+  transform: translateY(4px);
+  box-shadow:
+    0 1px 0 -1px #843812,
+    0 2px 0 -1px #72300e,
+    inset 0 1px 3px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.keycapAccent:active .keycapTop {
+  background: linear-gradient(180deg, #d46830 0%, #c85e28 50%, #c05624 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Embossed Footer ===== */
+.embossed {
+  font-size: 8px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  -webkit-text-stroke: 0.5px #b8ad96;
+  user-select: none;
+  margin-top: 16px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ===== Status Bar ===== */
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: #d8d0bc;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  margin-top: 20px;
+}
+
+.statusItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #6b6252;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ===== Button Row ===== */
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* ===== Setting Row ===== */
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.settingLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4a4236;
+  letter-spacing: 0.5px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ===== Mobile: No Housing ===== */
+@media (max-width: 767px) {
+  .machine {
+    border-radius: 0;
+    padding: 24px 20px 30px;
+    box-shadow: none;
+    max-width: none;
+    background-image: none;
+  }
+
+  .machine::before {
+    display: none;
+  }
+
+  .screw {
+    display: none;
+  }
+
+  .vents {
+    display: none;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .keycapBase {
+    transition: none;
+  }
+
+  .cursorBlink {
+    animation: none;
+  }
+}
