@@ -1,10 +1,10 @@
-import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
+import type { ChipId, ChipState, Path } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
 import type { Result } from '../../shared/result/index.ts';
 import { ok, err } from '../../shared/result/index.ts';
 import { topologicalSort } from '../graph/topological-sort.ts';
-import { getNodeDefinition } from '../nodes/registry.ts';
-import type { NodeRuntimeState } from '../nodes/framework.ts';
+import { getChipDefinition } from '../nodes/registry.ts';
+import type { ChipRuntimeState } from '../nodes/framework.ts';
 import {
   isConnectionPointNode,
   isConnectionInputNode,
@@ -18,30 +18,30 @@ import {
   getUtilitySlotIndex,
 } from '../../puzzle/connection-point-nodes.ts';
 import { createLogger } from '../../shared/logger/index.ts';
-import type { BakeMetadata, BakeResult, BakeError, BakedEdge, BakedNodeConfig } from './types.ts';
+import type { BakeMetadata, BakeResult, BakeError, BakedEdge, BakedChipConfig } from './types.ts';
 
 const log = createLogger('Bake');
 
-/** Where a node input port gets its value from. */
+/** Where a chip socket port gets its value from. */
 type PortSource =
   | { kind: 'cp'; cpIndex: number }
-  | { kind: 'node'; sourceNodeId: NodeId; sourcePort: number }
+  | { kind: 'chip'; sourceChipId: ChipId; sourcePort: number }
   | { kind: 'none' };
 
-/** Mapping from an output CP to the node/port that feeds it. */
+/** Mapping from an output CP to the chip/port that feeds it. */
 interface OutputMapping {
   cpIndex: number;
-  sourceNodeId: NodeId;
+  sourceChipId: ChipId;
   sourcePort: number;
 }
 
-/** Pre-computed spec for one node in the closure. */
-interface NodeSpec {
-  id: NodeId;
+/** Pre-computed spec for one chip in the closure. */
+interface ChipSpec {
+  id: ChipId;
   type: string;
   params: Record<string, number | string | boolean>;
-  inputSpecs: PortSource[];
-  outputCount: number;
+  socketSpecs: PortSource[];
+  plugCount: number;
 }
 
 /**
@@ -52,8 +52,8 @@ interface NodeSpec {
  * - Neither → 'off'
  */
 function classifyBidirectionalCps(
-  nodes: ReadonlyMap<NodeId, NodeState>,
-  wires: Wire[],
+  nodes: ReadonlyMap<ChipId, ChipState>,
+  paths: Path[],
 ): Result<('input' | 'output' | 'off')[], BakeError> {
   const layout: ('input' | 'output' | 'off')[] = [];
 
@@ -64,8 +64,8 @@ function classifyBidirectionalCps(
       continue;
     }
 
-    const hasOutgoing = wires.some(w => w.source.chipId === chipId);
-    const hasIncoming = wires.some(w => w.target.chipId === chipId);
+    const hasOutgoing = paths.some(w => w.source.chipId === chipId);
+    const hasIncoming = paths.some(w => w.target.chipId === chipId);
 
     if (hasOutgoing && hasIncoming) {
       return err({ message: `Bidirectional CP ${i} has both incoming and outgoing wires` });
@@ -85,11 +85,11 @@ function classifyBidirectionalCps(
  * Transform bidirectional CPs into standard input/output CPs for baking.
  */
 function transformBidirToStandard(
-  nodes: ReadonlyMap<NodeId, NodeState>,
-  wires: Wire[],
+  nodes: ReadonlyMap<ChipId, ChipState>,
+  paths: Path[],
   cpLayout: ('input' | 'output' | 'off')[],
-): { chips: Map<NodeId, NodeState>; wires: Wire[] } {
-  const newNodes = new Map<NodeId, NodeState>();
+): { chips: Map<ChipId, ChipState>; paths: Path[] } {
+  const newNodes = new Map<ChipId, ChipState>();
   let inputIndex = 0;
   let outputIndex = 0;
 
@@ -118,7 +118,7 @@ function transformBidirToStandard(
     }
   }
 
-  const newWires: Wire[] = wires
+  const newPaths: Path[] = paths
     .filter(w => {
       const srcBidir = isBidirectionalCpNode(w.source.chipId);
       const tgtBidir = isBidirectionalCpNode(w.target.chipId);
@@ -142,39 +142,39 @@ function transformBidirToStandard(
       return { ...w, source, target };
     });
 
-  return { chips: newNodes, wires: newWires };
+  return { chips: newNodes, paths: newPaths };
 }
 
 /**
  * Bake a gameboard graph into a single evaluate closure.
  *
  * Cycle-based: each call to evaluate() processes one cycle.
- * No wire delay simulation. Memory nodes provide 1-cycle delay.
+ * No wire delay simulation. Memory chips provide 1-cycle delay.
  */
 export function bakeGraph(
-  nodes: ReadonlyMap<NodeId, NodeState>,
-  wires: Wire[],
+  nodes: ReadonlyMap<ChipId, ChipState>,
+  paths: Path[],
 ): Result<BakeResult, BakeError> {
-  // Handle bidirectional CPs (utility node editing)
+  // Handle bidirectional CPs (utility chip editing)
   const hasBidirCps = Array.from(nodes.keys()).some(id => isBidirectionalCpNode(id));
   let cpLayout: ('input' | 'output' | 'off')[] | undefined;
   let bakeNodes = nodes;
-  let bakeWires = wires;
+  let bakePaths = paths;
 
   if (hasBidirCps) {
-    const classifyResult = classifyBidirectionalCps(nodes, wires);
+    const classifyResult = classifyBidirectionalCps(nodes, paths);
     if (!classifyResult.ok) {
       return err({ message: classifyResult.error.message });
     }
     cpLayout = classifyResult.value;
-    const transformed = transformBidirToStandard(nodes, wires, cpLayout);
+    const transformed = transformBidirToStandard(nodes, paths, cpLayout);
     bakeNodes = transformed.chips;
-    bakeWires = transformed.paths;
+    bakePaths = transformed.paths;
   }
 
   // Step 1: Topological sort
   const chipIds = Array.from(bakeNodes.keys());
-  const sortResult = topologicalSort(chipIds, bakeWires);
+  const sortResult = topologicalSort(chipIds, bakePaths);
   if (!sortResult.ok) {
     return err({
       message: sortResult.error.message,
@@ -184,10 +184,10 @@ export function bakeGraph(
   const topoOrder = sortResult.value;
 
   // Step 2: Analyze graph structure (no delay analysis)
-  const analysis = analyzeGraph(topoOrder, bakeNodes, bakeWires);
+  const analysis = analyzeGraph(topoOrder, bakeNodes, bakePaths);
 
   // Step 3: Build metadata
-  const metadata = buildMetadata(topoOrder, bakeNodes, bakeWires, analysis);
+  const metadata = buildMetadata(topoOrder, bakeNodes, bakePaths, analysis);
   if (cpLayout) {
     metadata.cpLayout = cpLayout;
   }
@@ -216,9 +216,9 @@ export function bakeGraph(
   const evaluate = buildClosure(bakeNodes, analysis);
 
   log.info('Graph baked successfully', {
-    inputCount: analysis.inputCount,
-    outputCount: analysis.outputCount,
-    processingNodes: analysis.processingOrder.length,
+    socketCount: analysis.socketCount,
+    plugCount: analysis.plugCount,
+    processingChips: analysis.processingOrder.length,
   });
 
   return ok({ evaluate, metadata });
@@ -228,40 +228,40 @@ export function bakeGraph(
  * Reconstruct a BakeResult from serialized metadata.
  */
 export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
-  const nodes = new Map<NodeId, NodeState>();
-  for (const config of metadata.nodeConfigs) {
+  const nodes = new Map<ChipId, ChipState>();
+  for (const config of metadata.chipConfigs) {
     nodes.set(config.id, {
       id: config.id,
       type: config.type,
       position: { col: 0, row: 0 },
       params: { ...config.params },
-      inputCount: config.inputCount,
-      outputCount: config.outputCount,
+      socketCount: config.socketCount,
+      plugCount: config.plugCount,
     });
   }
 
-  for (let i = 0; i < metadata.inputCount; i++) {
+  for (let i = 0; i < metadata.socketCount; i++) {
     const cpNode = createConnectionPointNode('input', i);
     if (!nodes.has(cpNode.id)) {
       nodes.set(cpNode.id, cpNode);
     }
   }
-  for (let i = 0; i < metadata.outputCount; i++) {
+  for (let i = 0; i < metadata.plugCount; i++) {
     const cpNode = createConnectionPointNode('output', i);
     if (!nodes.has(cpNode.id)) {
       nodes.set(cpNode.id, cpNode);
     }
   }
 
-  const wires: Wire[] = metadata.edges.map((edge, i) =>
-    createWire(
-      `baked-wire-${i}`,
-      { chipId: edge.fromNodeId, portIndex: edge.fromPort, side: 'output' as const },
-      { chipId: edge.toNodeId, portIndex: edge.toPort, side: 'input' as const },
+  const paths: Path[] = metadata.edges.map((edge, i) =>
+    createPath(
+      `baked-path-${i}`,
+      { chipId: edge.fromChipId, portIndex: edge.fromPort, side: 'plug' as const },
+      { chipId: edge.toChipId, portIndex: edge.toPort, side: 'socket' as const },
     ),
   );
 
-  const analysis = analyzeGraph(metadata.topoOrder, nodes, wires);
+  const analysis = analyzeGraph(metadata.topoOrder, nodes, paths);
   const evaluate = buildClosure(nodes, analysis);
 
   return { evaluate, metadata };
@@ -274,9 +274,9 @@ export function reconstructFromMetadata(metadata: BakeMetadata): BakeResult {
 interface GraphAnalysis {
   portSources: Map<string, PortSource>;
   outputMappings: OutputMapping[];
-  processingOrder: NodeId[];
-  inputCount: number;
-  outputCount: number;
+  processingOrder: ChipId[];
+  socketCount: number;
+  plugCount: number;
 }
 
 /**
@@ -284,22 +284,43 @@ interface GraphAnalysis {
  * and processing order. No delay computation.
  */
 function analyzeGraph(
-  topoOrder: NodeId[],
-  nodes: ReadonlyMap<NodeId, NodeState>,
-  wires: Wire[],
+  topoOrder: ChipId[],
+  nodes: ReadonlyMap<ChipId, ChipState>,
+  paths: Path[],
 ): GraphAnalysis {
-  // Build wire lookup: target "chipId:portIndex" → wire
-  const wireByTarget = new Map<string, Wire>();
-  for (const wire of wires) {
-    wireByTarget.set(`${wire.target.chipId}:${wire.target.portIndex}`, wire);
+  // Build path lookup: target "chipId:portIndex" → path
+  const pathByTarget = new Map<string, Path>();
+  for (const path of paths) {
+    pathByTarget.set(`${path.target.chipId}:${path.target.portIndex}`, path);
   }
 
   const portSources = new Map<string, PortSource>();
   const outputMappings: OutputMapping[] = [];
-  const processingOrder: NodeId[] = [];
+  const processingOrder: ChipId[] = [];
 
-  let inputCount = 0;
-  let outputCount = 0;
+  let socketCount = 0;
+  let plugCount = 0;
+
+  // Pre-pass: build sequential index remapping for utility slots.
+  // Slot indices (0-5) can have gaps; we need dense port indices (0, 1, 2...).
+  const utilitySlotToSocketIndex = new Map<number, number>();
+  const utilitySlotToPlugIndex = new Map<number, number>();
+  {
+    // Collect and sort by slot index to ensure stable ordering
+    const socketSlots: number[] = [];
+    const plugSlots: number[] = [];
+    for (const chipId of topoOrder) {
+      const node = nodes.get(chipId);
+      if (!node || !isUtilitySlotNode(chipId)) continue;
+      const slotIndex = getUtilitySlotIndex(chipId);
+      if (node.type === 'connection-input') socketSlots.push(slotIndex);
+      else if (node.type === 'connection-output') plugSlots.push(slotIndex);
+    }
+    socketSlots.sort((a, b) => a - b);
+    plugSlots.sort((a, b) => a - b);
+    for (let i = 0; i < socketSlots.length; i++) utilitySlotToSocketIndex.set(socketSlots[i], i);
+    for (let i = 0; i < plugSlots.length; i++) utilitySlotToPlugIndex.set(plugSlots[i], i);
+  }
 
   for (const chipId of topoOrder) {
     const node = nodes.get(chipId);
@@ -307,74 +328,73 @@ function analyzeGraph(
 
     if (isConnectionInputNode(chipId)) {
       const cpIndex = getConnectionPointIndex(chipId);
-      if (cpIndex >= inputCount) inputCount = cpIndex + 1;
+      if (cpIndex >= socketCount) socketCount = cpIndex + 1;
       continue;
     }
 
     if (isConnectionOutputNode(chipId)) {
       const cpIndex = getConnectionPointIndex(chipId);
-      if (cpIndex >= outputCount) outputCount = cpIndex + 1;
+      if (cpIndex >= plugCount) plugCount = cpIndex + 1;
 
-      const wire = wireByTarget.get(`${chipId}:0`);
-      if (wire) {
+      const path = pathByTarget.get(`${chipId}:0`);
+      if (path) {
         outputMappings.push({
           cpIndex,
-          sourceNodeId: wire.source.chipId,
-          sourcePort: wire.source.portIndex,
+          sourceChipId: path.source.chipId,
+          sourcePort: path.source.portIndex,
         });
       }
       continue;
     }
 
-    // Utility slot nodes: treated like standard input/output CPs for baking
+    // Utility slot nodes: remap slot indices to sequential port indices
     if (isUtilitySlotNode(chipId)) {
       const slotIndex = getUtilitySlotIndex(chipId);
       if (node.type === 'connection-input') {
-        // Utility input slots: use slot index directly as cpIndex
-        if (slotIndex >= inputCount) inputCount = slotIndex + 1;
+        const seqIndex = utilitySlotToSocketIndex.get(slotIndex) ?? 0;
+        if (seqIndex >= socketCount) socketCount = seqIndex + 1;
       } else if (node.type === 'connection-output') {
-        // Utility output slots: use slot index directly as output index
-        // Left outputs get indices 0-2, right outputs get indices 3-5 — no collision
-        const outputIndex = slotIndex;
-        if (outputIndex >= 0 && outputIndex >= outputCount) outputCount = outputIndex + 1;
-        const wire = wireByTarget.get(`${chipId}:0`);
-        if (wire) {
+        const seqIndex = utilitySlotToPlugIndex.get(slotIndex) ?? 0;
+        if (seqIndex >= plugCount) plugCount = seqIndex + 1;
+        const path = pathByTarget.get(`${chipId}:0`);
+        if (path) {
           outputMappings.push({
-            cpIndex: outputIndex,
-            sourceNodeId: wire.source.chipId,
-            sourcePort: wire.source.portIndex,
+            cpIndex: seqIndex,
+            sourceChipId: path.source.chipId,
+            sourcePort: path.source.portIndex,
           });
         }
       }
       continue;
     }
 
-    // Processing node
+    // Processing chip
     processingOrder.push(chipId);
 
-    for (let portIndex = 0; portIndex < node.inputCount; portIndex++) {
-      const wireKey = `${chipId}:${portIndex}`;
-      const wire = wireByTarget.get(wireKey);
+    for (let portIndex = 0; portIndex < node.socketCount; portIndex++) {
+      const pathKey = `${chipId}:${portIndex}`;
+      const path = pathByTarget.get(pathKey);
 
-      if (!wire) {
-        portSources.set(wireKey, { kind: 'none' });
+      if (!path) {
+        portSources.set(pathKey, { kind: 'none' });
         continue;
       }
 
-      const sourceNodeId = wire.source.chipId;
+      const sourceChipId = path.source.chipId;
 
-      if (isConnectionInputNode(sourceNodeId)) {
-        const cpIndex = getConnectionPointIndex(sourceNodeId);
-        portSources.set(wireKey, { kind: 'cp', cpIndex });
-      } else if (isUtilitySlotNode(sourceNodeId)) {
-        // Utility input slot: slot index is the cpIndex
-        const slotIndex = getUtilitySlotIndex(sourceNodeId);
-        portSources.set(wireKey, { kind: 'cp', cpIndex: slotIndex });
+      if (isConnectionInputNode(sourceChipId)) {
+        const cpIndex = getConnectionPointIndex(sourceChipId);
+        portSources.set(pathKey, { kind: 'cp', cpIndex });
+      } else if (isUtilitySlotNode(sourceChipId)) {
+        // Utility input slot: use remapped sequential index
+        const slotIndex = getUtilitySlotIndex(sourceChipId);
+        const seqIndex = utilitySlotToSocketIndex.get(slotIndex) ?? 0;
+        portSources.set(pathKey, { kind: 'cp', cpIndex: seqIndex });
       } else {
-        portSources.set(wireKey, {
-          kind: 'node',
-          sourceNodeId,
-          sourcePort: wire.source.portIndex,
+        portSources.set(pathKey, {
+          kind: 'chip',
+          sourceChipId,
+          sourcePort: path.source.portIndex,
         });
       }
     }
@@ -384,8 +404,8 @@ function analyzeGraph(
     portSources,
     outputMappings,
     processingOrder,
-    inputCount,
-    outputCount,
+    socketCount,
+    plugCount,
   };
 }
 
@@ -394,37 +414,37 @@ function analyzeGraph(
 // =============================================================================
 
 function buildMetadata(
-  topoOrder: NodeId[],
-  nodes: ReadonlyMap<NodeId, NodeState>,
-  wires: Wire[],
+  topoOrder: ChipId[],
+  nodes: ReadonlyMap<ChipId, ChipState>,
+  paths: Path[],
   analysis: GraphAnalysis,
 ): BakeMetadata {
-  const nodeConfigs: BakedNodeConfig[] = [];
+  const chipConfigs: BakedChipConfig[] = [];
   for (const chipId of topoOrder) {
     const node = nodes.get(chipId);
     if (!node) continue;
-    nodeConfigs.push({
+    chipConfigs.push({
       id: node.id,
       type: node.type,
-      params: { ...node.params },
-      inputCount: node.inputCount,
-      outputCount: node.outputCount,
+      params: { ...node.params } as Record<string, number | string | boolean>,
+      socketCount: node.socketCount,
+      plugCount: node.plugCount,
     });
   }
 
-  const edges: BakedEdge[] = wires.map((wire) => ({
-    fromNodeId: wire.source.chipId,
-    fromPort: wire.source.portIndex,
-    toNodeId: wire.target.chipId,
-    toPort: wire.target.portIndex,
+  const edges: BakedEdge[] = paths.map((path) => ({
+    fromChipId: path.source.chipId,
+    fromPort: path.source.portIndex,
+    toChipId: path.target.chipId,
+    toPort: path.target.portIndex,
   }));
 
   return {
     topoOrder,
-    nodeConfigs,
+    chipConfigs,
     edges,
-    inputCount: analysis.inputCount,
-    outputCount: analysis.outputCount,
+    socketCount: analysis.socketCount,
+    plugCount: analysis.plugCount,
   };
 }
 
@@ -433,22 +453,22 @@ function buildMetadata(
 // =============================================================================
 
 /**
- * Evaluate a single processing node.
+ * Evaluate a single processing chip.
  */
-function evaluateNodePure(
+function evaluateChipPure(
   type: string,
   inputs: number[],
   params: Record<string, number | string | boolean>,
-  nodeState: NodeRuntimeState | undefined,
+  chipState: ChipRuntimeState | undefined,
   tickIndex: number,
 ): number[] {
-  const def = getNodeDefinition(type);
+  const def = getChipDefinition(type);
   if (!def) return [];
 
   return def.evaluate({
     inputs,
     params,
-    state: nodeState,
+    state: chipState,
     tickIndex,
   });
 }
@@ -460,95 +480,95 @@ function evaluateNodePure(
  * returns outputs. No circular buffers or wire delays.
  */
 function buildClosure(
-  nodes: ReadonlyMap<NodeId, NodeState>,
+  nodes: ReadonlyMap<ChipId, ChipState>,
   analysis: GraphAnalysis,
 ): (inputs: number[]) => number[] {
   const {
     portSources,
     outputMappings,
     processingOrder,
-    outputCount,
+    plugCount,
   } = analysis;
 
-  // Build node specs for fast evaluation
-  const nodeSpecs: NodeSpec[] = [];
-  const nodeStates = new Map<NodeId, NodeRuntimeState>();
+  // Build chip specs for fast evaluation
+  const chipSpecs: ChipSpec[] = [];
+  const chipStates = new Map<ChipId, ChipRuntimeState>();
 
   for (const chipId of processingOrder) {
     const node = nodes.get(chipId);
     if (!node) continue;
 
-    const inputSpecs: PortSource[] = [];
-    for (let portIndex = 0; portIndex < node.inputCount; portIndex++) {
+    const socketSpecs: PortSource[] = [];
+    for (let portIndex = 0; portIndex < node.socketCount; portIndex++) {
       const key = `${chipId}:${portIndex}`;
-      inputSpecs.push(portSources.get(key) ?? { kind: 'none' as const });
+      socketSpecs.push(portSources.get(key) ?? { kind: 'none' as const });
     }
 
-    nodeSpecs.push({
+    chipSpecs.push({
       id: chipId,
       type: node.type,
-      params: node.params,
-      inputSpecs,
-      outputCount: node.outputCount,
+      params: node.params as Record<string, number | string | boolean>,
+      socketSpecs,
+      plugCount: node.plugCount,
     });
 
-    const def = getNodeDefinition(node.type);
+    const def = getChipDefinition(node.type);
     if (def?.createState) {
-      nodeStates.set(chipId, def.createState());
+      chipStates.set(chipId, def.createState());
     }
   }
 
   // Pre-compute output mapping lookups
   const outputMap: OutputMapping[] = [];
-  for (let i = 0; i < outputCount; i++) {
+  for (let i = 0; i < plugCount; i++) {
     const mapping = outputMappings.find((m) => m.cpIndex === i);
-    outputMap.push(mapping ?? { cpIndex: i, sourceNodeId: '', sourcePort: 0 });
+    outputMap.push(mapping ?? { cpIndex: i, sourceChipId: '', sourcePort: 0 });
   }
 
-  // Storage for node outputs, reused across calls
-  const nodeOutputs = new Map<NodeId, number[]>();
+  // Storage for chip outputs, reused across calls
+  const chipOutputs = new Map<ChipId, number[]>();
   let tickIndex = 0;
 
   // The closure
   return function evaluate(inputs: number[]): number[] {
-    nodeOutputs.clear();
+    chipOutputs.clear();
 
-    // Evaluate each processing node in topo order
-    for (const spec of nodeSpecs) {
-      const nodeInputs: number[] = [];
+    // Evaluate each processing chip in topo order
+    for (const spec of chipSpecs) {
+      const chipInputs: number[] = [];
 
-      for (const source of spec.inputSpecs) {
+      for (const source of spec.socketSpecs) {
         if (source.kind === 'cp') {
-          nodeInputs.push(source.cpIndex < inputs.length ? inputs[source.cpIndex] : 0);
-        } else if (source.kind === 'node') {
-          const outputs = nodeOutputs.get(source.sourceNodeId);
-          nodeInputs.push(outputs ? (outputs[source.sourcePort] ?? 0) : 0);
+          chipInputs.push(source.cpIndex < inputs.length ? inputs[source.cpIndex] : 0);
+        } else if (source.kind === 'chip') {
+          const outputs = chipOutputs.get(source.sourceChipId);
+          chipInputs.push(outputs ? (outputs[source.sourcePort] ?? 0) : 0);
         } else {
-          nodeInputs.push(0);
+          chipInputs.push(0);
         }
       }
 
-      const nodeState = nodeStates.get(spec.id);
-      const outputs = evaluateNodePure(spec.type, nodeInputs, spec.params, nodeState, tickIndex);
-      nodeOutputs.set(spec.id, outputs);
+      const chipState = chipStates.get(spec.id);
+      const outputs = evaluateChipPure(spec.type, chipInputs, spec.params, chipState, tickIndex);
+      chipOutputs.set(spec.id, outputs);
     }
 
     tickIndex++;
 
     // Collect output CP values
-    const result = new Array<number>(outputCount).fill(0);
-    for (let i = 0; i < outputCount; i++) {
+    const result = new Array<number>(plugCount).fill(0);
+    for (let i = 0; i < plugCount; i++) {
       const mapping = outputMap[i];
-      if (mapping.sourceNodeId === '') continue;
+      if (mapping.sourceChipId === '') continue;
 
-      if (isConnectionPointNode(mapping.sourceNodeId)) {
+      if (isConnectionPointNode(mapping.sourceChipId)) {
         // Direct CP-to-CP: use input value directly
-        const cpIndex = getConnectionPointIndex(mapping.sourceNodeId);
+        const cpIndex = getConnectionPointIndex(mapping.sourceChipId);
         if (cpIndex >= 0 && cpIndex < inputs.length) {
           result[i] = inputs[cpIndex];
         }
       } else {
-        const outputs = nodeOutputs.get(mapping.sourceNodeId);
+        const outputs = chipOutputs.get(mapping.sourceChipId);
         result[i] = outputs ? (outputs[mapping.sourcePort] ?? 0) : 0;
       }
     }

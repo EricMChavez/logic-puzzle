@@ -32,7 +32,7 @@ const CELL_SIZE = 20;
 function makePaletteItem(id: string, canPlace = true): PaletteItem {
   return {
     id,
-    nodeType: id,
+    chipType: id,
     label: id.charAt(0).toUpperCase() + id.slice(1),
     section: 'fundamental',
     category: 'math',
@@ -48,7 +48,7 @@ const ITEMS: PaletteItem[] = [
   makePaletteItem('max'),
   makePaletteItem('min'),
   makePaletteItem('memory'),
-  makePaletteItem('split'),
+  makePaletteItem('duplicate'),
 ];
 
 // Reset module-level state between tests
@@ -491,7 +491,7 @@ describe('drawChipDrawer', () => {
   it('draws without throwing when closed', () => {
     const ctx = createMockCtx();
     expect(() => {
-      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingNode: false, puzzleNodes: new Map(), utilityNodes: new Map() }, CELL_SIZE);
+      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingChip: false, craftedPuzzles: new Map(), craftedUtilities: new Map() }, CELL_SIZE);
     }).not.toThrow();
   });
 
@@ -501,14 +501,14 @@ describe('drawChipDrawer', () => {
     updateDrawerAnimation(500);
     const ctx = createMockCtx();
     expect(() => {
-      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingNode: false, puzzleNodes: new Map(), utilityNodes: new Map() }, CELL_SIZE);
+      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingChip: false, craftedPuzzles: new Map(), craftedUtilities: new Map() }, CELL_SIZE);
     }).not.toThrow();
   });
 
   it('draws delete zone when dragging node', () => {
     const ctx = createMockCtx();
     expect(() => {
-      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingNode: true, puzzleNodes: new Map(), utilityNodes: new Map() }, CELL_SIZE);
+      drawChipDrawer(ctx, tokens, { paletteItems: ITEMS, isDraggingChip: true, craftedPuzzles: new Map(), craftedUtilities: new Map() }, CELL_SIZE);
     }).not.toThrow();
   });
 });

@@ -1,14 +1,14 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 
 /** Splits the input 50/50 across two outputs */
-export const divideNode = defineNode({
+export const divideChip = defineChip({
   type: 'divide',
   category: 'routing',
 
-  inputs: [
+  sockets: [
     { name: 'A', side: 'left', gridPosition: 1 },
   ],
-  outputs: [
+  plugs: [
     { name: 'X', side: 'right', gridPosition: 0 },
     { name: 'Y', side: 'right', gridPosition: 1 },
   ],

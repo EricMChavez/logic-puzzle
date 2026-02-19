@@ -1,82 +1,82 @@
 import { describe, it, expect } from 'vitest';
 import {
-  nodeRegistry,
-  getNodeDefinition,
-  isFundamentalNode,
-  getNodeLabel,
+  chipRegistry,
+  getChipDefinition,
+  isFundamentalChip,
+  getChipLabel,
   getDefaultParams,
   CATEGORY_LABELS,
 } from './registry';
 import { getKnobConfig } from './framework';
 
-describe('Node Registry', () => {
-  describe('nodeRegistry', () => {
-    it('contains all fundamental nodes', () => {
-      expect(nodeRegistry.allTypes).toContain('offset');
-      expect(nodeRegistry.allTypes).toContain('scale');
-      expect(nodeRegistry.allTypes).toContain('threshold');
-      expect(nodeRegistry.allTypes).toContain('max');
-      expect(nodeRegistry.allTypes).toContain('min');
-      expect(nodeRegistry.allTypes).toContain('split');
-      expect(nodeRegistry.allTypes).toContain('memory');
-      expect(nodeRegistry.allTypes).toContain('divide');
-      expect(nodeRegistry.allTypes).toContain('add');
-      expect(nodeRegistry.allTypes).toContain('negate');
+describe('Chip Registry', () => {
+  describe('chipRegistry', () => {
+    it('contains all fundamental chips', () => {
+      expect(chipRegistry.allTypes).toContain('offset');
+      expect(chipRegistry.allTypes).toContain('scale');
+      expect(chipRegistry.allTypes).toContain('threshold');
+      expect(chipRegistry.allTypes).toContain('max');
+      expect(chipRegistry.allTypes).toContain('min');
+      expect(chipRegistry.allTypes).toContain('duplicate');
+      expect(chipRegistry.allTypes).toContain('memory');
+      expect(chipRegistry.allTypes).toContain('divide');
+      expect(chipRegistry.allTypes).toContain('add');
+      expect(chipRegistry.allTypes).toContain('negate');
     });
 
     it('has correct count', () => {
-      expect(nodeRegistry.all).toHaveLength(10);
+      expect(chipRegistry.all).toHaveLength(11);
     });
 
     it('has byType lookup', () => {
-      expect(nodeRegistry.byType.get('offset')).toBeDefined();
-      expect(nodeRegistry.byType.get('unknown')).toBeUndefined();
+      expect(chipRegistry.byType.get('offset')).toBeDefined();
+      expect(chipRegistry.byType.get('unknown')).toBeUndefined();
     });
 
     it('has byCategory lookup', () => {
-      expect(nodeRegistry.byCategory.math).toHaveLength(7); // offset, scale, threshold, add, max, min, negate
-      expect(nodeRegistry.byCategory.routing).toHaveLength(2); // split, divide
-      expect(nodeRegistry.byCategory.timing).toHaveLength(1); // memory
+      expect(chipRegistry.byCategory.math).toHaveLength(8); // offset, scale, threshold, add, max, min, negate, amp
+      expect(chipRegistry.byCategory.routing).toHaveLength(2); // duplicate, divide
+      expect(chipRegistry.byCategory.timing).toHaveLength(1); // memory
     });
   });
 
-  describe('getNodeDefinition', () => {
+  describe('getChipDefinition', () => {
     it('returns definition for known type', () => {
-      const def = getNodeDefinition('scale');
+      const def = getChipDefinition('scale');
       expect(def).toBeDefined();
       expect(def?.type).toBe('scale');
-      expect(def?.inputs).toHaveLength(2);
+      expect(def?.sockets).toHaveLength(2);
     });
 
     it('returns undefined for unknown type', () => {
-      expect(getNodeDefinition('unknown')).toBeUndefined();
+      expect(getChipDefinition('unknown')).toBeUndefined();
     });
 
     it('returns undefined for custom types', () => {
-      expect(getNodeDefinition('puzzle:level-01')).toBeUndefined();
-      expect(getNodeDefinition('utility:my-util')).toBeUndefined();
+      expect(getChipDefinition('puzzle:level-01')).toBeUndefined();
+      expect(getChipDefinition('utility:my-util')).toBeUndefined();
     });
   });
 
-  describe('isFundamentalNode', () => {
+  describe('isFundamentalChip', () => {
     it('returns true for fundamental types', () => {
-      expect(isFundamentalNode('offset')).toBe(true);
-      expect(isFundamentalNode('scale')).toBe(true);
-      expect(isFundamentalNode('memory')).toBe(true);
+      expect(isFundamentalChip('offset')).toBe(true);
+      expect(isFundamentalChip('scale')).toBe(true);
+      expect(isFundamentalChip('memory')).toBe(true);
     });
 
     it('returns false for custom types', () => {
-      expect(isFundamentalNode('puzzle:level-01')).toBe(false);
-      expect(isFundamentalNode('utility:my-util')).toBe(false);
-      expect(isFundamentalNode('unknown')).toBe(false);
+      expect(isFundamentalChip('puzzle:level-01')).toBe(false);
+      expect(isFundamentalChip('utility:my-util')).toBe(false);
+      expect(isFundamentalChip('unknown')).toBe(false);
     });
   });
 
-  describe('getNodeLabel', () => {
+  describe('getChipLabel', () => {
     it('capitalizes first letter', () => {
-      expect(getNodeLabel('offset')).toBe('Offset');
-      expect(getNodeLabel('scale')).toBe('Scale');
-      expect(getNodeLabel('memory')).toBe('Memory');
+      expect(getChipLabel('offset')).toBe('Offset');
+      expect(getChipLabel('scale')).toBe('Scale');
+      expect(getChipLabel('memory')).toBe('Memory');
     });
   });
 
@@ -90,7 +90,7 @@ describe('Node Registry', () => {
     it('returns empty object for non-parameterized nodes', () => {
       expect(getDefaultParams('max')).toEqual({});
       expect(getDefaultParams('min')).toEqual({});
-      expect(getDefaultParams('split')).toEqual({});
+      expect(getDefaultParams('duplicate')).toEqual({});
     });
 
     it('returns empty object for unknown types', () => {
@@ -109,22 +109,22 @@ describe('Node Registry', () => {
 
   describe('getKnobConfig', () => {
     it('returns correct config for scale', () => {
-      expect(getKnobConfig(getNodeDefinition('scale'))).toEqual({ portIndex: 1, paramKey: 'factor' });
+      expect(getKnobConfig(getChipDefinition('scale'))).toEqual({ portIndex: 1, paramKey: 'factor' });
     });
 
     it('returns correct config for offset', () => {
-      expect(getKnobConfig(getNodeDefinition('offset'))).toEqual({ portIndex: 1, paramKey: 'amount' });
+      expect(getKnobConfig(getChipDefinition('offset'))).toEqual({ portIndex: 1, paramKey: 'amount' });
     });
 
     it('returns correct config for threshold', () => {
-      expect(getKnobConfig(getNodeDefinition('threshold'))).toEqual({ portIndex: 1, paramKey: 'level' });
+      expect(getKnobConfig(getChipDefinition('threshold'))).toEqual({ portIndex: 1, paramKey: 'level' });
     });
 
     it('returns null for non-knob types', () => {
-      expect(getKnobConfig(getNodeDefinition('max'))).toBeNull();
-      expect(getKnobConfig(getNodeDefinition('min'))).toBeNull();
-      expect(getKnobConfig(getNodeDefinition('memory'))).toBeNull();
-      expect(getKnobConfig(getNodeDefinition('split'))).toBeNull();
+      expect(getKnobConfig(getChipDefinition('max'))).toBeNull();
+      expect(getKnobConfig(getChipDefinition('min'))).toBeNull();
+      expect(getKnobConfig(getChipDefinition('memory'))).toBeNull();
+      expect(getKnobConfig(getChipDefinition('duplicate'))).toBeNull();
     });
 
     it('returns null for undefined definition', () => {

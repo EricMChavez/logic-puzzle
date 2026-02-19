@@ -1,19 +1,19 @@
 import type { StateCreator } from 'zustand';
-import type { NodeId, PortRef, Vec2, NodeRotation, NodeState } from '../../shared/types/index.ts';
+import type { ChipId, PortRef, Vec2, ChipRotation, ChipState } from '../../shared/types/index.ts';
 import type { GridPoint } from '../../shared/grid/types.ts';
 
 /** Interaction mode discriminated union */
 export type InteractionMode =
   | { type: 'idle' }
-  | { type: 'placing-node'; nodeType: string; rotation: NodeRotation; dragPlacement?: boolean }
-  | { type: 'drawing-wire'; fromPort: PortRef; fromPosition: Vec2 }
+  | { type: 'placing-chip'; chipType: string; rotation: ChipRotation; dragPlacement?: boolean }
+  | { type: 'drawing-path'; fromPort: PortRef; fromPosition: Vec2 }
   | { type: 'keyboard-wiring'; fromPort: PortRef; validTargets: PortRef[]; targetIndex: number }
-  | { type: 'dragging-node'; draggedNode: NodeState; grabOffset: GridPoint; originalPosition: GridPoint; rotation: NodeRotation }
-  | { type: 'adjusting-knob'; chipId: NodeId; startY: number; startValue: number };
+  | { type: 'dragging-chip'; draggedChip: ChipState; grabOffset: GridPoint; originalPosition: GridPoint; rotation: ChipRotation }
+  | { type: 'adjusting-knob'; chipId: ChipId; startY: number; startValue: number; knobCenter: { x: number; y: number } | null };
 
 /** Port currently being edited for a constant value */
 export interface EditingPort {
-  chipId: NodeId;
+  chipId: ChipId;
   portIndex: number;
   position: Vec2;
 }
@@ -21,37 +21,37 @@ export interface EditingPort {
 export interface InteractionSlice {
   /** Current interaction mode */
   interactionMode: InteractionMode;
-  /** Currently selected node (for parameter editing) */
-  selectedNodeId: NodeId | null;
-  /** Currently hovered node (for visual highlight) */
-  hoveredNodeId: NodeId | null;
-  /** Current mouse position on canvas (for wire preview) */
+  /** Currently selected chip (for parameter editing) */
+  selectedChipId: ChipId | null;
+  /** Currently hovered chip (for visual highlight) */
+  hoveredChipId: ChipId | null;
+  /** Current mouse position on canvas (for path preview) */
   mousePosition: Vec2 | null;
   /** Port currently open for constant value editing */
   editingPort: EditingPort | null;
-  /** Arrow-key driven placement position for keyboard node placement */
+  /** Arrow-key driven placement position for keyboard chip placement */
   keyboardGhostPosition: GridPoint | null;
 
-  /** Enter placing-node mode */
-  startPlacingNode: (nodeType: string) => void;
+  /** Enter placing-chip mode */
+  startPlacingChip: (chipType: string) => void;
   /** Cancel placement, return to idle */
   cancelPlacing: () => void;
   /** Rotate the current placement/drag by 90 degrees */
   rotatePlacement: () => void;
-  /** Select a node on the gameboard */
-  selectNode: (chipId: NodeId) => void;
+  /** Select a chip on the gameboard */
+  selectChip: (chipId: ChipId) => void;
   /** Clear the current selection */
   clearSelection: () => void;
-  /** Start drawing a wire from a port */
-  startWireDraw: (fromPort: PortRef, fromPosition: Vec2) => void;
-  /** Cancel wire drawing, return to idle */
-  cancelWireDraw: () => void;
-  /** Update mouse position (for wire preview) */
+  /** Start drawing a path from a port */
+  startPathDraw: (fromPort: PortRef, fromPosition: Vec2) => void;
+  /** Cancel path drawing, return to idle */
+  cancelPathDraw: () => void;
+  /** Update mouse position (for path preview) */
   setMousePosition: (pos: Vec2 | null) => void;
-  /** Track which node the cursor is over */
-  setHoveredNode: (chipId: NodeId | null) => void;
+  /** Track which chip the cursor is over */
+  setHoveredChip: (chipId: ChipId | null) => void;
   /** Open constant value editor for a port */
-  startEditingPort: (chipId: NodeId, portIndex: number, position: Vec2) => void;
+  startEditingPort: (chipId: ChipId, portIndex: number, position: Vec2) => void;
   /** Close constant value editor */
   stopEditingPort: () => void;
   /** Enter keyboard wiring mode */
@@ -63,69 +63,69 @@ export interface InteractionSlice {
   /** Set the keyboard ghost position for arrow-key placement */
   setKeyboardGhostPosition: (pos: GridPoint | null) => void;
   /** Start adjusting a mixer knob */
-  startKnobAdjust: (chipId: NodeId, startY: number, startValue: number) => void;
+  startKnobAdjust: (chipId: ChipId, startY: number, startValue: number, knobCenter?: { x: number; y: number } | null) => void;
   /** Commit knob adjustment and return to idle */
   commitKnobAdjust: () => void;
-  /** Start dragging a node */
-  startDragging: (node: NodeState, grabOffset: GridPoint) => void;
+  /** Start dragging a chip */
+  startDragging: (chip: ChipState, grabOffset: GridPoint) => void;
   /** Update drag position */
   updateDragPosition: (mousePos: Vec2) => void;
-  /** Commit drag, move node to new position */
-  commitDrag: () => { node: NodeState; newPosition: GridPoint; newRotation: NodeRotation } | null;
+  /** Commit drag, move chip to new position */
+  commitDrag: () => { chip: ChipState; newPosition: GridPoint; newRotation: ChipRotation } | null;
   /** Cancel drag, return to idle */
   cancelDrag: () => void;
 }
 
 /** Cycle rotation: 0 -> 90 -> 180 -> 270 -> 0 */
-function nextRotation(rotation: NodeRotation): NodeRotation {
-  const rotations: NodeRotation[] = [0, 90, 180, 270];
+function nextRotation(rotation: ChipRotation): ChipRotation {
+  const rotations: ChipRotation[] = [0, 90, 180, 270];
   const idx = rotations.indexOf(rotation);
   return rotations[(idx + 1) % 4];
 }
 
 export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get) => ({
   interactionMode: { type: 'idle' },
-  selectedNodeId: null,
-  hoveredNodeId: null,
+  selectedChipId: null,
+  hoveredChipId: null,
   mousePosition: null,
   editingPort: null,
   keyboardGhostPosition: null,
 
-  startPlacingNode: (nodeType) =>
-    set({ interactionMode: { type: 'placing-node', nodeType, rotation: 0 }, selectedNodeId: null }),
+  startPlacingChip: (chipType) =>
+    set({ interactionMode: { type: 'placing-chip', chipType, rotation: 0 }, selectedChipId: null }),
 
   cancelPlacing: () =>
     set({ interactionMode: { type: 'idle' }, keyboardGhostPosition: null }),
 
   rotatePlacement: () => {
     const mode = get().interactionMode;
-    if (mode.type === 'placing-node') {
+    if (mode.type === 'placing-chip') {
       set({ interactionMode: { ...mode, rotation: nextRotation(mode.rotation) } });
-    } else if (mode.type === 'dragging-node') {
+    } else if (mode.type === 'dragging-chip') {
       set({ interactionMode: { ...mode, rotation: nextRotation(mode.rotation) } });
     }
   },
 
-  selectNode: (chipId) =>
-    set({ selectedNodeId: chipId, interactionMode: { type: 'idle' } }),
+  selectChip: (chipId) =>
+    set({ selectedChipId: chipId, interactionMode: { type: 'idle' } }),
 
   clearSelection: () =>
-    set({ selectedNodeId: null }),
+    set({ selectedChipId: null }),
 
-  startWireDraw: (fromPort, fromPosition) =>
+  startPathDraw: (fromPort, fromPosition) =>
     set({
-      interactionMode: { type: 'drawing-wire', fromPort, fromPosition },
-      selectedNodeId: null,
+      interactionMode: { type: 'drawing-path', fromPort, fromPosition },
+      selectedChipId: null,
     }),
 
-  cancelWireDraw: () =>
+  cancelPathDraw: () =>
     set({ interactionMode: { type: 'idle' } }),
 
   setMousePosition: (pos) =>
     set({ mousePosition: pos }),
 
-  setHoveredNode: (chipId) =>
-    set({ hoveredNodeId: chipId }),
+  setHoveredChip: (chipId) =>
+    set({ hoveredChipId: chipId }),
 
   startEditingPort: (chipId, portIndex, position) =>
     set({ editingPort: { chipId, portIndex, position } }),
@@ -141,7 +141,7 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
         validTargets,
         targetIndex: 0,
       },
-      selectedNodeId: null,
+      selectedChipId: null,
     }),
 
   cycleWiringTarget: (direction) => {
@@ -161,25 +161,25 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
   setKeyboardGhostPosition: (pos) =>
     set({ keyboardGhostPosition: pos }),
 
-  startKnobAdjust: (chipId, startY, startValue) =>
+  startKnobAdjust: (chipId, startY, startValue, knobCenter = null) =>
     set({
-      interactionMode: { type: 'adjusting-knob', chipId, startY, startValue },
-      selectedNodeId: chipId,
+      interactionMode: { type: 'adjusting-knob', chipId, startY, startValue, knobCenter: knobCenter ?? null },
+      selectedChipId: chipId,
     }),
 
   commitKnobAdjust: () =>
     set({ interactionMode: { type: 'idle' } }),
 
-  startDragging: (node, grabOffset) => {
+  startDragging: (chip, grabOffset) => {
     set({
       interactionMode: {
-        type: 'dragging-node',
-        draggedNode: node,
+        type: 'dragging-chip',
+        draggedChip: chip,
         grabOffset,
-        originalPosition: node.position,
-        rotation: node.rotation ?? 0,
+        originalPosition: chip.position,
+        rotation: chip.rotation ?? 0,
       },
-      selectedNodeId: node.id,
+      selectedChipId: chip.id,
     });
   },
 
@@ -189,13 +189,13 @@ export const createInteractionSlice: StateCreator<InteractionSlice> = (set, get)
 
   commitDrag: () => {
     const mode = get().interactionMode;
-    if (mode.type !== 'dragging-node') return null;
+    if (mode.type !== 'dragging-chip') return null;
 
     const mousePos = get().mousePosition;
     if (!mousePos) return null;
 
     const result = {
-      node: mode.draggedNode,
+      chip: mode.draggedChip,
       newPosition: { col: 0, row: 0 }, // Will be calculated by the caller
       newRotation: mode.rotation,
     };

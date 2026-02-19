@@ -18,6 +18,7 @@ export function RetroPageHost() {
       const screen = useGameStore.getState().activeScreen;
       const trans = useGameStore.getState().screenTransition;
       if (!screen) return;
+      // Only allow dismiss when CRT is fully on (idle)
       if (trans.type !== 'idle') return;
 
       if (e.key === 'Escape') {
@@ -31,8 +32,9 @@ export function RetroPageHost() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [dismissScreen]);
 
-  // Handle animation end
-  const handleAnimationEnd = useCallback(() => {
+  // Handle animation end — guard against bubbled events from child animations
+  const handleAnimationEnd = useCallback((e: React.AnimationEvent) => {
+    if (e.target !== e.currentTarget) return;
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
@@ -44,9 +46,11 @@ export function RetroPageHost() {
   useEffect(() => {
     if (transition.type === 'idle') return;
 
+    const timeout = transition.type === 'powering-off' ? 350 : 550;
+
     fallbackTimerRef.current = setTimeout(() => {
       completeScreenTransition();
-    }, 550);
+    }, timeout);
 
     return () => {
       if (fallbackTimerRef.current) {
@@ -58,7 +62,7 @@ export function RetroPageHost() {
   // Nothing to render: no screen active and no transition
   if (!activeScreen && transition.type === 'idle') return null;
 
-  // Sliding down (dismiss)
+  // Sliding down (dismiss — CRT already off, slide the whole gizmo)
   if (transition.type === 'sliding-down') {
     return (
       <div className={styles.host} ref={hostRef}>
@@ -72,7 +76,7 @@ export function RetroPageHost() {
     );
   }
 
-  // Sliding up (reveal)
+  // Sliding up (reveal — CRT dark, slides into view, then powers on)
   if (transition.type === 'sliding-up') {
     return (
       <div className={styles.host} ref={hostRef}>
@@ -86,7 +90,7 @@ export function RetroPageHost() {
     );
   }
 
-  // Idle with active screen — static
+  // Idle / powering-off — static position, CRT animation handled inside GizmoFace
   if (activeScreen) {
     return (
       <div className={styles.host} ref={hostRef}>

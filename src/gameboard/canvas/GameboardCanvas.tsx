@@ -6,13 +6,14 @@ import { getEscapeAction, executeEscapeAction } from '../interaction/escape-hand
 import { getKeyboardAction, executeKeyboardAction } from '../interaction/keyboard-handler.ts';
 import { setFocusVisible } from '../interaction/keyboard-focus.ts';
 import { generateId } from '../../shared/generate-id.ts';
-import { getNodeDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
+import { getChipDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
 import type { PortRef } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
 import { cpInputId, cpOutputId, creativeSlotId, cpBidirectionalId, utilitySlotId } from '../../puzzle/connection-point-nodes.ts';
-import { slotToDirectionIndex, buildSlotConfig } from '../../puzzle/types.ts';
+import { slotToDirectionIndex } from '../../puzzle/types.ts';
 import type { SlotConfig } from '../../puzzle/types.ts';
 import { slotPerSideIndex } from '../../shared/grid/slot-helpers.ts';
+import { bakeGraph } from '../../engine/baking/index.ts';
 import { getDevOverrides } from '../../dev/index.ts';
 import {
   GRID_COLS,
@@ -30,6 +31,8 @@ import {
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
 import { hasEditableParams } from '../../ui/overlays/context-menu-items.ts';
 import { rejectKnob } from './rejected-knob.ts';
+import { radialAngleToValue } from './render-knob.ts';
+import { getKnobMode } from '../../shared/settings/knob-mode.ts';
 import { playNodeDrop, playWireDrop, playKnobTic } from '../../shared/audio/index.ts';
 import { registerSnapshotCapture, unregisterSnapshotCapture, registerViewportCapture, unregisterViewportCapture, captureViewportSnapshot, captureCropSnapshot } from './snapshot.ts';
 import { getNodeGridSize } from '../../shared/grid/index.ts';
@@ -40,14 +43,16 @@ import { hitTestPagination } from './render-motherboard-sections.ts';
 import { navigateFromMenuNode } from './menu-navigation.ts';
 import { createMotherboard } from '../../store/motherboard.ts';
 import { isTutorialPaletteBlocked } from '../../tutorial/tutorial-input-guard.ts';
+import { getNextButtonRect } from './render-tutorial-overlay.ts';
 import {
-  hitTestChipDrawer, hitTestDeleteZone,
+  hitTestChipDrawer, hitTestDeleteZone, hitTestDeleteTrigger,
   getDrawerProgress, isDrawerOpen, openDrawer, closeDrawer,
   setHoveredChipIndex, setHandleHovered, getDrawerState,
   isKeyboardNavigationActive,
   getScrollOffset, setScrollOffset, getMaxScrollOffset,
   isDrawerVisible,
   getTrayRect,
+  isDeleteMode, setDeleteMode,
 } from './render-chip-drawer.ts';
 import { buildPaletteItems, computeRemainingBudgets } from '../../ui/overlays/palette-items.ts';
 
@@ -74,23 +79,23 @@ function canCompleteWire(from: PortRef, to: PortRef): boolean {
   return true;
 }
 
-/** Check if a port already has a wire connected to it. */
-function isPortOccupied(port: PortRef, wires: ReadonlyArray<import('../../shared/types/index.ts').Wire>): boolean {
-  return wires.some((w) =>
-    (w.source.chipId === port.chipId && w.source.portIndex === port.portIndex && port.side === 'output') ||
-    (w.target.chipId === port.chipId && w.target.portIndex === port.portIndex && port.side === 'input'),
+/** Check if a port already has a path connected to it. */
+function isPortOccupied(port: PortRef, paths: ReadonlyArray<import('../../shared/types/index.ts').Path>): boolean {
+  return paths.some((p) =>
+    (p.source.chipId === port.chipId && p.source.portIndex === port.portIndex && port.side === 'plug') ||
+    (p.target.chipId === port.chipId && p.target.portIndex === port.portIndex && port.side === 'socket'),
   );
 }
 
-function orderWire(from: PortRef, to: PortRef): { output: PortRef; input: PortRef } {
-  if (from.side === 'output') return { output: from, input: to };
-  return { output: to, input: from };
+function orderPath(from: PortRef, to: PortRef): { plug: PortRef; socket: PortRef } {
+  if (from.side === 'plug') return { plug: from, socket: to };
+  return { plug: to, socket: from };
 }
 
-/** Return [source, target] PortRefs ready for createWire(). */
-function orderWireArgs(from: PortRef, to: PortRef): [PortRef, PortRef] {
-  const { output, input } = orderWire(from, to);
-  return [{ ...output, side: 'output' }, { ...input, side: 'input' }];
+/** Return [source, target] PortRefs ready for createPath(). */
+function orderPathArgs(from: PortRef, to: PortRef): [PortRef, PortRef] {
+  const { plug, socket } = orderPath(from, to);
+  return [{ ...plug, side: 'plug' }, { ...socket, side: 'socket' }];
 }
 
 /**
@@ -105,7 +110,7 @@ function orderWireArgs(from: PortRef, to: PortRef): [PortRef, PortRef] {
 function connectionPointToPortRef(
   slotIndex: number,
   direction: 'input' | 'output',
-  nodes: ReadonlyMap<string, import('../../shared/types/index.ts').NodeState>,
+  chips: ReadonlyMap<string, import('../../shared/types/index.ts').ChipState>,
   wireContext: 'start' | 'end' = 'start',
   slotConfig?: SlotConfig,
 ): PortRef | null {
@@ -116,44 +121,44 @@ function connectionPointToPortRef(
     : slotPerSideIndex(slotIndex); // fallback: standard mapping
   if (dirIndex >= 0) {
     const regularNodeId = direction === 'input' ? cpInputId(dirIndex) : cpOutputId(dirIndex);
-    if (nodes.has(regularNodeId)) {
+    if (chips.has(regularNodeId)) {
       return {
         chipId: regularNodeId,
         portIndex: 0,
-        side: direction === 'input' ? 'output' : 'input',
+        side: direction === 'input' ? 'plug' : 'socket',
       };
     }
   }
 
   // Try utility slot nodes (slot index used directly)
   const utilNodeId = utilitySlotId(slotIndex);
-  if (nodes.has(utilNodeId)) {
-    const node = nodes.get(utilNodeId)!;
+  if (chips.has(utilNodeId)) {
+    const chip = chips.get(utilNodeId)!;
     return {
       chipId: utilNodeId,
       portIndex: 0,
-      side: node.type === 'connection-input' ? 'output' : 'input',
+      side: chip.type === 'connection-input' ? 'plug' : 'socket',
     };
   }
 
   // Try bidirectional CP nodes (legacy utility editing, slot index used directly)
   const bidirNodeId = cpBidirectionalId(slotIndex);
-  if (nodes.has(bidirNodeId)) {
+  if (chips.has(bidirNodeId)) {
     return {
       chipId: bidirNodeId,
       portIndex: 0,
-      side: wireContext === 'start' ? 'output' : 'input',
+      side: wireContext === 'start' ? 'plug' : 'socket',
     };
   }
 
   // Try creative mode slot nodes (slot index used directly)
   const creativeNodeId = creativeSlotId(slotIndex);
-  if (nodes.has(creativeNodeId)) {
-    const node = nodes.get(creativeNodeId)!;
+  if (chips.has(creativeNodeId)) {
+    const chip = chips.get(creativeNodeId)!;
     return {
       chipId: creativeNodeId,
       portIndex: 0,
-      side: node.type === 'connection-input' ? 'output' : 'input',
+      side: chip.type === 'connection-input' ? 'plug' : 'socket',
     };
   }
 
@@ -194,13 +199,13 @@ function trySnapComplete(
   if (!snapHit) return false;
 
   if (snapHit.type === 'port') {
-    state.addWire(createWire(generateId(), ...orderWireArgs(fromPort, snapHit.portRef)));
+    state.addPath(createPath(generateId(), ...orderPathArgs(fromPort, snapHit.portRef)));
     return true;
   }
   if (snapHit.type === 'connection-point') {
     const cpPortRef = connectionPointToPortRef(snapHit.slotIndex, snapHit.direction, state.activeBoard.chips, 'end', state.activePuzzle?.slotConfig);
     if (cpPortRef) {
-      state.addWire(createWire(generateId(), ...orderWireArgs(fromPort, cpPortRef)));
+      state.addPath(createPath(generateId(), ...orderPathArgs(fromPort, cpPortRef)));
       return true;
     }
   }
@@ -245,10 +250,10 @@ export function GameboardCanvas() {
   const hitCacheRef = useRef<{
     col: number;
     row: number;
-    hoveredNodeId: string | null;
-    nodesRef: ReadonlyMap<string, import('../../shared/types/index.ts').NodeState> | null;
-    wiresRef: ReadonlyArray<import('../../shared/types/index.ts').Wire> | null;
-  }>({ col: -1, row: -1, hoveredNodeId: null, nodesRef: null, wiresRef: null });
+    hoveredChipId: string | null;
+    chipsRef: ReadonlyMap<string, import('../../shared/types/index.ts').ChipState> | null;
+    pathsRef: ReadonlyArray<import('../../shared/types/index.ts').Path> | null;
+  }>({ col: -1, row: -1, hoveredChipId: null, chipsRef: null, pathsRef: null });
 
   // Drag detection refs
   const potentialDragRef = useRef<{
@@ -259,9 +264,9 @@ export function GameboardCanvas() {
   } | null>(null);
   const justDraggedRef = useRef(false);
 
-  // Wire drag tracking refs
-  const potentialWireDragRef = useRef<{ portRef: PortRef; position: { x: number; y: number }; startX: number; startY: number } | null>(null);
-  const wireDragActiveRef = useRef(false);
+  // Path drag tracking refs
+  const potentialPathDragRef = useRef<{ portRef: PortRef; position: { x: number; y: number }; startX: number; startY: number } | null>(null);
+  const pathDragActiveRef = useRef(false);
 
   // Knob drag: track last snapped value to play tic only on change
   const lastKnobValueRef = useRef<number | null>(null);
@@ -380,14 +385,13 @@ export function GameboardCanvas() {
           isOverlayEscapeDismissible: state.isOverlayEscapeDismissible,
           closeOverlay: state.closeOverlay,
           interactionMode: state.interactionMode,
-          cancelWireDraw: state.cancelWireDraw,
+          cancelPathDraw: state.cancelPathDraw,
           cancelPlacing: state.cancelPlacing,
           cancelKeyboardWiring: state.cancelKeyboardWiring,
           commitKnobAdjust: state.commitKnobAdjust,
-          selectedNodeId: state.selectedNodeId,
+          selectedChipId: state.selectedChipId,
           clearSelection: state.clearSelection,
           zoomTransitionType: state.zoomTransitionState.type,
-          ceremonyType: state.ceremonyState.type,
           isTutorialActive: state.isTutorialActive(),
           endTutorial: state.endTutorial,
           isDrawerOpen: isDrawerOpen(),
@@ -414,8 +418,6 @@ export function GameboardCanvas() {
       // Skip all non-Escape keys when a screen page is covering the gameboard
       if (state.activeScreen !== null) return;
 
-      // Block all keyboard actions during ceremony overlay
-      if (state.ceremonyActive) return;
       const kbAction = getKeyboardAction(e.key, e, state);
       if (kbAction.type === 'noop') return;
 
@@ -432,9 +434,9 @@ export function GameboardCanvas() {
         undo: state.undo,
         redo: state.redo,
         openOverlay: state.openOverlay,
-        removeNode: state.removeNode,
-        removeWire: state.removeWire,
-        selectNode: state.selectNode,
+        removeChip: state.removeChip,
+        removePath: state.removePath,
+        selectChip: state.selectChip,
         clearSelection: state.clearSelection,
         startKeyboardWiring: state.startKeyboardWiring,
         cycleWiringTarget: state.cycleWiringTarget,
@@ -464,60 +466,60 @@ export function GameboardCanvas() {
         onCompleteWire: (fromPort: PortRef, toPort: PortRef) => {
           if (!state.activeBoard) return;
           if (isPortOccupied(toPort, state.activeBoard.paths)) return;
-          state.addWire(
-            createWire(
+          state.addPath(
+            createPath(
               generateId(),
-              ...orderWireArgs(fromPort, toPort),
+              ...orderPathArgs(fromPort, toPort),
             ),
           );
           playWireDrop();
         },
         onPlaceNode: (position) => {
           const mode = state.interactionMode;
-          if (mode.type !== 'placing-node') return;
-          const nodeType = mode.nodeType;
+          if (mode.type !== 'placing-chip') return;
+          const chipType = mode.chipType;
           const rotation = mode.rotation;
-          const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+          const { cols, rows } = getNodeGridSizeFromType(chipType, state.craftedPuzzles, state.craftedUtilities, rotation);
           const bounds = getPlayableBounds(state.activeBoardId);
           const col = Math.max(bounds.playableStart + 1, Math.min(position.col, bounds.playableEnd - cols));
           const row = Math.max(1, Math.min(position.row, GRID_ROWS - rows - 1));
           if (!canPlaceNode(state.occupancy, col, row, cols, rows, bounds)) return;
 
-          if (nodeType === 'custom-blank') {
-            state.addNode({
+          if (chipType === 'custom-blank') {
+            state.addChip({
               id: generateId(), type: 'custom-blank', position: { col, row },
-              params: {}, inputCount: 0, outputCount: 0, rotation,
+              params: {}, socketCount: 0, plugCount: 0, rotation,
             });
-          } else if (nodeType.startsWith('puzzle:')) {
-            const puzzleId = nodeType.slice('puzzle:'.length);
-            const entry = state.puzzleNodes.get(puzzleId);
+          } else if (chipType.startsWith('puzzle:')) {
+            const puzzleId = chipType.slice('puzzle:'.length);
+            const entry = state.craftedPuzzles.get(puzzleId);
             if (!entry) return;
-            state.addNode({
-              id: generateId(), type: nodeType, position: { col, row },
-              params: {}, inputCount: entry.inputCount, outputCount: entry.outputCount,
+            state.addChip({
+              id: generateId(), type: chipType, position: { col, row },
+              params: {}, socketCount: entry.socketCount, plugCount: entry.plugCount,
               libraryVersionHash: entry.versionHash, rotation,
             });
-          } else if (nodeType.startsWith('utility:')) {
-            const utilityId = nodeType.slice('utility:'.length);
-            const entry = state.utilityNodes.get(utilityId);
+          } else if (chipType.startsWith('utility:')) {
+            const utilityId = chipType.slice('utility:'.length);
+            const entry = state.craftedUtilities.get(utilityId);
             if (!entry) return;
-            state.addNode({
-              id: generateId(), type: nodeType, position: { col, row },
+            state.addChip({
+              id: generateId(), type: chipType, position: { col, row },
               params: { ...(entry.cpLayout ? { cpLayout: entry.cpLayout } : {}) },
-              inputCount: entry.inputCount, outputCount: entry.outputCount,
+              socketCount: entry.socketCount, plugCount: entry.plugCount,
               libraryVersionHash: entry.versionHash, rotation,
             });
           } else {
-            const def = getNodeDefinition(nodeType);
+            const def = getChipDefinition(chipType);
             if (!def) return;
             const kbNodeId = generateId();
-            const kbParams = getDefaultParams(nodeType);
-            state.addNode({
+            const kbParams = getDefaultParams(chipType);
+            state.addChip({
               id: kbNodeId, type: def.type, position: { col, row },
-              params: kbParams, inputCount: def.inputs.length, outputCount: def.outputs.length,
+              params: kbParams, socketCount: def.sockets.length, plugCount: def.plugs.length,
               rotation,
             });
-            const kbKnobConfig = getKnobConfig(getNodeDefinition(nodeType));
+            const kbKnobConfig = getKnobConfig(getChipDefinition(chipType));
             if (kbKnobConfig) {
               state.setPortConstant(kbNodeId, kbKnobConfig.portIndex, Number(kbParams[kbKnobConfig.paramKey] ?? 0));
             }
@@ -528,21 +530,21 @@ export function GameboardCanvas() {
         togglePlayMode: state.togglePlayMode,
         stepPlaypoint: state.stepPlaypoint,
         paletteItemCount: (() => {
-          const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
+          const allowedChips = state.activePuzzle?.allowedChips ?? null;
           const budgets = state.activeBoard
-            ? computeRemainingBudgets(allowedNodes, state.activeBoard.chips)
+            ? computeRemainingBudgets(allowedChips, state.activeBoard.chips)
             : null;
-          return buildPaletteItems(allowedNodes, state.utilityNodes, budgets).length;
+          return buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace).length;
         })(),
         onDrawerSelect: (index: number) => {
-          const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
+          const allowedChips = state.activePuzzle?.allowedChips ?? null;
           const budgets = state.activeBoard
-            ? computeRemainingBudgets(allowedNodes, state.activeBoard.chips)
+            ? computeRemainingBudgets(allowedChips, state.activeBoard.chips)
             : null;
-          const items = buildPaletteItems(allowedNodes, state.utilityNodes, budgets);
+          const items = buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace);
           const item = items[index];
-          if (item?.canPlace) {
-            state.startPlacingNode(item.nodeType);
+          if (item) {
+            state.startPlacingChip(item.chipType);
           }
         },
       });
@@ -559,18 +561,29 @@ export function GameboardCanvas() {
     }
     const clickState = useGameStore.getState();
 
-    // Tutorial: advance on click-anywhere steps
+    // Tutorial: advance on click-anywhere or next-button steps
     if (clickState.tutorialState.type === 'active') {
       const step = clickState.getCurrentTutorialStep();
       if (step?.advanceOn.type === 'click-anywhere') {
         clickState.advanceTutorial();
         return;
       }
+      if (step?.advanceOn.type === 'next-button') {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const bx = e.clientX - rect.left;
+          const by = e.clientY - rect.top;
+          const btnRect = getNextButtonRect(rect.width, rect.height);
+          if (bx >= btnRect.x && bx <= btnRect.x + btnRect.w &&
+              by >= btnRect.y && by <= btnRect.y + btnRect.h) {
+            clickState.advanceTutorial();
+          }
+        }
+        return;
+      }
     }
 
-    if (clickState.hasActiveOverlay() || clickState.ceremonyActive) {
-      return;
-    }
     // Block all clicks during zoom transitions
     if (clickState.zoomTransitionState.type !== 'idle') return;
 
@@ -584,7 +597,7 @@ export function GameboardCanvas() {
 
     const state = useGameStore.getState();
 
-    // --- Back button: check first (top-left, all boards) ---
+    // --- Back button: check first, before overlay guard ---
     if (hitTestBackButton(x, y, cellSizeRef.current)) {
       if (state.activeBoardId === 'motherboard') {
         if (state.isCreativeMode) state.exitCreativeMode();
@@ -612,6 +625,30 @@ export function GameboardCanvas() {
         }
         // Exit creative mode if active (saves state for later restoration)
         if (state.isCreativeMode) state.exitCreativeMode();
+        // Bake-on-leave: if puzzle is solved, bake the graph and register/update the crafted puzzle
+        if (state.puzzleStatus === 'victory' && state.activePuzzle && state.activeBoard) {
+          const bakeResult = bakeGraph(state.activeBoard.chips, state.activeBoard.paths);
+          if (bakeResult.ok) {
+            const puzzleId = state.activePuzzle.id;
+            const boardSnapshot = state.activeBoard;
+            const isResolve = state.completedLevels.has(puzzleId);
+            state.completeLevel(puzzleId);
+            if (isResolve) {
+              state.updateCraftedPuzzle(puzzleId, bakeResult.value.metadata, boardSnapshot);
+            } else {
+              state.addCraftedPuzzle({
+                puzzleId,
+                title: state.activePuzzle.title,
+                description: state.activePuzzle.description ?? '',
+                socketCount: bakeResult.value.metadata.socketCount,
+                plugCount: bakeResult.value.metadata.plugCount,
+                bakeMetadata: bakeResult.value.metadata,
+                versionHash: '',
+                savedBoard: boardSnapshot,
+              });
+            }
+          }
+        }
         // Unload active puzzle when leaving a puzzle board (clears stale activePuzzle)
         if (state.activePuzzle) state.unloadPuzzle();
         // Read-only inspection or creative mode: zoom-out animation
@@ -629,6 +666,10 @@ export function GameboardCanvas() {
         }
         state.zoomOut();
       }
+      return;
+    }
+
+    if (clickState.hasActiveOverlay()) {
       return;
     }
 
@@ -686,7 +727,7 @@ export function GameboardCanvas() {
       }
     }
 
-    // --- Read-only mode: allow selection + menu node navigation ---
+    // --- Read-only mode: allow selection + menu chip navigation ---
     if (state.activeBoardReadOnly) {
       if (!state.activeBoard) return;
       const hit = hitTest(x, y, state.activeBoard.chips, w, h, cellSizeRef.current, state.activeBoard.paths, state.activePuzzle?.activeInputs, state.activePuzzle?.activeOutputs, state.activePuzzle?.slotConfig, state.editingUtilityId, state.meterSlots);
@@ -696,20 +737,20 @@ export function GameboardCanvas() {
           navigateFromMenuNode(node);
           return;
         }
-        state.selectNode(hit.chipId);
+        state.selectChip(hit.chipId);
       } else {
         state.clearSelection();
       }
       return;
     }
 
-    // --- Placing node mode ---
-    if (state.interactionMode.type === 'placing-node') {
-      const nodeType = state.interactionMode.nodeType;
+    // --- Placing chip mode ---
+    if (state.interactionMode.type === 'placing-chip') {
+      const chipType = state.interactionMode.chipType;
       const rotation = state.interactionMode.rotation;
-      const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+      const { cols, rows } = getNodeGridSizeFromType(chipType, state.craftedPuzzles, state.craftedUtilities, rotation);
       const grid = pixelToGrid(x, y, cellSizeRef.current);
-      // Center node on cursor, then clamp to playable area with 1-cell padding
+      // Center chip on cursor, then clamp to playable area with 1-cell padding
       const bounds = getPlayableBounds(state.activeBoardId);
       const col = Math.max(bounds.playableStart + 1, Math.min(grid.col - Math.floor(cols / 2), bounds.playableEnd - cols));
       const row = Math.max(1, Math.min(grid.row - Math.floor(rows / 2), GRID_ROWS - rows - 1));
@@ -719,19 +760,19 @@ export function GameboardCanvas() {
 
       const position = { col, row };
 
-      // Handle puzzle node placement
-      if (nodeType.startsWith('puzzle:')) {
-        const puzzleId = nodeType.slice('puzzle:'.length);
-        const entry = state.puzzleNodes.get(puzzleId);
+      // Handle puzzle chip placement
+      if (chipType.startsWith('puzzle:')) {
+        const puzzleId = chipType.slice('puzzle:'.length);
+        const entry = state.craftedPuzzles.get(puzzleId);
         if (!entry) return;
 
-        state.addNode({
+        state.addChip({
           id: generateId(),
-          type: nodeType,
+          type: chipType,
           position,
           params: {},
-          inputCount: entry.inputCount,
-          outputCount: entry.outputCount,
+          socketCount: entry.socketCount,
+          plugCount: entry.plugCount,
           libraryVersionHash: entry.versionHash,
           rotation,
         });
@@ -740,15 +781,15 @@ export function GameboardCanvas() {
         return;
       }
 
-      // Handle custom-blank node placement
-      if (nodeType === 'custom-blank') {
-        state.addNode({
+      // Handle custom-blank chip placement
+      if (chipType === 'custom-blank') {
+        state.addChip({
           id: generateId(),
           type: 'custom-blank',
           position,
           params: {},
-          inputCount: 0,
-          outputCount: 0,
+          socketCount: 0,
+          plugCount: 0,
           rotation,
         });
         playNodeDrop();
@@ -756,19 +797,19 @@ export function GameboardCanvas() {
         return;
       }
 
-      // Handle utility node placement
-      if (nodeType.startsWith('utility:')) {
-        const utilityId = nodeType.slice('utility:'.length);
-        const entry = state.utilityNodes.get(utilityId);
+      // Handle utility chip placement
+      if (chipType.startsWith('utility:')) {
+        const utilityId = chipType.slice('utility:'.length);
+        const entry = state.craftedUtilities.get(utilityId);
         if (!entry) return;
 
-        state.addNode({
+        state.addChip({
           id: generateId(),
-          type: nodeType,
+          type: chipType,
           position,
           params: { ...(entry.cpLayout ? { cpLayout: entry.cpLayout } : {}) },
-          inputCount: entry.inputCount,
-          outputCount: entry.outputCount,
+          socketCount: entry.socketCount,
+          plugCount: entry.plugCount,
           libraryVersionHash: entry.versionHash,
           rotation,
         });
@@ -777,22 +818,22 @@ export function GameboardCanvas() {
         return;
       }
 
-      const def = getNodeDefinition(nodeType);
+      const def = getChipDefinition(chipType);
       if (!def) return;
 
       const chipId = generateId();
-      const params = getDefaultParams(nodeType);
-      state.addNode({
+      const params = getDefaultParams(chipType);
+      state.addChip({
         id: chipId,
         type: def.type,
         position,
         params,
-        inputCount: def.inputs.length,
-        outputCount: def.outputs.length,
+        socketCount: def.sockets.length,
+        plugCount: def.plugs.length,
         rotation,
       });
       // Set initial port constant for knob input to match param
-      const clickKnobConfig = getKnobConfig(getNodeDefinition(nodeType));
+      const clickKnobConfig = getKnobConfig(getChipDefinition(chipType));
       if (clickKnobConfig) {
         state.setPortConstant(chipId, clickKnobConfig.portIndex, Number(params[clickKnobConfig.paramKey] ?? 0));
       }
@@ -804,70 +845,70 @@ export function GameboardCanvas() {
     if (!state.activeBoard) return;
     const hit = hitTest(x, y, state.activeBoard.chips, w, h, cellSizeRef.current, state.activeBoard.paths, state.activePuzzle?.activeInputs, state.activePuzzle?.activeOutputs, state.activePuzzle?.slotConfig, state.editingUtilityId, state.meterSlots);
 
-    // --- Drawing wire mode ---
-    if (state.interactionMode.type === 'drawing-wire') {
+    // --- Drawing path mode ---
+    if (state.interactionMode.type === 'drawing-path') {
       const fromPort = state.interactionMode.fromPort;
 
-      // Complete wire to a node port
+      // Complete path to a chip port
       if (hit.type === 'port') {
         if (canCompleteWire(fromPort, hit.portRef) && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
-          state.addWire(
-            createWire(
+          state.addPath(
+            createPath(
               generateId(),
-              ...orderWireArgs(fromPort, hit.portRef),
+              ...orderPathArgs(fromPort, hit.portRef),
             ),
           );
           playWireDrop();
         }
-        state.cancelWireDraw();
+        state.cancelPathDraw();
         return;
       }
 
-      // Complete wire to a connection point
+      // Complete path to a connection point
       if (hit.type === 'connection-point') {
         const cpPortRef = connectionPointToPortRef(hit.slotIndex, hit.direction, state.activeBoard.chips, 'end', state.activePuzzle?.slotConfig);
         if (cpPortRef && canCompleteWire(fromPort, cpPortRef) && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
-          state.addWire(
-            createWire(
+          state.addPath(
+            createPath(
               generateId(),
-              ...orderWireArgs(fromPort, cpPortRef),
+              ...orderPathArgs(fromPort, cpPortRef),
             ),
           );
           playWireDrop();
         }
-        state.cancelWireDraw();
+        state.cancelPathDraw();
         return;
       }
 
-      // Clicked empty space or node body — try snap before cancelling
+      // Clicked empty space or chip body — try snap before cancelling
       if (trySnapComplete(x, y, fromPort, state, cellSizeRef.current)) {
         playWireDrop();
       }
-      state.cancelWireDraw();
+      state.cancelPathDraw();
       return;
     }
 
     // --- Idle mode ---
-    // Only output ports can start a wire
+    // Only plug ports can start a path
     if (hit.type === 'port') {
-      if (hit.portRef.side === 'output' && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
-        state.startWireDraw(hit.portRef, hit.position);
+      if (hit.portRef.side === 'plug' && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
+        state.startPathDraw(hit.portRef, hit.position);
       }
       return;
     }
 
-    // Start wire from connection point (only output-emitting CPs)
+    // Start path from connection point (only plug-emitting CPs)
     if (hit.type === 'connection-point') {
       const cpPortRef = connectionPointToPortRef(hit.slotIndex, hit.direction, state.activeBoard.chips, 'start', state.activePuzzle?.slotConfig);
-      if (cpPortRef && cpPortRef.side === 'output' && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
-        state.startWireDraw(cpPortRef, hit.position);
+      if (cpPortRef && cpPortRef.side === 'plug' && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
+        state.startPathDraw(cpPortRef, hit.position);
       }
       return;
     }
 
     if (hit.type === 'knob') {
-      // Knob click in idle mode (wired knob) — just select the node
-      state.selectNode(hit.chipId);
+      // Knob click in idle mode (wired knob) — just select the chip
+      state.selectChip(hit.chipId);
       return;
     }
 
@@ -878,13 +919,22 @@ export function GameboardCanvas() {
         navigateFromMenuNode(node);
         return;
       }
-      state.selectNode(hit.chipId);
+      state.selectChip(hit.chipId);
       if (!state.activeBoardReadOnly) {
         // Don't auto-open parameter popover for knob nodes (knob is the primary control)
-        if (node && !getKnobConfig(getNodeDefinition(node.type)) && hasEditableParams(node.type)) {
+        if (node && !getKnobConfig(getChipDefinition(node.type)) && hasEditableParams(node.type)) {
           state.openOverlay({ type: 'parameter-popover', chipId: hit.chipId });
         }
       }
+      return;
+    }
+
+    if (hit.type === 'path') {
+      state.openOverlay({
+        type: 'context-menu',
+        position: { x: e.clientX, y: e.clientY },
+        target: { type: 'path', pathId: hit.pathId },
+      });
       return;
     }
 
@@ -894,14 +944,14 @@ export function GameboardCanvas() {
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const ctxState = useGameStore.getState();
-    if (ctxState.hasActiveOverlay() || ctxState.ceremonyActive) return;
+    if (ctxState.hasActiveOverlay()) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const state = useGameStore.getState();
 
-    if (state.interactionMode.type === 'drawing-wire') {
-      state.cancelWireDraw();
+    if (state.interactionMode.type === 'drawing-path') {
+      state.cancelPathDraw();
       return;
     }
 
@@ -925,31 +975,26 @@ export function GameboardCanvas() {
       state.openOverlay({
         type: 'context-menu',
         position: { x: e.clientX, y: e.clientY },
-        target: { type: 'node', chipId: hit.chipId, locked: node?.locked },
+        target: { type: 'chip', chipId: hit.chipId, locked: node?.locked },
       });
       return;
     }
 
-    if (hit.type === 'wire') {
+    if (hit.type === 'path') {
       state.openOverlay({
         type: 'context-menu',
         position: { x: e.clientX, y: e.clientY },
-        target: { type: 'wire', wireId: hit.wireId },
+        target: { type: 'path', pathId: hit.pathId },
       });
       return;
     }
 
-    // Empty space → open palette modal (blocked during tutorial until introduced)
-    if (state.tutorialState.type === 'active') {
-      const step = state.getCurrentTutorialStep();
-      if (step && isTutorialPaletteBlocked(step)) return;
-    }
-    state.openOverlay({ type: 'palette-modal' });
+    // Empty space → do nothing (use chip drawer at bottom instead)
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const mdState = useGameStore.getState();
-    if (mdState.hasActiveOverlay() || mdState.ceremonyActive) return;
+    if (mdState.hasActiveOverlay()) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -974,17 +1019,17 @@ export function GameboardCanvas() {
 
     // Chip drawer: drag chip from drawer
     if (state.activeBoardId !== 'motherboard') {
-      const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
-      const budgets = computeRemainingBudgets(allowedNodes, state.activeBoard.chips);
-      const paletteItems = buildPaletteItems(allowedNodes, state.utilityNodes, budgets);
+      const allowedChips = state.activePuzzle?.allowedChips ?? null;
+      const budgets = computeRemainingBudgets(allowedChips, state.activeBoard.chips);
+      const paletteItems = buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace);
       const drawerHit = hitTestChipDrawer(x, y, cellSizeRef.current, getDrawerProgress(), paletteItems);
-      if (drawerHit?.type === 'chip' && drawerHit.paletteItem.canPlace) {
-        // Close drawer and enter placing-node mode with dragPlacement
+      if (drawerHit?.type === 'chip') {
+        // Close drawer and enter placing-chip mode with dragPlacement
         closeDrawer();
-        state.startPlacingNode(drawerHit.paletteItem.nodeType);
+        state.startPlacingChip(drawerHit.paletteItem.chipType);
         // Set dragPlacement flag
         const mode = useGameStore.getState().interactionMode;
-        if (mode.type === 'placing-node') {
+        if (mode.type === 'placing-chip') {
           useGameStore.setState({
             interactionMode: { ...mode, dragPlacement: true },
           });
@@ -997,17 +1042,17 @@ export function GameboardCanvas() {
 
     const hit = hitTest(x, y, state.activeBoard.chips, w, h, cellSizeRef.current, state.activeBoard.paths, state.activePuzzle?.activeInputs, state.activePuzzle?.activeOutputs, state.activePuzzle?.slotConfig, state.editingUtilityId, state.meterSlots);
 
-    // Start potential wire drag from output port
-    if (hit.type === 'port' && hit.portRef.side === 'output' && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
-      potentialWireDragRef.current = { portRef: hit.portRef, position: hit.position, startX: x, startY: y };
+    // Start potential path drag from plug port
+    if (hit.type === 'port' && hit.portRef.side === 'plug' && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
+      potentialPathDragRef.current = { portRef: hit.portRef, position: hit.position, startX: x, startY: y };
       return;
     }
 
-    // Start potential wire drag from output-emitting CP
+    // Start potential path drag from plug-emitting CP
     if (hit.type === 'connection-point') {
       const cpPortRef = connectionPointToPortRef(hit.slotIndex, hit.direction, state.activeBoard.chips, 'start', state.activePuzzle?.slotConfig);
-      if (cpPortRef && cpPortRef.side === 'output' && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
-        potentialWireDragRef.current = { portRef: cpPortRef, position: hit.position, startX: x, startY: y };
+      if (cpPortRef && cpPortRef.side === 'plug' && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
+        potentialPathDragRef.current = { portRef: cpPortRef, position: hit.position, startX: x, startY: y };
         return;
       }
     }
@@ -1016,7 +1061,7 @@ export function GameboardCanvas() {
     if (hit.type === 'knob') {
       const node = state.activeBoard.chips.get(hit.chipId);
       if (node) {
-        const knobConfig = getKnobConfig(getNodeDefinition(node.type));
+        const knobConfig = getKnobConfig(getChipDefinition(node.type));
         if (knobConfig) {
           const isXWired = state.activeBoard.paths.some(
             w => w.target.chipId === node.id && w.target.portIndex === knobConfig.portIndex,
@@ -1024,7 +1069,8 @@ export function GameboardCanvas() {
           if (!isXWired) {
             const currentValue = Number(node.params[knobConfig.paramKey] ?? 0);
             lastKnobValueRef.current = currentValue;
-            state.startKnobAdjust(hit.chipId, y, currentValue);
+            const center = getKnobMode() === 'radial' ? hit.center : null;
+            state.startKnobAdjust(hit.chipId, y, currentValue, center);
             return;
           }
           // Wired knob clicked — flash error overlay
@@ -1033,7 +1079,7 @@ export function GameboardCanvas() {
       }
     }
 
-    // Only start potential drag on node body hit
+    // Only start potential drag on chip body hit
     if (hit.type === 'node') {
       potentialDragRef.current = {
         chipId: hit.chipId,
@@ -1048,8 +1094,8 @@ export function GameboardCanvas() {
     setPressedPlaybackButton(null);
     const state = useGameStore.getState();
 
-    // Handle wire drag complete
-    if (wireDragActiveRef.current && state.interactionMode.type === 'drawing-wire') {
+    // Handle path drag complete
+    if (pathDragActiveRef.current && state.interactionMode.type === 'drawing-path') {
       const canvas = canvasRef.current;
       if (canvas && state.activeBoard) {
         const rect = canvas.getBoundingClientRect();
@@ -1060,12 +1106,12 @@ export function GameboardCanvas() {
         const fromPort = state.interactionMode.fromPort;
 
         if (hit.type === 'port' && canCompleteWire(fromPort, hit.portRef) && !isPortOccupied(hit.portRef, state.activeBoard.paths)) {
-          state.addWire(createWire(generateId(), ...orderWireArgs(fromPort, hit.portRef)));
+          state.addPath(createPath(generateId(), ...orderPathArgs(fromPort, hit.portRef)));
           playWireDrop();
         } else if (hit.type === 'connection-point') {
           const cpPortRef = connectionPointToPortRef(hit.slotIndex, hit.direction, state.activeBoard.chips, 'end', state.activePuzzle?.slotConfig);
           if (cpPortRef && canCompleteWire(fromPort, cpPortRef) && !isPortOccupied(cpPortRef, state.activeBoard.paths)) {
-            state.addWire(createWire(generateId(), ...orderWireArgs(fromPort, cpPortRef)));
+            state.addPath(createPath(generateId(), ...orderPathArgs(fromPort, cpPortRef)));
             playWireDrop();
           }
         } else {
@@ -1074,34 +1120,40 @@ export function GameboardCanvas() {
             playWireDrop();
           }
         }
-        state.cancelWireDraw();
+        state.cancelPathDraw();
       }
-      wireDragActiveRef.current = false;
+      pathDragActiveRef.current = false;
       justDraggedRef.current = true;
-      potentialWireDragRef.current = null;
+      potentialPathDragRef.current = null;
       return;
     }
 
-    // Clear potential wire drag on mouseup (no drag happened — let click handle it)
-    if (potentialWireDragRef.current) {
-      potentialWireDragRef.current = null;
+    // Clear potential path drag on mouseup (no drag happened — let click handle it)
+    if (potentialPathDragRef.current) {
+      potentialPathDragRef.current = null;
     }
 
     // Handle knob adjust commit
     if (state.interactionMode.type === 'adjusting-knob') {
-      const { chipId, startY, startValue } = state.interactionMode;
+      const { chipId, startY, startValue, knobCenter } = state.interactionMode;
       const canvas = canvasRef.current;
       if (canvas) {
         const node = state.activeBoard?.chips.get(chipId);
-        const knobConfig = node ? getKnobConfig(getNodeDefinition(node.type)) : null;
+        const knobConfig = node ? getKnobConfig(getChipDefinition(node.type)) : null;
         if (knobConfig) {
           const rect = canvas.getBoundingClientRect();
-          const y = e.clientY - rect.top - offsetRef.current.y;
-          const deltaY = startY - y; // Up = positive
-          const sensitivity = 32; // pixels per 50-unit step
-          const rawDelta = (deltaY / sensitivity) * 50;
-          const newValue = Math.round((startValue + rawDelta) / 50) * 50;
-          const clampedValue = Math.max(-100, Math.min(100, newValue));
+          const ux = e.clientX - rect.left - offsetRef.current.x;
+          const uy = e.clientY - rect.top - offsetRef.current.y;
+          let clampedValue: number;
+          if (knobCenter) {
+            clampedValue = radialAngleToValue(ux, uy, knobCenter.x, knobCenter.y);
+          } else {
+            const deltaY = startY - uy; // Up = positive
+            const sensitivity = 32; // pixels per 50-unit step
+            const rawDelta = (deltaY / sensitivity) * 50;
+            const newValue = Math.round((startValue + rawDelta) / 50) * 50;
+            clampedValue = Math.max(-100, Math.min(100, newValue));
+          }
           state.batchKnobAdjust(chipId, knobConfig.paramKey, knobConfig.portIndex, clampedValue);
         }
       }
@@ -1112,7 +1164,7 @@ export function GameboardCanvas() {
     }
 
     // Handle drag placement commit (chip dragged from drawer)
-    if (state.interactionMode.type === 'placing-node' && state.interactionMode.dragPlacement) {
+    if (state.interactionMode.type === 'placing-chip' && state.interactionMode.dragPlacement) {
       const canvas = canvasRef.current;
       if (!canvas) {
         state.cancelPlacing();
@@ -1123,9 +1175,9 @@ export function GameboardCanvas() {
       const x = e.clientX - rect.left - offsetRef.current.x;
       const y = e.clientY - rect.top - offsetRef.current.y;
 
-      const nodeType = state.interactionMode.nodeType;
+      const chipType = state.interactionMode.chipType;
       const rotation = state.interactionMode.rotation;
-      const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+      const { cols, rows } = getNodeGridSizeFromType(chipType, state.craftedPuzzles, state.craftedUtilities, rotation);
       const grid = pixelToGrid(x, y, cellSizeRef.current);
       const bounds = getPlayableBounds(state.activeBoardId);
       const col = Math.max(bounds.playableStart + 1, Math.min(grid.col - Math.floor(cols / 2), bounds.playableEnd - cols));
@@ -1133,42 +1185,42 @@ export function GameboardCanvas() {
 
       if (canPlaceNode(state.occupancy, col, row, cols, rows, bounds)) {
         const position = { col, row };
-        if (nodeType.startsWith('puzzle:')) {
-          const puzzleId = nodeType.slice('puzzle:'.length);
-          const entry = state.puzzleNodes.get(puzzleId);
+        if (chipType.startsWith('puzzle:')) {
+          const puzzleId = chipType.slice('puzzle:'.length);
+          const entry = state.craftedPuzzles.get(puzzleId);
           if (entry) {
-            state.addNode({
-              id: generateId(), type: nodeType, position,
-              params: {}, inputCount: entry.inputCount, outputCount: entry.outputCount,
+            state.addChip({
+              id: generateId(), type: chipType, position,
+              params: {}, socketCount: entry.socketCount, plugCount: entry.plugCount,
               libraryVersionHash: entry.versionHash, rotation,
             });
           }
-        } else if (nodeType === 'custom-blank') {
-          state.addNode({
+        } else if (chipType === 'custom-blank') {
+          state.addChip({
             id: generateId(), type: 'custom-blank', position,
-            params: {}, inputCount: 0, outputCount: 0, rotation,
+            params: {}, socketCount: 0, plugCount: 0, rotation,
           });
-        } else if (nodeType.startsWith('utility:')) {
-          const utilityId = nodeType.slice('utility:'.length);
-          const entry = state.utilityNodes.get(utilityId);
+        } else if (chipType.startsWith('utility:')) {
+          const utilityId = chipType.slice('utility:'.length);
+          const entry = state.craftedUtilities.get(utilityId);
           if (entry) {
-            state.addNode({
-              id: generateId(), type: nodeType, position,
+            state.addChip({
+              id: generateId(), type: chipType, position,
               params: { ...(entry.cpLayout ? { cpLayout: entry.cpLayout } : {}) },
-              inputCount: entry.inputCount, outputCount: entry.outputCount,
+              socketCount: entry.socketCount, plugCount: entry.plugCount,
               libraryVersionHash: entry.versionHash, rotation,
             });
           }
         } else {
-          const def = getNodeDefinition(nodeType);
+          const def = getChipDefinition(chipType);
           if (def) {
             const chipId = generateId();
-            const params = getDefaultParams(nodeType);
-            state.addNode({
+            const params = getDefaultParams(chipType);
+            state.addChip({
               id: chipId, type: def.type, position, params,
-              inputCount: def.inputs.length, outputCount: def.outputs.length, rotation,
+              socketCount: def.sockets.length, plugCount: def.plugs.length, rotation,
             });
-            const knobCfg = getKnobConfig(getNodeDefinition(nodeType));
+            const knobCfg = getKnobConfig(getChipDefinition(chipType));
             if (knobCfg) {
               state.setPortConstant(chipId, knobCfg.portIndex, Number(params[knobCfg.paramKey] ?? 0));
             }
@@ -1181,8 +1233,8 @@ export function GameboardCanvas() {
       return;
     }
 
-    // Handle dragging-node commit
-    if (state.interactionMode.type === 'dragging-node') {
+    // Handle dragging-chip commit
+    if (state.interactionMode.type === 'dragging-chip') {
       const canvas = canvasRef.current;
       if (!canvas) {
         state.cancelDrag();
@@ -1194,32 +1246,37 @@ export function GameboardCanvas() {
       const x = e.clientX - rect.left - offsetRef.current.x;
       const y = e.clientY - rect.top - offsetRef.current.y;
 
-      // Check if dropped on delete zone (drawer handle)
+      // Check if dropped on delete zone (drawer handle / open delete tray)
       if (state.activeBoardId !== 'motherboard' && hitTestDeleteZone(x, y, cellSizeRef.current)) {
-        const { draggedNode } = state.interactionMode;
-        if (!draggedNode.locked) {
-          state.removeNode(draggedNode.id);
+        const { draggedChip } = state.interactionMode;
+        if (!draggedChip.locked) {
+          state.removeChip(draggedChip.id);
         }
+        closeDrawer(); // deleteMode cleared when close animation completes
         state.cancelDrag();
         potentialDragRef.current = null;
         justDraggedRef.current = true;
         return;
       }
 
-      const { draggedNode, grabOffset, rotation } = state.interactionMode;
-      const nodeType = draggedNode.type;
-      const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+      const { draggedChip, grabOffset, rotation } = state.interactionMode;
+      const chipType = draggedChip.type;
+      const { cols, rows } = getNodeGridSizeFromType(chipType, state.craftedPuzzles, state.craftedUtilities, rotation);
 
-      // Snap to grid, subtract grab offset so node stays under cursor
+      // Snap to grid, subtract grab offset so chip stays under cursor
       const grid = pixelToGrid(x, y, cellSizeRef.current);
       const bounds = getPlayableBounds(state.activeBoardId);
       const col = Math.max(bounds.playableStart + 1, Math.min(grid.col - grabOffset.col, bounds.playableEnd - cols));
       const row = Math.max(1, Math.min(grid.row - grabOffset.row, GRID_ROWS - rows - 1));
 
       // Check if move is valid
-      if (canMoveNode(state.occupancy, draggedNode, col, row, rotation, bounds)) {
-        state.moveNode(draggedNode.id, { col, row }, rotation);
+      if (canMoveNode(state.occupancy, draggedChip, col, row, rotation, bounds)) {
+        state.moveChip(draggedChip.id, { col, row }, rotation);
         playNodeDrop();
+      }
+      // Clean up delete mode if it was active (cursor missed the zone)
+      if (isDeleteMode()) {
+        closeDrawer(); // deleteMode cleared when close animation completes
       }
       state.cancelDrag();
       potentialDragRef.current = null;
@@ -1235,7 +1292,6 @@ export function GameboardCanvas() {
   const handleMouseMoveWithDrag = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     setFocusVisible(false);
     const mmState = useGameStore.getState();
-    if (mmState.hasActiveOverlay() || mmState.ceremonyActive) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -1244,17 +1300,28 @@ export function GameboardCanvas() {
     const state = useGameStore.getState();
     state.setMousePosition({ x, y });
 
+    // Back button hover must work even during overlay
+    const backHoverEarly = hitTestBackButton(x, y, cellSizeRef.current);
+    setHoveredBackButton(backHoverEarly);
+
+    if (mmState.hasActiveOverlay()) return;
+
     // Handle knob adjustment drag (live update)
     if (state.interactionMode.type === 'adjusting-knob') {
-      const { chipId, startY, startValue } = state.interactionMode;
+      const { chipId, startY, startValue, knobCenter } = state.interactionMode;
       const node = state.activeBoard?.chips.get(chipId);
-      const knobConfig = node ? getKnobConfig(getNodeDefinition(node.type)) : null;
+      const knobConfig = node ? getKnobConfig(getChipDefinition(node.type)) : null;
       if (knobConfig) {
-        const deltaY = startY - y;
-        const sensitivity = 32; // pixels per 50-unit step
-        const rawDelta = (deltaY / sensitivity) * 50;
-        const newValue = Math.round((startValue + rawDelta) / 50) * 50;
-        const clampedValue = Math.max(-100, Math.min(100, newValue));
+        let clampedValue: number;
+        if (knobCenter) {
+          clampedValue = radialAngleToValue(x, y, knobCenter.x, knobCenter.y);
+        } else {
+          const deltaY = startY - y;
+          const sensitivity = 32; // pixels per 50-unit step
+          const rawDelta = (deltaY / sensitivity) * 50;
+          const newValue = Math.round((startValue + rawDelta) / 50) * 50;
+          clampedValue = Math.max(-100, Math.min(100, newValue));
+        }
         if (lastKnobValueRef.current !== clampedValue) {
           lastKnobValueRef.current = clampedValue;
           playKnobTic();
@@ -1264,16 +1331,16 @@ export function GameboardCanvas() {
       return;
     }
 
-    // Check if we should start wire drag
-    if (potentialWireDragRef.current && state.interactionMode.type === 'idle') {
-      const { startX, startY } = potentialWireDragRef.current;
+    // Check if we should start path drag
+    if (potentialPathDragRef.current && state.interactionMode.type === 'idle') {
+      const { startX, startY } = potentialPathDragRef.current;
       const dx = x - startX;
       const dy = y - startY;
       const distance = Math.sqrt(dx * dx + dy * dy);
       if (distance > DRAG_THRESHOLD_PX) {
-        state.startWireDraw(potentialWireDragRef.current.portRef, potentialWireDragRef.current.position);
-        potentialWireDragRef.current = null;
-        wireDragActiveRef.current = true;
+        state.startPathDraw(potentialPathDragRef.current.portRef, potentialPathDragRef.current.position);
+        potentialPathDragRef.current = null;
+        pathDragActiveRef.current = true;
       }
     }
 
@@ -1298,10 +1365,6 @@ export function GameboardCanvas() {
       }
     }
 
-    // Update back button hover state and cursor
-    const backHover = hitTestBackButton(x, y, cellSizeRef.current);
-    setHoveredBackButton(backHover);
-
     // Update record button hover state
     const recordHover = state.isCreativeMode && state.authoringPhase === 'idle'
       ? hitTestRecordButton(x, y, cellSizeRef.current)
@@ -1312,15 +1375,25 @@ export function GameboardCanvas() {
     const pbHover = hitTestPlaybackBar(x, y, cellSizeRef.current);
     setHoveredPlaybackButton(pbHover?.button ?? null);
 
-    // Chip drawer hover handling (not during node drag — handle shows as delete zone)
+    // Chip drawer: delete mode during chip drag (open drawer with trash icon on hover)
     const isOnHomeBoard = state.activeBoardId === 'motherboard';
-    if (!isOnHomeBoard && state.interactionMode.type !== 'dragging-node') {
+    if (!isOnHomeBoard && state.interactionMode.type === 'dragging-chip') {
+      if (hitTestDeleteTrigger(x, y, cellSizeRef.current)) {
+        if (!isDeleteMode()) setDeleteMode(true);
+        openDrawer(); // no-op if already open/opening; re-opens if closing
+      } else if (isDeleteMode()) {
+        closeDrawer(); // deleteMode cleared when close animation completes
+      }
+    }
+
+    // Chip drawer hover handling (not during chip drag)
+    if (!isOnHomeBoard && state.interactionMode.type !== 'dragging-chip') {
       // Build palette items for drawer hit test
-      const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
+      const allowedChips = state.activePuzzle?.allowedChips ?? null;
       const budgets = state.activeBoard
-        ? computeRemainingBudgets(allowedNodes, state.activeBoard.chips)
+        ? computeRemainingBudgets(allowedChips, state.activeBoard.chips)
         : null;
-      const paletteItems = buildPaletteItems(allowedNodes, state.utilityNodes, budgets);
+      const paletteItems = buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace);
 
       const drawerHit = hitTestChipDrawer(x, y, cellSizeRef.current, getDrawerProgress(), paletteItems);
       if (drawerHit) {
@@ -1350,7 +1423,7 @@ export function GameboardCanvas() {
     }
 
     if (canvas && state.interactionMode.type === 'idle') {
-      if (backHover) {
+      if (backHoverEarly) {
         canvas.style.cursor = 'pointer';
       } else if (recordHover && !isRecordButtonDisabled()) {
         canvas.style.cursor = 'pointer';
@@ -1364,20 +1437,20 @@ export function GameboardCanvas() {
       }
     }
 
-    // Update hover state for node highlighting (skip if dragging)
-    if (state.interactionMode.type !== 'dragging-node' && state.activeBoard) {
+    // Update hover state for chip highlighting (skip if dragging)
+    if (state.interactionMode.type !== 'dragging-chip' && state.activeBoard) {
       // Cache: skip hitTest if cursor is in the same grid cell with same board refs
       const gridCell = pixelToGrid(x, y, cellSizeRef.current);
       const cache = hitCacheRef.current;
       if (
         gridCell.col === cache.col &&
         gridCell.row === cache.row &&
-        state.activeBoard.chips === cache.nodesRef &&
-        state.activeBoard.paths === cache.wiresRef
+        state.activeBoard.chips === cache.chipsRef &&
+        state.activeBoard.paths === cache.pathsRef
       ) {
         // Same cell, same board — reuse cached hover result
-        if (cache.hoveredNodeId !== state.hoveredNodeId) {
-          state.setHoveredNode(cache.hoveredNodeId);
+        if (cache.hoveredChipId !== state.hoveredChipId) {
+          state.setHoveredChip(cache.hoveredChipId);
         }
       } else {
         const { w, h } = getCanvasLogicalSize(canvas);
@@ -1385,11 +1458,11 @@ export function GameboardCanvas() {
         const newHovered = hit.type === 'node' ? hit.chipId : null;
         cache.col = gridCell.col;
         cache.row = gridCell.row;
-        cache.hoveredNodeId = newHovered;
-        cache.nodesRef = state.activeBoard.chips;
-        cache.wiresRef = state.activeBoard.paths;
-        if (newHovered !== state.hoveredNodeId) {
-          state.setHoveredNode(newHovered);
+        cache.hoveredChipId = newHovered;
+        cache.chipsRef = state.activeBoard.chips;
+        cache.pathsRef = state.activeBoard.paths;
+        if (newHovered !== state.hoveredChipId) {
+          state.setHoveredChip(newHovered);
         }
       }
     }
@@ -1399,6 +1472,7 @@ export function GameboardCanvas() {
   // Without this, fast mouse exits skip the mousemove-based close logic.
   const handleMouseLeave = useCallback(() => {
     setPressedPlaybackButton(null);
+    // deleteMode cleared by closeDrawer animation completion
     const drawerState = getDrawerState();
     if ((drawerState === 'open' || drawerState === 'opening') && !isKeyboardNavigationActive()) {
       closeDrawer();
@@ -1426,11 +1500,11 @@ export function GameboardCanvas() {
           y < tray.top || y > tray.top + tray.height) return;
 
       const state = useGameStore.getState();
-      const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
+      const allowedChips = state.activePuzzle?.allowedChips ?? null;
       const budgets = state.activeBoard
-        ? computeRemainingBudgets(allowedNodes, state.activeBoard.chips)
+        ? computeRemainingBudgets(allowedChips, state.activeBoard.chips)
         : null;
-      const itemCount = buildPaletteItems(allowedNodes, state.utilityNodes, budgets).length;
+      const itemCount = buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace).length;
       const maxScroll = getMaxScrollOffset(cs, itemCount);
       if (maxScroll <= 0) return;
 
@@ -1444,11 +1518,11 @@ export function GameboardCanvas() {
   }, []);
 
   const cursorStyle = useGameStore((s) => {
-    if (s.interactionMode.type === 'placing-node') return 'crosshair';
-    if (s.interactionMode.type === 'drawing-wire') return 'crosshair';
+    if (s.interactionMode.type === 'placing-chip') return 'crosshair';
+    if (s.interactionMode.type === 'drawing-path') return 'crosshair';
     if (s.interactionMode.type === 'keyboard-wiring') return 'crosshair';
-    if (s.interactionMode.type === 'dragging-node') return 'grabbing';
-    if (s.interactionMode.type === 'adjusting-knob') return 'ns-resize';
+    if (s.interactionMode.type === 'dragging-chip') return 'grabbing';
+    if (s.interactionMode.type === 'adjusting-knob') return s.interactionMode.knobCenter ? 'default' : 'ns-resize';
     return 'default';
   });
 

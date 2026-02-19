@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { minNode } from './min';
+import { minChip } from './min';
 
 describe('Min node', () => {
   const evaluate = (a: number, b: number) =>
-    minNode.evaluate({
+    minChip.evaluate({
       inputs: [a, b],
       params: {},
       state: undefined,
@@ -11,11 +11,11 @@ describe('Min node', () => {
     });
 
   it('has correct metadata', () => {
-    expect(minNode.type).toBe('min');
-    expect(minNode.category).toBe('math');
-    expect(minNode.inputs).toHaveLength(2);
-    expect(minNode.outputs).toHaveLength(1);
-    expect(minNode.size).toEqual({ width: 2, height: 2 });
+    expect(minChip.type).toBe('min');
+    expect(minChip.category).toBe('math');
+    expect(minChip.sockets).toHaveLength(2);
+    expect(minChip.plugs).toHaveLength(1);
+    expect(minChip.size).toEqual({ width: 2, height: 2 });
   });
 
   it('returns smaller of two positive values', () => {

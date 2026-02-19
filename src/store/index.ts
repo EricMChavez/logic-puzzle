@@ -9,8 +9,6 @@ import { createPuzzleSlice } from './slices/puzzle-slice.ts';
 import type { PuzzleSlice } from './slices/puzzle-slice.ts';
 import { createPaletteSlice } from './slices/palette-slice.ts';
 import type { PaletteSlice } from './slices/palette-slice.ts';
-import { createCeremonySlice } from './slices/ceremony-slice.ts';
-import type { CeremonySlice } from './slices/ceremony-slice.ts';
 import { createNavigationSlice } from './slices/navigation-slice.ts';
 import type { NavigationSlice } from './slices/navigation-slice.ts';
 import { createProgressionSlice } from './slices/progression-slice.ts';
@@ -44,7 +42,7 @@ import { initSoundEffects } from '../shared/audio/index.ts';
 import { initMeterAudioSubscriber } from '../simulation/meter-audio-subscriber.ts';
 import { initTutorialSubscriber } from '../tutorial/tutorial-subscriber.ts';
 
-export type GameStore = GameboardSlice & InteractionSlice & PlaypointSlice & PuzzleSlice & PaletteSlice & CeremonySlice & NavigationSlice & ProgressionSlice & HistorySlice & MeterSlice & RoutingSlice & OverlaySlice & AnimationSlice & CreativeSlice & CustomPuzzleSlice & AuthoringSlice & ScreenSlice & MotherboardSlice & TutorialSlice;
+export type GameStore = GameboardSlice & InteractionSlice & PlaypointSlice & PuzzleSlice & PaletteSlice & NavigationSlice & ProgressionSlice & HistorySlice & MeterSlice & RoutingSlice & OverlaySlice & AnimationSlice & CreativeSlice & CustomPuzzleSlice & AuthoringSlice & ScreenSlice & MotherboardSlice & TutorialSlice;
 
 export const useGameStore = create<GameStore>()((...a) => ({
   ...createGameboardSlice(...a),
@@ -52,7 +50,6 @@ export const useGameStore = create<GameStore>()((...a) => ({
   ...createPlaypointSlice(...a),
   ...createPuzzleSlice(...a),
   ...createPaletteSlice(...a),
-  ...createCeremonySlice(...a),
   ...createNavigationSlice(...a),
   ...createProgressionSlice(...a),
   ...createHistorySlice(...a),

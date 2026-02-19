@@ -23,7 +23,7 @@ function titleToConstName(title: string): string {
 }
 
 /**
- * Format a number for source output — integers stay integers, floats get rounded.
+ * Format a number for source output — integers stay integer, floats get rounded.
  */
 function formatNum(n: number): string {
   if (Number.isInteger(n)) return String(n);
@@ -112,15 +112,15 @@ export function exportCustomPuzzleAsSource(puzzle: CustomPuzzle): string {
     }
   }
 
-  // Format allowedNodes value
-  let allowedNodesStr: string;
-  if (puzzle.allowedNodes === null) {
-    allowedNodesStr = 'null';
+  // Format allowedChips value
+  let allowedChipsStr: string;
+  if (puzzle.allowedChips === null) {
+    allowedChipsStr = 'null';
   } else {
-    const entries = Object.entries(puzzle.allowedNodes)
+    const entries = Object.entries(puzzle.allowedChips)
       .map(([type, count]) => `${type}: ${count}`)
       .join(', ');
-    allowedNodesStr = `{ ${entries} }`;
+    allowedChipsStr = `{ ${entries} }`;
   }
 
   // Build the source
@@ -133,7 +133,7 @@ export function exportCustomPuzzleAsSource(puzzle: CustomPuzzle): string {
     `  description: '${puzzle.description.replace(/'/g, "\\'")}',`,
     `  activeInputs: ${activeInputs},`,
     `  activeOutputs: ${activeOutputs},`,
-    `  allowedNodes: ${allowedNodesStr},`,
+    `  allowedChips: ${allowedChipsStr},`,
     `  testCases: [`,
     `    {`,
     `      name: '${puzzle.title.replace(/'/g, "\\'")}',`,
@@ -150,24 +150,24 @@ export function exportCustomPuzzleAsSource(puzzle: CustomPuzzle): string {
   // Always include slotConfig to preserve meter layout
   lines.push(formatSlotConfig(puzzle.slots, '  '));
 
-  // Include initialNodes if any are defined
-  if (puzzle.initialNodes && puzzle.initialNodes.length > 0) {
-    lines.push(`  initialNodes: [`);
-    for (const node of puzzle.initialNodes) {
-      const paramsStr = Object.keys(node.params).length > 0
-        ? JSON.stringify(node.params)
+  // Include initialChips if any are defined
+  if (puzzle.initialChips && puzzle.initialChips.length > 0) {
+    lines.push(`  initialChips: [`);
+    for (const chip of puzzle.initialChips) {
+      const paramsStr = Object.keys(chip.params).length > 0
+        ? JSON.stringify(chip.params)
         : '{}';
-      const rotationStr = node.rotation ? `, rotation: ${node.rotation}` : '';
-      lines.push(`    { id: '${node.id}', type: '${node.type}', position: { col: ${node.position.col}, row: ${node.position.row} }, params: ${paramsStr}, inputCount: ${node.inputCount}, outputCount: ${node.outputCount}${rotationStr} },`);
+      const rotationStr = chip.rotation ? `, rotation: ${chip.rotation}` : '';
+      lines.push(`    { id: '${chip.id}', type: '${chip.type}', position: { col: ${chip.position.col}, row: ${chip.position.row} }, params: ${paramsStr}, socketCount: ${chip.socketCount}, plugCount: ${chip.plugCount}${rotationStr} },`);
     }
     lines.push(`  ],`);
   }
 
-  // Include initialWires if any are defined
-  if (puzzle.initialWires && puzzle.initialWires.length > 0) {
-    lines.push(`  initialWires: [`);
-    for (const wire of puzzle.initialWires) {
-      lines.push(`    { source: { chipId: '${wire.source.chipId}', portIndex: ${wire.source.portIndex} }, target: { chipId: '${wire.target.chipId}', portIndex: ${wire.target.portIndex} } },`);
+  // Include initialPaths if any are defined
+  if (puzzle.initialPaths && puzzle.initialPaths.length > 0) {
+    lines.push(`  initialPaths: [`);
+    for (const path of puzzle.initialPaths) {
+      lines.push(`    { source: { chipId: '${path.source.chipId}', portIndex: ${path.source.portIndex} }, target: { chipId: '${path.target.chipId}', portIndex: ${path.target.portIndex} } },`);
     }
     lines.push(`  ],`);
   }

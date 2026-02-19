@@ -1,11 +1,12 @@
-// Node definitions barrel export
-export { offsetNode, type OffsetParams } from './offset';
-export { scaleNode, type ScaleParams } from './scale';
-export { thresholdNode, type ThresholdParams } from './threshold';
-export { addNode } from './add';
-export { maxNode } from './max';
-export { minNode } from './min';
-export { splitNode } from './split';
-export { divideNode } from './divide';
-export { memoryNode, createMemoryState, type MemoryState } from './memory';
-export { negateNode } from './negate';
+// Chip definitions barrel export
+export { offsetChip, type OffsetParams } from './offset';
+export { scaleChip, type ScaleParams } from './scale';
+export { thresholdChip, type ThresholdParams } from './threshold';
+export { addChip } from './add';
+export { maxChip } from './max';
+export { minChip } from './min';
+export { duplicateChip } from './duplicate';
+export { divideChip } from './divide';
+export { memoryChip, createMemoryState, type MemoryState } from './memory';
+export { negateChip } from './negate';
+export { ampChip, type AmpParams } from './amp';

@@ -2,6 +2,7 @@ import { useGameStore } from '../../store/index.ts';
 import { PUZZLE_LEVELS } from '../../puzzle/levels/index.ts';
 import { createPuzzleGameboard } from '../../puzzle/puzzle-gameboard.ts';
 import { buildSlotConfig } from '../../puzzle/types.ts';
+import { withSoundsSuppressed } from '../../shared/audio/index.ts';
 import styles from './LevelSelect.module.css';
 
 export function LevelSelect() {
@@ -15,11 +16,14 @@ export function LevelSelect() {
     const puzzle = PUZZLE_LEVELS[index];
     if (!puzzle) return;
 
-    store.setCurrentLevel(index);
-    store.loadPuzzle(puzzle);
-    store.setActiveBoard(createPuzzleGameboard(puzzle));
-    const slotConfig = puzzle.slotConfig ?? buildSlotConfig(puzzle.activeInputs, puzzle.activeOutputs);
-    store.initializeMeters(slotConfig, 'hidden');
+    withSoundsSuppressed(() => {
+      store.setCurrentLevel(index);
+      store.loadPuzzle(puzzle);
+      const savedEntry = store.craftedPuzzles.get(puzzle.id);
+      store.setActiveBoard(savedEntry?.savedBoard ?? createPuzzleGameboard(puzzle));
+      const slotConfig = puzzle.slotConfig ?? buildSlotConfig(puzzle.activeInputs, puzzle.activeOutputs);
+      store.initializeMeters(slotConfig, 'off');
+    });
   }
 
   return (

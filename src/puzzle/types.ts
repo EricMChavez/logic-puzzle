@@ -226,24 +226,24 @@ export interface CustomWaveformEntry {
   samples: number[]; // 256 values, each [-100, +100]
 }
 
-/** null = all nodes unlimited. Record maps node type → max count (-1 = unlimited). */
-export type AllowedNodes = Record<string, number> | null;
+/** null = all chips unlimited. Record maps chip type → max count (-1 = unlimited). */
+export type AllowedChips = Record<string, number> | null;
 
-/** Serialized node for initial puzzle state */
-export interface InitialNodeDef {
+/** Serialized chip for initial puzzle state */
+export interface InitialChipDef {
   id: string;
   type: string;
   position: { col: number; row: number };
   params: Record<string, unknown>;
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
   rotation?: 0 | 90 | 180 | 270;
-  /** If true, node cannot be moved/deleted by the player. Default: true for built-in, false for custom. */
+  /** If true, chip cannot be moved/deleted by the player. Default: true for built-in, false for custom. */
   locked?: boolean;
 }
 
-/** Serialized wire for initial puzzle state */
-export interface InitialWireDef {
+/** Serialized path for initial puzzle state */
+export interface InitialPathDef {
   source: { chipId: string; portIndex: number };
   target: { chipId: string; portIndex: number };
 }
@@ -257,8 +257,8 @@ export interface PuzzleDefinition {
   activeInputs: number;
   /** Number of active output connection points (1–3) */
   activeOutputs: number;
-  /** Node types the player may use. null = all unlimited. Record maps type → max count (-1 = unlimited). */
-  allowedNodes: AllowedNodes;
+  /** Chip types the player may use. null = all unlimited. Record maps type → max count (-1 = unlimited). */
+  allowedChips: AllowedChips;
   /** Test cases the player's circuit must satisfy */
   testCases: PuzzleTestCase[];
   /** Flat slot configuration (derived from activeInputs/activeOutputs if not set).
@@ -266,10 +266,10 @@ export interface PuzzleDefinition {
   slotConfig?: SlotConfig;
   /** @deprecated Use slotConfig instead */
   connectionPoints?: ConnectionPointConfig;
-  /** Nodes pre-placed on the board when the puzzle starts */
-  initialNodes?: InitialNodeDef[];
-  /** Wires pre-connected when the puzzle starts */
-  initialWires?: InitialWireDef[];
+  /** Chips pre-placed on the board when the puzzle starts */
+  initialChips?: InitialChipDef[];
+  /** Paths pre-connected when the puzzle starts */
+  initialPaths?: InitialPathDef[];
   /** Optional tutorial message rendered on the gameboard surface (under dots and streak) */
   tutorialMessage?: string;
   /** Optional card title (rendered in Bungee font above tutorialMessage) */

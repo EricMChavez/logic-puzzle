@@ -77,11 +77,11 @@ function makeState(overrides: Partial<RenderPlacementGhostState> = {}): RenderPl
   }
 
   return {
-    interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 },
+    interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 },
     mousePosition: { x: 400, y: 400 },
     occupancy,
-    puzzleNodes: new Map(),
-    utilityNodes: new Map(),
+    craftedPuzzles: new Map(),
+    craftedUtilities: new Map(),
     keyboardGhostPosition: null,
     ...overrides,
   };
@@ -159,20 +159,20 @@ describe('renderPlacementGhost', () => {
 
   it('uses puzzle node title for puzzle type', () => {
     const ctx = makeCtx();
-    const puzzleNodes = new Map([
+    const craftedPuzzles = new Map([
       ['p1', {
         puzzleId: 'p1',
         title: 'Half Wave',
         description: '',
-        inputCount: 1,
-        outputCount: 1,
-        bakeMetadata: { topoOrder: [], nodeConfigs: [], edges: [], inputCount: 1, outputCount: 1 },
+        socketCount: 1,
+        plugCount: 1,
+        bakeMetadata: { topoOrder: [], chipConfigs: [], edges: [], socketCount: 1, plugCount: 1 },
         versionHash: 'v1',
       }],
     ]);
     const state = makeState({
-      interactionMode: { type: 'placing-node', nodeType: 'puzzle:p1', rotation: 0 },
-      puzzleNodes,
+      interactionMode: { type: 'placing-chip', chipType: 'puzzle:p1', rotation: 0 },
+      craftedPuzzles,
     });
     renderPlacementGhost(ctx, tokens, state, cellSize);
     expect(ctx.fillText).toHaveBeenCalledWith('HALF WAVE', expect.any(Number), expect.any(Number));
@@ -180,20 +180,20 @@ describe('renderPlacementGhost', () => {
 
   it('uses utility node title for utility type', () => {
     const ctx = makeCtx();
-    const utilityNodes = new Map([
+    const craftedUtilities = new Map([
       ['u1', {
         utilityId: 'u1',
         title: 'My Filter',
-        inputCount: 1,
-        outputCount: 1,
-        bakeMetadata: { topoOrder: [], nodeConfigs: [], edges: [], inputCount: 1, outputCount: 1 },
-        board: { id: 'u1', chips: new Map(), wires: [] },
+        socketCount: 1,
+        plugCount: 1,
+        bakeMetadata: { topoOrder: [], chipConfigs: [], edges: [], socketCount: 1, plugCount: 1 },
+        board: { id: 'u1', chips: new Map(), paths: [] },
         versionHash: 'v1',
       }],
     ]);
     const state = makeState({
-      interactionMode: { type: 'placing-node', nodeType: 'utility:u1', rotation: 0 },
-      utilityNodes,
+      interactionMode: { type: 'placing-chip', chipType: 'utility:u1', rotation: 0 },
+      craftedUtilities,
     });
     renderPlacementGhost(ctx, tokens, state, cellSize);
     expect(ctx.fillText).toHaveBeenCalledWith('MY FILTER', expect.any(Number), expect.any(Number));

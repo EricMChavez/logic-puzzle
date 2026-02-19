@@ -12,9 +12,9 @@ export function PaletteModal() {
 
 function PaletteModalInner() {
   const closeOverlay = useGameStore((s) => s.closeOverlay);
-  const startPlacingNode = useGameStore((s) => s.startPlacingNode);
-  const deleteUtilityNode = useGameStore((s) => s.deleteUtilityNode);
-  const utilityNodes = useGameStore((s) => s.utilityNodes);
+  const startPlacingChip = useGameStore((s) => s.startPlacingChip);
+  const deleteCraftedUtility = useGameStore((s) => s.deleteCraftedUtility);
+  const craftedUtilities = useGameStore((s) => s.craftedUtilities);
   const activePuzzle = useGameStore((s) => s.activePuzzle);
   const activeBoard = useGameStore((s) => s.activeBoard);
 
@@ -24,12 +24,12 @@ function PaletteModalInner() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const allowedNodes = activePuzzle?.allowedNodes ?? null;
+  const allowedChips = activePuzzle?.allowedChips ?? null;
   const remainingBudgets = computeRemainingBudgets(
-    allowedNodes,
+    allowedChips,
     activeBoard?.chips ?? new Map(),
   );
-  const allItems = buildPaletteItems(allowedNodes, utilityNodes, remainingBudgets);
+  const allItems = buildPaletteItems(allowedChips, craftedUtilities, remainingBudgets);
   const filtered = filterPaletteItems(allItems, query);
 
   // Auto-focus search input
@@ -50,8 +50,8 @@ function PaletteModalInner() {
   const handleSelect = useCallback((item: PaletteItem) => {
     if (!item.canPlace) return;
     closeOverlay();
-    startPlacingNode(item.nodeType);
-  }, [closeOverlay, startPlacingNode]);
+    startPlacingChip(item.chipType);
+  }, [closeOverlay, startPlacingChip]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -134,7 +134,7 @@ function PaletteModalInner() {
                         <button
                           className={styles.confirmYes}
                           onClick={() => {
-                            deleteUtilityNode(utilityId!);
+                            deleteCraftedUtility(utilityId!);
                             setConfirmingDeleteId(null);
                           }}
                         >

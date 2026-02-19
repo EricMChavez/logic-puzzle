@@ -61,6 +61,16 @@ export const createPuzzleSlice: StateCreator<PuzzleSlice> = (set) => ({
         };
       }
 
+      // Solution was broken after victory — reset to playing
+      if (state.puzzleStatus === 'victory') {
+        return {
+          perPortMatch,
+          puzzleStatus: 'playing' as const,
+          testCasesPassed: [],
+          activeTestCaseIndex: 0,
+        };
+      }
+
       return { perPortMatch };
     }),
 

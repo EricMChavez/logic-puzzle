@@ -9,7 +9,7 @@ import {
   buildWirePixelPath,
 } from './render-wires';
 import type { ThemeTokens } from '../../shared/tokens/token-types';
-import type { Wire } from '../../shared/types/index';
+import type { Path } from '../../shared/types/index';
 
 /** Minimal tokens for signal colour tests (dark theme values) */
 const tokens: Pick<ThemeTokens, 'signalPositive' | 'signalNegative' | 'signalZero' | 'colorNeutral' | 'wireWidthBase'> = {
@@ -202,10 +202,10 @@ describe('drawWires', () => {
 
   it('skips wires with empty path', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [],
     };
     drawWires(ctx, fullTokens, [wire], 40);
@@ -214,10 +214,10 @@ describe('drawWires', () => {
 
   it('draws a wire with a multi-point path', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 0, row: 0 },
         { col: 1, row: 0 },
@@ -232,10 +232,10 @@ describe('drawWires', () => {
 
   it('single-point path draws base only, no segments', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [{ col: 5, row: 5 }],
     };
     drawWires(ctx, fullTokens, [wire], 40);
@@ -245,10 +245,10 @@ describe('drawWires', () => {
 
   it('neutralOnly draws only 1 beginPath per wire (pass 1 only)', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 0, row: 0 },
         { col: 1, row: 0 },
@@ -263,10 +263,10 @@ describe('drawWires', () => {
 
   it('colorFade=0 skips passes 2+3 (only base pass)', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 0, row: 0 },
         { col: 1, row: 0 },
@@ -281,10 +281,10 @@ describe('drawWires', () => {
 
   it('colorFade=0.5 draws polarity pass with globalAlpha=0.5', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 0, row: 0 },
         { col: 1, row: 0 },
@@ -298,7 +298,6 @@ describe('drawWires', () => {
     // globalAlpha should have been set to 0.5 for the polarity pass
     // The save/restore pattern means the mock captures the last assignment before restore
     // We verify globalAlpha was assigned 0.5 at some point
-    const alphaAssignments: number[] = [];
     const saveCalls = (ctx.save as ReturnType<typeof vi.fn>).mock.calls.length;
     // Since the mock ctx doesn't track property assignments in order, we check the final value
     // after the polarity pass set it. The mock ctx stores the last assigned value.
@@ -307,10 +306,10 @@ describe('drawWires', () => {
 
   it('colorFade=undefined defaults to full color (same as colorFade=1)', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 0, row: 0 },
         { col: 1, row: 0 },
@@ -334,20 +333,20 @@ describe('drawWires', () => {
 
 describe('buildWirePixelPath', () => {
   it('returns empty array for wire with empty path and no nodes', () => {
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [],
     };
     expect(buildWirePixelPath(wire, 40)).toEqual([]);
   });
 
   it('converts grid path to pixel coordinates', () => {
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [{ col: 2, row: 3 }, { col: 4, row: 3 }],
     };
     const pts = buildWirePixelPath(wire, 10);
@@ -355,10 +354,10 @@ describe('buildWirePixelPath', () => {
   });
 
   it('deduplicates adjacent coincident points', () => {
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'a', portIndex: 0, side: 'output' },
-      target: { chipId: 'b', portIndex: 0, side: 'input' },
+      source: { chipId: 'a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'b', portIndex: 0, side: 'socket' },
       route: [
         { col: 2, row: 3 },
         { col: 2, row: 3 }, // duplicate

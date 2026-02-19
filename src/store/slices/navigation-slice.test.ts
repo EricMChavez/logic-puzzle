@@ -5,7 +5,6 @@ import { createInteractionSlice } from './interaction-slice.ts';
 import { createPlaypointSlice } from './playpoint-slice.ts';
 import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
-import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
 import { createHistorySlice } from './history-slice.ts';
@@ -26,7 +25,6 @@ function createTestStore() {
     ...createPlaypointSlice(...a),
     ...createPuzzleSlice(...a),
     ...createPaletteSlice(...a),
-    ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
     ...createHistorySlice(...a),
@@ -39,35 +37,35 @@ function createTestStore() {
 
 const fakeMeta: BakeMetadata = {
   topoOrder: [cpInputId(0), 'n1', cpOutputId(0)],
-  nodeConfigs: [
-    { id: cpInputId(0), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-    { id: 'n1', type: 'invert', params: {}, inputCount: 1, outputCount: 1 },
-    { id: cpOutputId(0), type: 'connection-output', params: {}, inputCount: 1, outputCount: 0 },
+  chipConfigs: [
+    { id: cpInputId(0), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+    { id: 'n1', type: 'invert', params: {}, socketCount: 1, plugCount: 1 },
+    { id: cpOutputId(0), type: 'connection-output', params: {}, socketCount: 1, plugCount: 0 },
   ],
   edges: [
-    { fromNodeId: cpInputId(0), fromPort: 0, toNodeId: 'n1', toPort: 0 },
-    { fromNodeId: 'n1', fromPort: 0, toNodeId: cpOutputId(0), toPort: 0 },
+    { fromChipId: cpInputId(0), fromPort: 0, toChipId: 'n1', toPort: 0 },
+    { fromChipId: 'n1', fromPort: 0, toChipId: cpOutputId(0), toPort: 0 },
   ],
-  inputCount: 1,
-  outputCount: 1,
+  socketCount: 1,
+  plugCount: 1,
 };
 
 function setupBoardWithPuzzleNode(store: ReturnType<typeof createTestStore>) {
   const board: GameboardState = {
     id: 'test-board',
     chips: new Map([
-      ['p1', { id: 'p1', type: 'puzzle:inv1', position: { col: 100, row: 100 }, params: {}, inputCount: 1, outputCount: 1 }],
-      ['n1', { id: 'n1', type: 'invert', position: { col: 200, row: 200 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['p1', { id: 'p1', type: 'puzzle:inv1', position: { col: 100, row: 100 }, params: {}, socketCount: 1, plugCount: 1 }],
+      ['n1', { id: 'n1', type: 'invert', position: { col: 200, row: 200 }, params: {}, socketCount: 1, plugCount: 1 }],
     ]),
     paths: [],
   };
   store.getState().setActiveBoard(board);
-  store.getState().addPuzzleNode({
+  store.getState().addCraftedPuzzle({
     puzzleId: 'inv1',
     title: 'Inverter',
     description: 'Inverts signal',
-    inputCount: 1,
-    outputCount: 1,
+    socketCount: 1,
+    plugCount: 1,
     bakeMetadata: fakeMeta,
     versionHash: 'test-hash',
   });
@@ -94,7 +92,7 @@ describe('navigation-slice', () => {
     expect(s.navigationDepth).toBe(1);
     expect(s.activeBoardId).toBe('viewer-puzzle:inv1');
     expect(s.activeBoard!.chips.has('n1')).toBe(true);
-    expect(s.selectedNodeId).toBeNull();
+    expect(s.selectedChipId).toBeNull();
   });
 
   it('zoomIntoNode with non-puzzle node: no-op', () => {
@@ -140,7 +138,7 @@ describe('navigation-slice', () => {
     expect(s.navigationDepth).toBe(0);
     expect(s.activeBoardId).toBe('test-board');
     expect(s.portConstants).toEqual(parentPortConstants);
-    expect(s.selectedNodeId).toBeNull();
+    expect(s.selectedChipId).toBeNull();
   });
 
   it('zoomOut from depth 0: no-op', () => {
@@ -177,11 +175,11 @@ describe('navigation-slice', () => {
   it('clears selection on zoom-in', () => {
     const store = createTestStore();
     setupBoardWithPuzzleNode(store);
-    store.getState().selectNode('p1');
-    expect(store.getState().selectedNodeId).toBe('p1');
+    store.getState().selectChip('p1');
+    expect(store.getState().selectedChipId).toBe('p1');
 
     store.getState().zoomIntoNode('p1');
-    expect(store.getState().selectedNodeId).toBeNull();
+    expect(store.getState().selectedChipId).toBeNull();
   });
 
   it('zoomIntoNode without active board: no-op', () => {
@@ -217,7 +215,7 @@ describe('navigation-slice', () => {
     expect(s.occupancy.length).toBeGreaterThan(0);
   });
 
-  it('zoomIntoNode resets meter slots to all hidden', () => {
+  it('zoomIntoNode resets meter slots to all off', () => {
     const store = createTestStore();
     setupBoardWithPuzzleNode(store);
 
@@ -225,7 +223,7 @@ describe('navigation-slice', () => {
 
     const s = store.getState();
     for (const slot of s.meterSlots.values()) {
-      expect(slot.mode).toBe('hidden');
+      expect(slot.mode).toBe('off');
     }
   });
 
@@ -241,9 +239,9 @@ describe('navigation-slice', () => {
     store.setState({ meterSlots: new Map(meterSlots) });
 
     store.getState().zoomIntoNode('p1');
-    // Child board gets default (hidden) meters
+    // Child board gets default (off) meters
     for (const slot of store.getState().meterSlots.values()) {
-      expect(slot.mode).toBe('hidden');
+      expect(slot.mode).toBe('off');
     }
 
     store.getState().zoomOut();
@@ -258,7 +256,7 @@ describe('navigation-slice', () => {
     const board: GameboardState = {
       id: 'motherboard',
       chips: new Map([
-        ['menu1', { id: 'menu1', type: 'menu-level', position: { col: 15, row: 10 }, params: {}, inputCount: 0, outputCount: 0 }],
+        ['menu1', { id: 'menu1', type: 'menu-level', position: { col: 15, row: 10 }, params: {}, socketCount: 0, plugCount: 0 }],
       ]),
       paths: [],
     };
@@ -280,7 +278,7 @@ describe('navigation-slice', () => {
     const utilityBoard: GameboardState = {
       id: 'utility-board',
       chips: new Map([
-        ['un1', { id: 'un1', type: 'invert', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['un1', { id: 'un1', type: 'invert', position: { col: 15, row: 10 }, params: {}, socketCount: 1, plugCount: 1 }],
       ]),
       paths: [],
     };
@@ -349,7 +347,7 @@ describe('computeBreadcrumbs', () => {
     store.getState().zoomIntoNode('p1');
     const s = store.getState();
 
-    const result = computeBreadcrumbs(s.boardStack, s.puzzleNodes, puzzle);
+    const result = computeBreadcrumbs(s.boardStack, s.craftedPuzzles, puzzle);
     expect(result).toEqual(['Rectifier', 'Inverter']);
   });
 
@@ -357,7 +355,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       chips: new Map([
-        ['x', { id: 'x', type: 'puzzle:unknown-node', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['x', { id: 'x', type: 'puzzle:unknown-node', position: { col: 0, row: 0 }, params: {}, socketCount: 1, plugCount: 1 }],
       ]),
       paths: [],
     };
@@ -370,7 +368,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       chips: new Map([
-        ['n1', { id: 'n1', type: 'invert', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['n1', { id: 'n1', type: 'invert', position: { col: 0, row: 0 }, params: {}, socketCount: 1, plugCount: 1 }],
       ]),
       paths: [],
     };
@@ -383,7 +381,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       chips: new Map([
-        ['cb1', { id: 'cb1', type: 'custom-blank', position: { col: 15, row: 10 }, params: {}, inputCount: 0, outputCount: 0 }],
+        ['cb1', { id: 'cb1', type: 'custom-blank', position: { col: 15, row: 10 }, params: {}, socketCount: 0, plugCount: 0 }],
       ]),
       paths: [],
     };
@@ -396,7 +394,7 @@ describe('computeBreadcrumbs', () => {
     const board: GameboardState = {
       id: 'b',
       chips: new Map([
-        ['u1', { id: 'u1', type: 'utility:myutil', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+        ['u1', { id: 'u1', type: 'utility:myutil', position: { col: 15, row: 10 }, params: {}, socketCount: 1, plugCount: 1 }],
       ]),
       paths: [],
     };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { hitTest, hitTestMeter, findNearestSnapTarget, WIRE_SNAP_RADIUS_CELLS } from './hit-testing.ts';
-import type { NodeState, Wire } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
+import type { ChipState, Path } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -9,7 +9,6 @@ import {
   FUNDAMENTAL_GRID_ROWS,
   UTILITY_GRID_COLS,
   UTILITY_GRID_ROWS,
-  METER_LEFT_START,
   METER_RIGHT_START,
   PLAYABLE_START,
 } from '../../shared/grid/index.ts';
@@ -19,12 +18,12 @@ import type { MeterKey, MeterSlotState } from '../meters/meter-types.ts';
 import { METER_GRID_COLS, METER_GRID_ROWS, CHANNEL_RATIOS } from '../meters/meter-types.ts';
 import { cpBidirectionalId } from '../../puzzle/connection-point-nodes.ts';
 
-function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): NodeState {
-  return { id, type, position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
+function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): ChipState {
+  return { id, type, position: { col, row }, params: {}, socketCount: inputs, plugCount: outputs };
 }
 
-function makeWire(id: string, route: Array<{ col: number; row: number }>): Wire {
-  const w = createWire(id, { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
+function makeWire(id: string, route: Array<{ col: number; row: number }>): Path {
+  const w = createPath(id, { chipId: 'a', portIndex: 0, side: 'plug' }, { chipId: 'b', portIndex: 0, side: 'socket' });
   w.route = route;
   return w;
 }
@@ -35,7 +34,7 @@ describe('hitTest node body', () => {
   const canvasHeight = GRID_ROWS * cellSize;
 
   it('detects fundamental node body with 3x2 dimensions', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'invert', 10, 6));
 
     const nodeX = 10 * cellSize;
@@ -52,7 +51,7 @@ describe('hitTest node body', () => {
   });
 
   it('does not hit outside fundamental node bounds (with body offset)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'invert', 10, 6));
 
     const nodeX = 10 * cellSize;
@@ -69,7 +68,7 @@ describe('hitTest node body', () => {
   });
 
   it('uses variable dimensions for utility nodes (5x3)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('u1', makeNode('u1', 'utility:scope', 10, 6));
 
     const nodeX = 10 * cellSize;
@@ -86,7 +85,7 @@ describe('hitTest node body', () => {
   });
 
   it('does not hit utility node outside 5x3 bounds (with body offset)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('u1', makeNode('u1', 'utility:scope', 10, 6));
 
     const nodeX = 10 * cellSize;
@@ -111,7 +110,7 @@ describe('hitTest node body', () => {
   });
 
   it('uses variable height for puzzle nodes', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     // 4 inputs → 5 rows tall
     nodes.set('p1', makeNode('p1', 'puzzle:abc', 10, 6, 4, 1));
 
@@ -133,7 +132,7 @@ describe('hitTest wire', () => {
   const cellSize = 40;
   const canvasWidth = GRID_COLS * cellSize;
   const canvasHeight = GRID_ROWS * cellSize;
-  const emptyNodes = new Map<string, NodeState>();
+  const emptyNodes = new Map<string, ChipState>();
 
   it('detects hit on horizontal wire segment', () => {
     // Wire from (10,5) to (14,5) — horizontal at row 5 gridline
@@ -145,8 +144,8 @@ describe('hitTest wire', () => {
     const x = 12 * cellSize;
     const y = 5 * cellSize;
     const result = hitTest(x, y, emptyNodes, canvasWidth, canvasHeight, cellSize, [wire]);
-    expect(result.type).toBe('wire');
-    if (result.type === 'wire') expect(result.wireId).toBe('w1');
+    expect(result.type).toBe('path');
+    if (result.type === 'path') expect(result.pathId).toBe('w1');
   });
 
   it('detects hit on vertical wire segment', () => {
@@ -158,8 +157,8 @@ describe('hitTest wire', () => {
     const x = 10 * cellSize;
     const y = 6 * cellSize;
     const result = hitTest(x, y, emptyNodes, canvasWidth, canvasHeight, cellSize, [wire]);
-    expect(result.type).toBe('wire');
-    if (result.type === 'wire') expect(result.wireId).toBe('w1');
+    expect(result.type).toBe('path');
+    if (result.type === 'path') expect(result.pathId).toBe('w1');
   });
 
   it('does not hit wire when far away', () => {
@@ -175,7 +174,7 @@ describe('hitTest wire', () => {
   });
 
   it('node body takes priority over wire', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'invert', 10, 5));
 
     const wire = makeWire('w1', [
@@ -208,8 +207,8 @@ describe('hitTest wire', () => {
     const x = 10 * cellSize;
     const y = 8 * cellSize;
     const result = hitTest(x, y, emptyNodes, canvasWidth, canvasHeight, cellSize, [wire]);
-    expect(result.type).toBe('wire');
-    if (result.type === 'wire') expect(result.wireId).toBe('w1');
+    expect(result.type).toBe('path');
+    if (result.type === 'path') expect(result.pathId).toBe('w1');
   });
 });
 
@@ -311,7 +310,7 @@ describe('hitTest CP node filtering', () => {
 
   it('skips bidirectional CP nodes in body hit test', () => {
     // Place bidir CP nodes at position {0, 0} (in meter zone)
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     for (let i = 0; i < 6; i++) {
       const id = cpBidirectionalId(i);
       nodes.set(id, makeNode(id, 'connection-bidirectional', 0, 0, 1, 1));
@@ -323,7 +322,7 @@ describe('hitTest CP node filtering', () => {
   });
 
   it('still hits regular nodes placed near CP nodes', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     // Add a bidir CP and a regular node at the same position
     const cpId = cpBidirectionalId(0);
     nodes.set(cpId, makeNode(cpId, 'connection-bidirectional', 15, 5, 1, 1));
@@ -341,7 +340,7 @@ describe('findNearestSnapTarget', () => {
   const cellSize = 40;
 
   it('snaps to a nearby port within radius', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     const node = makeNode('n1', 'max', 20, 10, 2, 1);
     nodes.set('n1', node);
 
@@ -358,12 +357,12 @@ describe('findNearestSnapTarget', () => {
     expect(result!.type).toBe('port');
     if (result!.type === 'port') {
       expect(result!.portRef.chipId).toBe('n1');
-      expect(result!.portRef.side).toBe('output');
+      expect(result!.portRef.side).toBe('plug');
     }
   });
 
   it('returns null when no target is within radius', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'max', 20, 10, 2, 1));
 
     // Click far from any port (10 cells away)
@@ -376,7 +375,7 @@ describe('findNearestSnapTarget', () => {
   });
 
   it('respects isValidTarget filter', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     const node = makeNode('n1', 'max', 20, 10, 2, 1);
     nodes.set('n1', node);
 
@@ -394,7 +393,7 @@ describe('findNearestSnapTarget', () => {
   });
 
   it('prefers the closer target when multiple are within radius', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     // Two nodes, each with an input port at different distances from the test point
     const nodeA = makeNode('a', 'max', 20, 10, 2, 1);
     const nodeB = makeNode('b', 'max', 23, 10, 2, 1);

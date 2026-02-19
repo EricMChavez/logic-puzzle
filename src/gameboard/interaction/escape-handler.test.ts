@@ -11,14 +11,13 @@ function makeState(overrides: Partial<EscapeHandlerState> = {}): EscapeHandlerSt
     isOverlayEscapeDismissible: vi.fn(() => false),
     closeOverlay: vi.fn(),
     interactionMode: { type: 'idle' },
-    cancelWireDraw: vi.fn(),
+    cancelPathDraw: vi.fn(),
     cancelPlacing: vi.fn(),
     cancelKeyboardWiring: vi.fn(),
     commitKnobAdjust: vi.fn(),
-    selectedNodeId: null,
+    selectedChipId: null,
     clearSelection: vi.fn(),
     zoomTransitionType: 'idle',
-    ceremonyType: 'inactive',
     isTutorialActive: false,
     endTutorial: vi.fn(),
     ...overrides,
@@ -48,16 +47,6 @@ describe('escape-handler', () => {
       expect(getEscapeAction(state)).toBe('noop');
     });
 
-    it('returns noop during victory-screen ceremony', () => {
-      const state = makeState({ ceremonyType: 'victory-screen' });
-      expect(getEscapeAction(state)).toBe('noop');
-    });
-
-    it('returns noop during it-works ceremony', () => {
-      const state = makeState({ ceremonyType: 'it-works' });
-      expect(getEscapeAction(state)).toBe('noop');
-    });
-
     it('returns noop for non-dismissible overlay', () => {
       const state = makeState({
         hasActiveOverlay: vi.fn(() => true),
@@ -80,10 +69,10 @@ describe('escape-handler', () => {
 
     it('cancels wire drawing then opens menu', () => {
       const state = makeState({
-        interactionMode: { type: 'drawing-wire' },
+        interactionMode: { type: 'drawing-path' },
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
-      expect(state.cancelWireDraw).toHaveBeenCalledOnce();
+      expect(state.cancelPathDraw).toHaveBeenCalledOnce();
       expect(state.revealScreen).toHaveBeenCalledOnce();
     });
 
@@ -98,7 +87,7 @@ describe('escape-handler', () => {
 
     it('cancels node placement then opens menu', () => {
       const state = makeState({
-        interactionMode: { type: 'placing-node' },
+        interactionMode: { type: 'placing-chip' },
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.cancelPlacing).toHaveBeenCalledOnce();
@@ -116,7 +105,7 @@ describe('escape-handler', () => {
 
     it('clears selection then opens menu', () => {
       const state = makeState({
-        selectedNodeId: 'n1',
+        selectedChipId: 'n1',
       });
       expect(handleEscape(state)).toBe('cancel-and-menu');
       expect(state.clearSelection).toHaveBeenCalledOnce();
@@ -153,7 +142,7 @@ describe('escape-handler', () => {
     it('screen close takes highest precedence', () => {
       const state = makeState({
         activeScreen: 'home',
-        interactionMode: { type: 'drawing-wire' },
+        interactionMode: { type: 'drawing-path' },
       });
       expect(getEscapeAction(state)).toBe('close-menu');
     });
@@ -161,8 +150,8 @@ describe('escape-handler', () => {
     it('zoom animation blocks over interactions', () => {
       const state = makeState({
         zoomTransitionType: 'animating',
-        interactionMode: { type: 'drawing-wire' },
-        selectedNodeId: 'n1',
+        interactionMode: { type: 'drawing-path' },
+        selectedChipId: 'n1',
       });
       expect(getEscapeAction(state)).toBe('noop');
     });
@@ -171,7 +160,7 @@ describe('escape-handler', () => {
       const state = makeState({
         hasActiveOverlay: vi.fn(() => true),
         isOverlayEscapeDismissible: vi.fn(() => true),
-        interactionMode: { type: 'drawing-wire' },
+        interactionMode: { type: 'drawing-path' },
       });
       expect(getEscapeAction(state)).toBe('cancel-and-menu');
     });

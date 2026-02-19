@@ -5,7 +5,6 @@ import { createInteractionSlice } from './interaction-slice.ts';
 import { createPlaypointSlice } from './playpoint-slice.ts';
 import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
-import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
 import { createHistorySlice, initHistory } from './history-slice.ts';
@@ -14,8 +13,8 @@ import { createRoutingSlice } from './routing-slice.ts';
 import { createOverlaySlice } from './overlay-slice.ts';
 import { createAnimationSlice } from './animation-slice.ts';
 import type { GameStore } from '../index.ts';
-import { createWire } from '../../shared/types/index.ts';
-import type { GameboardState, NodeState, Wire } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
+import type { GameboardState, ChipState, Path } from '../../shared/types/index.ts';
 
 function createTestStore() {
   const store = create<GameStore>()((...a) => ({
@@ -24,7 +23,6 @@ function createTestStore() {
     ...createPlaypointSlice(...a),
     ...createPuzzleSlice(...a),
     ...createPaletteSlice(...a),
-    ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
     ...createHistorySlice(...a),
@@ -41,12 +39,12 @@ function makeBoard(id: string): GameboardState {
   return { id, chips: new Map(), paths: [] };
 }
 
-function makeNode(id: string): NodeState {
-  return { id, type: 'invert', position: { col: 0, row: 0 }, params: {}, inputCount: 1, outputCount: 1 };
+function makeNode(id: string): ChipState {
+  return { id, type: 'invert', position: { col: 0, row: 0 }, params: {}, socketCount: 1, plugCount: 1 };
 }
 
-function makeWire(id: string): Wire {
-  return createWire(id, { chipId: 'n1', portIndex: 0, side: 'output' }, { chipId: 'n2', portIndex: 0, side: 'input' });
+function makePath(id: string): Path {
+  return createPath(id, { chipId: 'n1', portIndex: 0, side: 'plug' }, { chipId: 'n2', portIndex: 0, side: 'socket' });
 }
 
 describe('history-slice', () => {
@@ -65,7 +63,7 @@ describe('history-slice', () => {
       // Clear the history that setActiveBoard may have triggered
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       expect(store.getState().undoStack.length).toBe(1);
       expect(store.getState().undoStack[0].board.chips.size).toBe(0); // snapshot of BEFORE the add
     });
@@ -75,11 +73,11 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
-      store.getState().addNode(makeNode('n2'));
+      store.getState().addChip(makeNode('n1'));
+      store.getState().addChip(makeNode('n2'));
       const beforeWire = store.getState().undoStack.length;
 
-      store.getState().addWire(makeWire('w1'));
+      store.getState().addPath(makePath('w1'));
       expect(store.getState().undoStack.length).toBe(beforeWire + 1);
     });
 
@@ -88,10 +86,10 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       const afterAdd = store.getState().undoStack.length;
 
-      store.getState().updateNodeParams('n1', { mode: 'Subtract' });
+      store.getState().updateChipParams('n1', { mode: 'Subtract' });
       expect(store.getState().undoStack.length).toBe(afterAdd + 1);
     });
 
@@ -100,10 +98,10 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       const afterAdd = store.getState().undoStack.length;
 
-      store.getState().removeNode('n1');
+      store.getState().removeChip('n1');
       expect(store.getState().undoStack.length).toBe(afterAdd + 1);
       expect(store.getState().activeBoard!.chips.size).toBe(0);
     });
@@ -113,12 +111,12 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
-      store.getState().addNode(makeNode('n2'));
-      store.getState().addWire(makeWire('w1'));
+      store.getState().addChip(makeNode('n1'));
+      store.getState().addChip(makeNode('n2'));
+      store.getState().addPath(makePath('w1'));
       const afterWire = store.getState().undoStack.length;
 
-      store.getState().removeWire('w1');
+      store.getState().removePath('w1');
       expect(store.getState().undoStack.length).toBe(afterWire + 1);
       expect(store.getState().activeBoard!.paths.length).toBe(0);
     });
@@ -137,12 +135,12 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       store.getState().undo();
       expect(store.getState().redoStack.length).toBe(1);
 
       // New edit should clear redo
-      store.getState().addNode(makeNode('n2'));
+      store.getState().addChip(makeNode('n2'));
       expect(store.getState().redoStack.length).toBe(0);
     });
   });
@@ -153,7 +151,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       expect(store.getState().activeBoard!.chips.size).toBe(1);
 
       store.getState().undo();
@@ -165,7 +163,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       store.getState().undo();
 
       expect(store.getState().redoStack.length).toBe(1);
@@ -187,7 +185,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       expect(store.getState().undoStack.length).toBe(1);
 
       store.getState().undo();
@@ -211,9 +209,9 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
-      store.getState().addNode(makeNode('n2'));
-      store.getState().addNode(makeNode('n3'));
+      store.getState().addChip(makeNode('n1'));
+      store.getState().addChip(makeNode('n2'));
+      store.getState().addChip(makeNode('n3'));
       expect(store.getState().activeBoard!.chips.size).toBe(3);
 
       store.getState().undo();
@@ -231,7 +229,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       store.getState().undo();
       expect(store.getState().activeBoard!.chips.size).toBe(0);
 
@@ -254,8 +252,8 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
-      store.getState().addNode(makeNode('n2'));
+      store.getState().addChip(makeNode('n1'));
+      store.getState().addChip(makeNode('n2'));
       const stateAfterEdits = store.getState().activeBoard!.chips.size;
 
       store.getState().undo();
@@ -271,7 +269,7 @@ describe('history-slice', () => {
       store.getState().clearHistory();
 
       for (let i = 0; i < 60; i++) {
-        store.getState().addNode(makeNode(`n${i}`));
+        store.getState().addChip(makeNode(`n${i}`));
       }
 
       expect(store.getState().undoStack.length).toBe(50);
@@ -288,7 +286,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('board-1'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       expect(store.getState().undoStack.length).toBe(1);
 
       // Switch to different board
@@ -304,7 +302,7 @@ describe('history-slice', () => {
       store.getState().setActiveBoard(makeBoard('main'));
       store.getState().clearHistory();
 
-      store.getState().addNode(makeNode('n1'));
+      store.getState().addChip(makeNode('n1'));
       store.getState().undo();
       expect(store.getState().undoStack.length).toBe(0);
       expect(store.getState().redoStack.length).toBe(1);

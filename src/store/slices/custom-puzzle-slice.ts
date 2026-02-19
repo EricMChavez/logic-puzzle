@@ -1,10 +1,11 @@
 import type { StateCreator } from 'zustand';
-import type { NodeState, GameboardState, Wire } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
-import type { WaveformDef, PuzzleDefinition, AllowedNodes, SlotConfig } from '../../puzzle/types.ts';
+import type { ChipState, GameboardState, Path } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
+import type { WaveformDef, PuzzleDefinition, AllowedChips, SlotConfig } from '../../puzzle/types.ts';
 import type { MeterMode } from '../../gameboard/meters/meter-types.ts';
 import { buildSlotConfigFromDirections } from '../../puzzle/types.ts';
 import { createConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
+import { withSoundsSuppressed } from '../../shared/audio/index.ts';
 
 /** Definition of a custom puzzle created in Creative Mode */
 export interface CustomPuzzle {
@@ -19,24 +20,24 @@ export interface CustomPuzzle {
   }>;
   /** Target output samples (one array per active output slot) */
   targetSamples: Map<number, number[]>;
-  /** Initial nodes (serialized) — starting nodes pre-placed on the board */
-  initialNodes: Array<{
+  /** Initial chips (serialized) — starting chips pre-placed on the board */
+  initialChips: Array<{
     id: string;
     type: string;
     position: { col: number; row: number };
     params: Record<string, unknown>;
-    inputCount: number;
-    outputCount: number;
+    socketCount: number;
+    plugCount: number;
     rotation?: 0 | 90 | 180 | 270;
     locked?: boolean;
   }>;
-  /** Initial wires (serialized) */
-  initialWires: Array<{
+  /** Initial paths (serialized) */
+  initialPaths: Array<{
     source: { chipId: string; portIndex: number };
     target: { chipId: string; portIndex: number };
   }>;
-  /** Node type budgets. null = all unlimited. Record maps type → max count (-1 = unlimited). */
-  allowedNodes: AllowedNodes;
+  /** Chip type budgets. null = all unlimited. Record maps type → max count (-1 = unlimited). */
+  allowedChips: AllowedChips;
   /** Optional tutorial message displayed on the gameboard surface */
   tutorialMessage?: string;
   /** Optional card title (rendered in Bungee font above message) */
@@ -55,10 +56,10 @@ export interface SerializedCustomPuzzle {
   }>;
   /** Target samples as array of [slotIndex, samples[]] pairs */
   targetSamples: Array<[number, number[]]>;
-  initialNodes: CustomPuzzle['initialNodes'];
-  initialWires: CustomPuzzle['initialWires'];
-  /** Node type budgets. Accepts legacy string[] or new Record<string, number>. null = all. */
-  allowedNodes?: string[] | Record<string, number> | null;
+  initialChips: CustomPuzzle['initialChips'];
+  initialPaths: CustomPuzzle['initialPaths'];
+  /** Chip type budgets. Accepts legacy string[] or new Record<string, number>. null = all. */
+  allowedChips?: string[] | Record<string, number> | null;
   tutorialMessage?: string;
   tutorialTitle?: string;
 }
@@ -109,7 +110,7 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
     };
 
     // Build gameboard with CP nodes based on slot configuration
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     let inputCount = 0;
     let outputCount = 0;
 
@@ -127,29 +128,29 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
       nodes.set(node.id, node);
     }
 
-    // Place starting nodes at their saved positions
-    for (const sn of puzzle.initialNodes) {
-      const startingNode: NodeState = {
+    // Place starting chips at their saved positions
+    for (const sn of puzzle.initialChips) {
+      const startingChip: ChipState = {
         id: sn.id,
         type: sn.type,
         position: { col: sn.position.col, row: sn.position.row },
         params: sn.params as Record<string, number | string | boolean>,
-        inputCount: sn.inputCount,
-        outputCount: sn.outputCount,
+        socketCount: sn.socketCount,
+        plugCount: sn.plugCount,
         rotation: sn.rotation,
         locked: sn.locked ?? false,
       };
-      nodes.set(startingNode.id, startingNode);
+      nodes.set(startingChip.id, startingChip);
     }
 
-    // Build initial wires from puzzle definition
-    const paths: Wire[] = [];
-    for (const wireDef of puzzle.initialWires) {
-      const wireId = `wire-${wireDef.source.chipId}-${wireDef.source.portIndex}-${wireDef.target.chipId}-${wireDef.target.portIndex}`;
-      paths.push(createWire(
-        wireId,
-        { chipId: wireDef.source.chipId, portIndex: wireDef.source.portIndex, side: 'output' },
-        { chipId: wireDef.target.chipId, portIndex: wireDef.target.portIndex, side: 'input' },
+    // Build initial paths from puzzle definition
+    const paths: Path[] = [];
+    for (const pathDef of puzzle.initialPaths) {
+      const pathId = `path-${pathDef.source.chipId}-${pathDef.source.portIndex}-${pathDef.target.chipId}-${pathDef.target.portIndex}`;
+      paths.push(createPath(
+        pathId,
+        { chipId: pathDef.source.chipId, portIndex: pathDef.source.portIndex, side: 'plug' },
+        { chipId: pathDef.target.chipId, portIndex: pathDef.target.portIndex, side: 'socket' },
       ));
     }
 
@@ -194,7 +195,7 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
       description: puzzle.description,
       activeInputs: inputCount,
       activeOutputs: outputCount,
-      allowedNodes: puzzle.allowedNodes ?? null,
+      allowedChips: puzzle.allowedChips ?? null,
       testCases: [{
         name: 'Custom',
         inputs,
@@ -207,9 +208,11 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
 
     // Load into store — loadPuzzle MUST come before setActiveBoard so that
     // the cycle runner subscriber sees activePuzzle when evaluating the new board
-    store.loadPuzzle(puzzleDef);
-    store.setActiveBoard(board);
-    store.initializeMeters(slotConfig, 'hidden');
+    withSoundsSuppressed(() => {
+      store.loadPuzzle(puzzleDef);
+      store.setActiveBoard(board);
+      store.initializeMeters(slotConfig, 'off');
+    });
   },
 
   getSerializableCustomPuzzles: () => {
@@ -222,9 +225,9 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
         createdAt: puzzle.createdAt,
         slots: puzzle.slots,
         targetSamples: Array.from(puzzle.targetSamples.entries()),
-        initialNodes: puzzle.initialNodes,
-        initialWires: puzzle.initialWires,
-        allowedNodes: puzzle.allowedNodes,
+        initialChips: puzzle.initialChips,
+        initialPaths: puzzle.initialPaths,
+        allowedChips: puzzle.allowedChips,
         tutorialMessage: puzzle.tutorialMessage,
         tutorialTitle: puzzle.tutorialTitle,
       });
@@ -236,15 +239,15 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
     const puzzles = new Map<string, CustomPuzzle>();
     for (const s of serialized) {
       // Migrate legacy string[] → Record<string, -1>
-      let allowedNodes: AllowedNodes;
-      if (Array.isArray(s.allowedNodes)) {
-        allowedNodes = Object.fromEntries(s.allowedNodes.map(t => [t, -1]));
+      let allowedChips: AllowedChips;
+      if (Array.isArray(s.allowedChips)) {
+        allowedChips = Object.fromEntries(s.allowedChips.map(t => [t, -1]));
       } else {
-        allowedNodes = s.allowedNodes ?? null;
+        allowedChips = s.allowedChips ?? null;
       }
 
       // Ensure locked field defaults to false for old entries
-      const initialNodes = s.initialNodes.map(n => ({
+      const initialChips = s.initialChips.map(n => ({
         ...n,
         locked: n.locked ?? false,
       }));
@@ -256,9 +259,9 @@ export const createCustomPuzzleSlice: StateCreator<CustomPuzzleSlice> = (set, ge
         createdAt: s.createdAt,
         slots: s.slots,
         targetSamples: new Map(s.targetSamples),
-        initialNodes,
-        initialWires: s.initialWires,
-        allowedNodes,
+        initialChips,
+        initialPaths: s.initialPaths,
+        allowedChips,
         tutorialMessage: s.tutorialMessage,
         tutorialTitle: s.tutorialTitle,
       });

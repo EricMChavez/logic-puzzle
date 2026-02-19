@@ -88,6 +88,8 @@ describe('drawBackButton', () => {
         lineCap: '',
         lineJoin: '',
         globalAlpha: 1,
+        shadowColor: '',
+        shadowBlur: 0,
       } as unknown as CanvasRenderingContext2D,
     };
   }
@@ -97,7 +99,7 @@ describe('drawBackButton', () => {
   it('draws without throwing', () => {
     const { ctx, calls } = createMockCtx();
     expect(() => {
-      drawBackButton(ctx, tokens, { hovered: false }, 20);
+      drawBackButton(ctx, tokens, { hovered: false, pulsing: false }, 20);
     }).not.toThrow();
     expect(calls).toContain('save');
     expect(calls).toContain('stroke');
@@ -108,7 +110,14 @@ describe('drawBackButton', () => {
   it('draws with hover state without throwing', () => {
     const { ctx } = createMockCtx();
     expect(() => {
-      drawBackButton(ctx, tokens, { hovered: true }, 20);
+      drawBackButton(ctx, tokens, { hovered: true, pulsing: false }, 20);
+    }).not.toThrow();
+  });
+
+  it('draws with pulsing state without throwing', () => {
+    const { ctx } = createMockCtx();
+    expect(() => {
+      drawBackButton(ctx, tokens, { hovered: false, pulsing: true }, 20);
     }).not.toThrow();
   });
 });

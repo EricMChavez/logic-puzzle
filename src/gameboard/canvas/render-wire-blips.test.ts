@@ -5,7 +5,7 @@ import {
   drawWireBlips,
 } from './render-wire-blips';
 import type { WireAnimationCache } from './wire-animation';
-import type { Wire } from '../../shared/types/index';
+import type { Path } from '../../shared/types/index';
 import type { ThemeTokens } from '../../shared/tokens/token-types';
 
 // ── computeCumulativeDistances ──────────────────────────────────────────────
@@ -136,10 +136,10 @@ describe('drawWireBlips', () => {
 
   it('makes no draw calls when globalProgress = 0 and all depart > 0', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'nodeA', portIndex: 0, side: 'output' },
-      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      source: { chipId: 'nodeA', portIndex: 0, side: 'plug' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'socket' },
       route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
@@ -158,10 +158,10 @@ describe('drawWireBlips', () => {
 
   it('draws blip segments when globalProgress is within wire phase', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'plug' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'socket' },
       route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
@@ -181,10 +181,10 @@ describe('drawWireBlips', () => {
 
   it('makes no draw calls when globalProgress >= arrivePhase (blip exits at arrival)', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'plug' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'socket' },
       route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
@@ -208,10 +208,10 @@ describe('drawWireBlips', () => {
 
   it('skips wire with no timing entry', () => {
     const ctx = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'output' },
-      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'input' },
+      source: { chipId: '__cp_input_0__', portIndex: 0, side: 'plug' },
+      target: { chipId: '__cp_output_0__', portIndex: 0, side: 'socket' },
       route: [{ col: 10, row: 5 }, { col: 15, row: 5 }],
     };
 
@@ -223,10 +223,10 @@ describe('drawWireBlips', () => {
   it('skips wire with less than 2 pixel path points', () => {
     const ctx = makeMockCtx();
     // Use non-CP nodes that aren't in the nodes map, so getPortPixelPosition returns null
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'missing_a', portIndex: 0, side: 'output' },
-      target: { chipId: 'missing_b', portIndex: 0, side: 'input' },
+      source: { chipId: 'missing_a', portIndex: 0, side: 'plug' },
+      target: { chipId: 'missing_b', portIndex: 0, side: 'socket' },
       route: [], // No path, no matching nodes → empty pixel path
     };
 

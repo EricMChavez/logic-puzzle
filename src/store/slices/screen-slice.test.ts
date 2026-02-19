@@ -59,17 +59,34 @@ describe('screen-slice', () => {
   });
 
   describe('dismissScreen', () => {
-    it('starts sliding-down transition', () => {
+    it('starts powering-off transition', () => {
       const { state } = createTestStore();
       state.showScreen();
       state.dismissScreen();
-      expect(state.screenTransition).toEqual({ type: 'sliding-down' });
+      expect(state.screenTransition).toEqual({ type: 'powering-off' });
     });
 
     it('does nothing when no active screen', () => {
       const { state } = createTestStore();
       state.dismissScreen();
       expect(state.screenTransition).toEqual({ type: 'idle' });
+    });
+
+    it('is no-op when already powering-off', () => {
+      const { state } = createTestStore();
+      state.showScreen();
+      state.dismissScreen();
+      expect(state.screenTransition).toEqual({ type: 'powering-off' });
+      state.dismissScreen(); // no-op
+      expect(state.screenTransition).toEqual({ type: 'powering-off' });
+    });
+
+    it('is no-op during sliding-up', () => {
+      const { state } = createTestStore();
+      state.revealScreen();
+      expect(state.screenTransition).toEqual({ type: 'sliding-up' });
+      state.dismissScreen(); // no-op — not idle
+      expect(state.screenTransition).toEqual({ type: 'sliding-up' });
     });
   });
 
@@ -92,18 +109,30 @@ describe('screen-slice', () => {
   });
 
   describe('completeScreenTransition', () => {
-    it('completes sliding-down: clears activeScreen', () => {
+    it('powering-off → sliding-down (activeScreen stays)', () => {
       const { state } = createTestStore();
       state.showScreen();
       state.dismissScreen();
+      expect(state.screenTransition).toEqual({ type: 'powering-off' });
       state.completeScreenTransition();
+      expect(state.activeScreen).toBe('home');
+      expect(state.screenTransition).toEqual({ type: 'sliding-down' });
+    });
+
+    it('sliding-down → clears activeScreen', () => {
+      const { state } = createTestStore();
+      state.showScreen();
+      state.dismissScreen();
+      state.completeScreenTransition(); // powering-off → sliding-down
+      state.completeScreenTransition(); // sliding-down → clear
       expect(state.activeScreen).toBe(null);
       expect(state.screenTransition).toEqual({ type: 'idle' });
     });
 
-    it('completes sliding-up: keeps activeScreen, clears transition', () => {
+    it('sliding-up → idle (activeScreen stays)', () => {
       const { state } = createTestStore();
       state.revealScreen();
+      expect(state.screenTransition).toEqual({ type: 'sliding-up' });
       state.completeScreenTransition();
       expect(state.activeScreen).toBe('home');
       expect(state.screenTransition).toEqual({ type: 'idle' });
@@ -113,6 +142,26 @@ describe('screen-slice', () => {
       const { state } = createTestStore();
       state.completeScreenTransition();
       expect(state.activeScreen).toBe(null);
+      expect(state.screenTransition).toEqual({ type: 'idle' });
+    });
+
+    it('full dismiss chain: powering-off → sliding-down → clear', () => {
+      const { state } = createTestStore();
+      state.showScreen();
+      state.dismissScreen();
+      state.completeScreenTransition(); // powering-off → sliding-down
+      expect(state.activeScreen).toBe('home');
+      expect(state.screenTransition).toEqual({ type: 'sliding-down' });
+      state.completeScreenTransition(); // sliding-down → clear
+      expect(state.activeScreen).toBe(null);
+      expect(state.screenTransition).toEqual({ type: 'idle' });
+    });
+
+    it('full reveal chain: sliding-up → idle', () => {
+      const { state } = createTestStore();
+      state.revealScreen();
+      state.completeScreenTransition(); // sliding-up → idle
+      expect(state.activeScreen).toBe('home');
       expect(state.screenTransition).toEqual({ type: 'idle' });
     });
   });

@@ -3,15 +3,15 @@ import { createUtilityGameboard } from './utility-gameboard.ts';
 import { isUtilitySlotNode, getUtilitySlotIndex } from './connection-point-nodes.ts';
 
 describe('createUtilityGameboard', () => {
-  it('creates gameboard with 6 utility slot nodes', () => {
+  it('creates blank gameboard with no slot chips by default', () => {
     const board = createUtilityGameboard('test-id');
 
-    const slotNodes = Array.from(board.chips.values()).filter((n) =>
+    const slotChips = Array.from(board.chips.values()).filter((n) =>
       isUtilitySlotNode(n.id),
     );
 
-    expect(slotNodes).toHaveLength(6);
-    expect(board.chips.size).toBe(6);
+    expect(slotChips).toHaveLength(0);
+    expect(board.chips.size).toBe(0);
   });
 
   it('gameboard ID contains utilityId', () => {
@@ -19,31 +19,32 @@ describe('createUtilityGameboard', () => {
     expect(board.id).toBe('utility-my-util');
   });
 
-  it('has no wires in initial gameboard', () => {
+  it('has no paths in initial gameboard', () => {
     const board = createUtilityGameboard('test-id');
     expect(board.paths).toEqual([]);
   });
 
-  it('left slots (0-2) are connection-input, right slots (3-5) are connection-output by default', () => {
-    const board = createUtilityGameboard('test-id');
+  it('creates slot chips when explicit directions are provided', () => {
+    const board = createUtilityGameboard('test-id', ['input', 'input', 'input', 'output', 'output', 'output']);
+    expect(board.chips.size).toBe(6);
     for (let i = 0; i < 3; i++) {
-      const node = board.chips.get(`__cp_utility_${i}__`);
-      expect(node).toBeDefined();
-      expect(node!.type).toBe('connection-input');
-      expect(node!.inputCount).toBe(0);
-      expect(node!.outputCount).toBe(1);
+      const chip = board.chips.get(`__cp_utility_${i}__`);
+      expect(chip).toBeDefined();
+      expect(chip!.type).toBe('connection-input');
+      expect(chip!.socketCount).toBe(0);
+      expect(chip!.plugCount).toBe(1);
     }
     for (let i = 3; i < 6; i++) {
-      const node = board.chips.get(`__cp_utility_${i}__`);
-      expect(node).toBeDefined();
-      expect(node!.type).toBe('connection-output');
-      expect(node!.inputCount).toBe(1);
-      expect(node!.outputCount).toBe(0);
+      const chip = board.chips.get(`__cp_utility_${i}__`);
+      expect(chip).toBeDefined();
+      expect(chip!.type).toBe('connection-output');
+      expect(chip!.socketCount).toBe(1);
+      expect(chip!.plugCount).toBe(0);
     }
   });
 
-  it('slot nodes have slotIndex params 0-5', () => {
-    const board = createUtilityGameboard('test-id');
+  it('slot chips have correct slotIndex params when directions provided', () => {
+    const board = createUtilityGameboard('test-id', ['input', 'input', 'input', 'output', 'output', 'output']);
     const indices = Array.from(board.chips.values())
       .filter((n) => isUtilitySlotNode(n.id))
       .map((n) => getUtilitySlotIndex(n.id))
@@ -56,13 +57,13 @@ describe('createUtilityGameboard', () => {
 
     // Slot 0: output
     expect(board.chips.get('__cp_utility_0__')?.type).toBe('connection-output');
-    // Slot 1: off (no node)
+    // Slot 1: off (no chip)
     expect(board.chips.has('__cp_utility_1__')).toBe(false);
     // Slot 2: input
     expect(board.chips.get('__cp_utility_2__')?.type).toBe('connection-input');
     // Slot 3: input
     expect(board.chips.get('__cp_utility_3__')?.type).toBe('connection-input');
-    // Slot 4: off (no node)
+    // Slot 4: off (no chip)
     expect(board.chips.has('__cp_utility_4__')).toBe(false);
     // Slot 5: output
     expect(board.chips.get('__cp_utility_5__')?.type).toBe('connection-output');

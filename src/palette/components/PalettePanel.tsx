@@ -1,5 +1,5 @@
 import { useGameStore } from '../../store/index.ts';
-import { nodeRegistry, getNodeLabel } from '../../engine/nodes/registry.ts';
+import { chipRegistry, getChipLabel } from '../../engine/nodes/registry.ts';
 import { generateId } from '../../shared/generate-id.ts';
 import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
 import { captureViewportSnapshot } from '../../gameboard/canvas/snapshot.ts';
@@ -8,15 +8,15 @@ import styles from './PalettePanel.module.css';
 
 export function PalettePanel() {
   const interactionMode = useGameStore((s) => s.interactionMode);
-  const startPlacingNode = useGameStore((s) => s.startPlacingNode);
+  const startPlacingChip = useGameStore((s) => s.startPlacingChip);
   const cancelPlacing = useGameStore((s) => s.cancelPlacing);
-  const utilityNodes = useGameStore((s) => s.utilityNodes);
+  const craftedUtilities = useGameStore((s) => s.craftedUtilities);
   const readOnly = useGameStore((s) => s.activeBoardReadOnly);
   const activePuzzle = useGameStore((s) => s.activePuzzle);
 
   if (readOnly) return null;
 
-  const allowedNodes = activePuzzle?.allowedNodes ?? null;
+  const allowedChips = activePuzzle?.allowedChips ?? null;
 
   function handleCreateCustom() {
     const state = useGameStore.getState();
@@ -36,7 +36,7 @@ export function PalettePanel() {
   function handleEditUtility(utilityId: string) {
     const state = useGameStore.getState();
     if (state.zoomTransitionState.type !== 'idle') return;
-    const entry = state.utilityNodes.get(utilityId);
+    const entry = state.craftedUtilities.get(utilityId);
     if (!entry) return;
 
     const snapshot = captureViewportSnapshot();
@@ -48,25 +48,25 @@ export function PalettePanel() {
   }
 
   function handleDeleteUtility(utilityId: string) {
-    useGameStore.getState().deleteUtilityNode(utilityId);
+    useGameStore.getState().deleteCraftedUtility(utilityId);
   }
 
-  // Filter fundamental nodes by allowedNodes constraint
-  const visibleFundamentals = allowedNodes
-    ? nodeRegistry.all.filter((def) => def.type in allowedNodes)
-    : nodeRegistry.all;
+  // Filter fundamental nodes by allowedChips constraint
+  const visibleFundamentals = allowedChips
+    ? chipRegistry.all.filter((def) => def.type in allowedChips)
+    : chipRegistry.all;
 
   return (
     <div className={styles.panel}>
       <h3 className={styles.title}>Levels</h3>
       <LevelSelect />
 
-      <h3 className={styles.title}>Nodes</h3>
+      <h3 className={styles.title}>Chips</h3>
       <div className={styles.list}>
         {visibleFundamentals.map((def) => {
           const isActive =
-            interactionMode.type === 'placing-node' &&
-            interactionMode.nodeType === def.type;
+            interactionMode.type === 'placing-chip' &&
+            interactionMode.chipType === def.type;
 
           return (
             <button
@@ -76,33 +76,33 @@ export function PalettePanel() {
                 if (isActive) {
                   cancelPlacing();
                 } else {
-                  startPlacingNode(def.type);
+                  startPlacingChip(def.type);
                 }
               }}
             >
-              {getNodeLabel(def.type)}
+              {getChipLabel(def.type)}
             </button>
           );
         })}
       </div>
 
       {/* Custom node creation and user nodes - only shown when 'custom' is allowed */}
-      {(!allowedNodes || 'custom' in allowedNodes) && (
+      {(!allowedChips || 'custom' in allowedChips) && (
         <>
           <button className={`${styles.item} ${styles.createCustomBtn}`} onClick={handleCreateCustom}>
-            + Create Custom Node
+            + Create Custom Chip
           </button>
 
-          {utilityNodes.size > 0 && (
+          {craftedUtilities.size > 0 && (
             <>
               <h3 className={styles.title}>Custom</h3>
               <div className={styles.list}>
-                {Array.from(utilityNodes.values())
+                {Array.from(craftedUtilities.values())
             .map((entry) => {
               const nodeType = `utility:${entry.utilityId}`;
               const isActive =
-                interactionMode.type === 'placing-node' &&
-                interactionMode.nodeType === nodeType;
+                interactionMode.type === 'placing-chip' &&
+                interactionMode.chipType === nodeType;
 
               return (
                 <div key={nodeType} className={styles.utilityItem}>
@@ -112,7 +112,7 @@ export function PalettePanel() {
                       if (isActive) {
                         cancelPlacing();
                       } else {
-                        startPlacingNode(nodeType);
+                        startPlacingChip(nodeType);
                       }
                     }}
                   >

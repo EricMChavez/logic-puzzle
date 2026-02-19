@@ -8,9 +8,8 @@ import { drawNeedle, type NeedleTip } from './render-needle.ts';
 import { drawTargetOverlay } from './render-target-overlay.ts';
 
 import { getDevOverrides } from '../../dev/index.ts';
-import { HIGHLIGHT_STREAK, CONNECTION_POINT_CONFIG } from '../../shared/constants/index.ts';
+import { HIGHLIGHT_STREAK } from '../../shared/constants/index.ts';
 import { drawHighlightStreakRounded } from '../canvas/render-highlight-streak.ts';
-import { signalToColor, signalToGlow } from '../canvas/render-wires.ts';
 
 /** Ratio of border radius to drawn meter height for outside corners */
 const OUTSIDE_CORNER_RADIUS_RATIO = 0.06;
@@ -225,15 +224,7 @@ export function drawMeter(
   // Highlight streak on top of everything
   drawMeterStreak(ctx, waveformRect, levelBarRect, side, meterHard, meterSoft);
 
-  // Draw a filled port circle at the connection point for recording (output) meters
-  // Drawn last so it renders on top of the meter housing, streak, and needle
-  if (direction === 'output' && state.isConnected) {
-    const eyeX = side === 'left'
-      ? needleRect.x + needleRect.width
-      : needleRect.x;
-    const eyeY = needleRect.y + needleRect.height / 2;
-    drawConnectionDot(ctx, tokens, eyeX, eyeY, currentValue);
-  }
+  // Connection point visuals are drawn by renderConnectionPoints() on top of meters.
 }
 
 /**
@@ -294,7 +285,7 @@ function drawMeterStreak(
   ctx: CanvasRenderingContext2D,
   waveformRect: PixelRect,
   levelBarRect: PixelRect,
-  side: 'left' | 'right',
+  _side: 'left' | 'right',
   hardOpacity: number,
   softOpacity: number,
 ): void {
@@ -321,7 +312,7 @@ function drawMeterBorder(
   waveformRect: PixelRect,
   levelBarRect: PixelRect,
   verticalHeightRatio: number,
-  side: 'left' | 'right',
+  _side: 'left' | 'right',
   borderState: 'neutral' | 'matched' | 'mismatched',
 ): void {
   const devOverrides = getDevOverrides();
@@ -439,7 +430,7 @@ function drawMeterInterior(
   waveformRect: PixelRect,
   levelBarRect: PixelRect,
   cutout: LevelBarCutout,
-  side: 'left' | 'right',
+  _side: 'left' | 'right',
 ): void {
   const verticalHeightRatio = VERTICAL_HEIGHT_RATIO;
 
@@ -498,7 +489,7 @@ function drawMeterHousing(
   color: string,
   waveformRect: PixelRect,
   levelBarRect: PixelRect,
-  side: 'left' | 'right',
+  _side: 'left' | 'right',
 ): void {
   const left = Math.min(waveformRect.x, levelBarRect.x);
   const right = Math.max(waveformRect.x + waveformRect.width, levelBarRect.x + levelBarRect.width);
@@ -585,49 +576,6 @@ function drawMeterLightEdge(
   ctx.restore();
 }
 
-/**
- * Draw a filled circle at the meter's connection point (needle eye position).
- * Matches the style of port circles on nodes — polarity-colored with optional glow.
- */
-function drawConnectionDot(
-  ctx: CanvasRenderingContext2D,
-  tokens: ThemeTokens,
-  x: number,
-  y: number,
-  signalValue: number,
-): void {
-  const radius = CONNECTION_POINT_CONFIG.RADIUS;
-  const color = signalToColor(signalValue, tokens);
-  const glow = signalToGlow(signalValue);
-
-  // Glow ring for strong signals
-  if (glow > 0) {
-    const glowAlpha = Math.abs(signalValue) >= 100 ? 1 : (Math.abs(signalValue) - 75) / 25;
-    ctx.save();
-    ctx.globalAlpha = glowAlpha;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = glow;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // Filled circle with polarity color
-  ctx.save();
-  ctx.globalAlpha = 1.0;
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = color;
-  ctx.strokeStyle = tokens.depthRaised;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
 
 /**
  * Draw a faint white horizontal line from the needle tip to the playpoint indicator.

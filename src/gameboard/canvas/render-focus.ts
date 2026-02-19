@@ -9,10 +9,10 @@
 
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { KeyboardFocusTarget } from '../interaction/keyboard-focus.ts';
-import type { NodeState, Wire, PortRef } from '../../shared/types/index.ts';
+import type { ChipState, Path, PortRef } from '../../shared/types/index.ts';
 import { getNodePixelRect } from './render-nodes.ts';
 import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
-import { NODE_STYLE, CONNECTION_POINT_CONFIG } from '../../shared/constants/index.ts';
+import { NODE_STYLE } from '../../shared/constants/index.ts';
 import { renderWirePreview } from './render-wire-preview.ts';
 import type { SlotConfig } from '../../puzzle/types.ts';
 import { slotSide, slotPerSideIndex } from '../../shared/grid/slot-helpers.ts';
@@ -28,13 +28,13 @@ export function drawKeyboardFocus(
   tokens: ThemeTokens,
   focusTarget: KeyboardFocusTarget | null,
   focusVisible: boolean,
-  nodes: ReadonlyMap<string, NodeState>,
-  wires: ReadonlyArray<Wire>,
+  nodes: ReadonlyMap<string, ChipState>,
+  paths: ReadonlyArray<Path>,
   canvasW: number,
   canvasH: number,
   cellSize: number,
   wiringState: KeyboardWiringState | null,
-  slotConfig?: SlotConfig,
+  _slotConfig?: SlotConfig,
 ): void {
   if (!focusVisible || !focusTarget) return;
 
@@ -50,7 +50,8 @@ export function drawKeyboardFocus(
     case 'port': {
       const node = nodes.get(focusTarget.portRef.chipId);
       if (!node) break;
-      const pos = getNodePortPosition(node, focusTarget.portRef.side, focusTarget.portRef.portIndex, cellSize);
+      const logicalSide: 'input' | 'output' = focusTarget.portRef.side === 'socket' ? 'input' : 'output';
+      const pos = getNodePortPosition(node, logicalSide, focusTarget.portRef.portIndex, cellSize);
       const portRadius = NODE_STYLE.PORT_RADIUS_RATIO * cellSize;
       drawCircleFocusRing(ctx, tokens, pos.x, pos.y, portRadius + 4);
       break;
@@ -59,13 +60,13 @@ export function drawKeyboardFocus(
       const side = slotSide(focusTarget.slotIndex);
       const perSideIdx = slotPerSideIndex(focusTarget.slotIndex);
       const pos = getConnectionPointPosition(side, perSideIdx, cellSize);
-      drawCircleFocusRing(ctx, tokens, pos.x, pos.y, CONNECTION_POINT_CONFIG.RADIUS + 4);
+      drawCircleFocusRing(ctx, tokens, pos.x, pos.y, NODE_STYLE.PORT_RADIUS_RATIO * cellSize + 4);
       break;
     }
     case 'wire': {
-      const wire = wires.find((w) => w.id === focusTarget.wireId);
-      if (!wire || wire.route.length === 0) break;
-      drawWireFocusRing(ctx, tokens, wire, cellSize);
+      const path = paths.find((w) => w.id === focusTarget.wireId);
+      if (!path || path.route.length === 0) break;
+      drawWireFocusRing(ctx, tokens, path, cellSize);
       break;
     }
   }
@@ -81,7 +82,7 @@ export function drawKeyboardFocus(
 function drawNodeFocusRing(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): void {
   const rect = getNodePixelRect(node, cellSize);
@@ -116,7 +117,7 @@ function drawCircleFocusRing(
 function drawWireFocusRing(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  wire: Wire,
+  wire: Path,
   cellSize: number,
 ): void {
   const pts = wire.route.map((gp) => ({
@@ -144,7 +145,7 @@ function drawWiringTargetHighlights(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   wiringState: KeyboardWiringState,
-  nodes: ReadonlyMap<string, NodeState>,
+  nodes: ReadonlyMap<string, ChipState>,
   _canvasW: number,
   _canvasH: number,
   cellSize: number,
@@ -155,9 +156,10 @@ function drawWiringTargetHighlights(
   const sourceNode = nodes.get(wiringState.fromPort.chipId);
   let sourcePos = { x: 0, y: 0 };
   if (sourceNode) {
+    const srcLogicalSide: 'input' | 'output' = wiringState.fromPort.side === 'socket' ? 'input' : 'output';
     sourcePos = getNodePortPosition(
       sourceNode,
-      wiringState.fromPort.side,
+      srcLogicalSide,
       wiringState.fromPort.portIndex,
       cellSize,
     );
@@ -169,7 +171,8 @@ function drawWiringTargetHighlights(
     const targetNode = nodes.get(target.chipId);
     if (!targetNode) continue;
 
-    const pos = getNodePortPosition(targetNode, target.side, target.portIndex, cellSize);
+    const tgtLogicalSide: 'input' | 'output' = target.side === 'socket' ? 'input' : 'output';
+    const pos = getNodePortPosition(targetNode, tgtLogicalSide, target.portIndex, cellSize);
 
     // Draw highlight ring
     ctx.save();
@@ -184,7 +187,7 @@ function drawWiringTargetHighlights(
     // Draw wire preview line from source to active target
     if (isActive) {
       ctx.save();
-      renderWirePreview(ctx, tokens, sourcePos, pos);
+      renderWirePreview(ctx, tokens, sourcePos, pos, null, cellSize);
       ctx.restore();
     }
   }

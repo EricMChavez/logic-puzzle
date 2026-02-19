@@ -12,7 +12,7 @@ export interface MotherboardSection {
 
 /** An edge connection point rendered at a section boundary. */
 export interface MotherboardEdgeCP {
-  /** Menu node this belongs to. */
+  /** Menu chip this belongs to. */
   chipId: string;
   /** Puzzle slot index (0-5). */
   slotIndex: number;
@@ -20,12 +20,16 @@ export interface MotherboardEdgeCP {
   side: 'left' | 'right';
   /** Position on the grid. */
   gridPosition: GridPoint;
-  /** Inverse of chip port: chip input -> edge output, chip output -> edge input. */
+  /** Inverse of chip port: chip socket -> edge output, chip plug -> edge input. */
   direction: 'input' | 'output';
+  /** Grid position of the corresponding puzzle chip port (path endpoint). */
+  portGridPosition: GridPoint;
   /** Pre-computed 256-sample waveform array for animation. */
   samples: number[];
-  /** Whether this edge CP is visible (unsolved: input-side only; solved: both). */
+  /** Whether this edge CP is visible. */
   visible: boolean;
+  /** Whether the edge CP has active signal (draws path + plugs). False = socket hint only. */
+  connected: boolean;
 }
 
 /** Pagination state for the puzzle section. */

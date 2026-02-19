@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { maxNode } from './max';
+import { maxChip } from './max';
 
 describe('Max node', () => {
   const evaluate = (a: number, b: number) =>
-    maxNode.evaluate({
+    maxChip.evaluate({
       inputs: [a, b],
       params: {},
       state: undefined,
@@ -11,11 +11,11 @@ describe('Max node', () => {
     });
 
   it('has correct metadata', () => {
-    expect(maxNode.type).toBe('max');
-    expect(maxNode.category).toBe('math');
-    expect(maxNode.inputs).toHaveLength(2);
-    expect(maxNode.outputs).toHaveLength(1);
-    expect(maxNode.size).toEqual({ width: 2, height: 2 });
+    expect(maxChip.type).toBe('max');
+    expect(maxChip.category).toBe('math');
+    expect(maxChip.sockets).toHaveLength(2);
+    expect(maxChip.plugs).toHaveLength(1);
+    expect(maxChip.size).toEqual({ width: 2, height: 2 });
   });
 
   it('returns larger of two positive values', () => {

@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { drawNodes, getNodePixelRect } from './render-nodes.ts';
 import type { ThemeTokens } from '../../shared/tokens/index.ts';
 import type { RenderNodesState } from './render-types.ts';
-import type { NodeState } from '../../shared/types/index.ts';
+import type { ChipState } from '../../shared/types/index.ts';
 // NODE_STYLE no longer needed — label uses CARD_TITLE_FONT (Bungee)
 import {
   FUNDAMENTAL_GRID_COLS,
-  FUNDAMENTAL_GRID_ROWS,
   UTILITY_GRID_COLS,
   UTILITY_GRID_ROWS,
   PUZZLE_GRID_COLS,
@@ -44,26 +43,33 @@ function makeTokens(overrides: Partial<ThemeTokens> = {}): ThemeTokens {
     animEasingBounce: '',
     animCeremonyBurstDuration: '',
     animCeremonyRevealDuration: '',
+    colorValidationMatch: '',
+    colorError: '',
+    meterBorder: '',
+    meterBorderMatch: '',
+    meterBorderMismatch: '',
+    boardBorder: '',
     ...overrides,
   };
 }
 
-function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): NodeState {
-  return { id, type, position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
+function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): ChipState {
+  return { id, type, position: { col, row }, params: {}, socketCount: inputs, plugCount: outputs };
 }
 
 function makeState(overrides: Partial<RenderNodesState> = {}): RenderNodesState {
   return {
-    puzzleNodes: new Map(),
-    utilityNodes: new Map(),
+    craftedPuzzles: new Map(),
+    craftedUtilities: new Map(),
     chips: new Map(),
-    selectedNodeId: null,
-    hoveredNodeId: null,
+    selectedChipId: null,
+    hoveredChipId: null,
     knobValues: new Map(),
     portSignals: new Map(),
-    rejectedKnobNodeId: null,
-    connectedInputPorts: new Set(),
-    liveNodeIds: new Set(),
+    rejectedKnobChipId: null,
+    connectedSocketPorts: new Set(),
+    connectedPlugPorts: new Set(),
+    liveChipIds: new Set(),
     ...overrides,
   };
 }
@@ -173,7 +179,7 @@ describe('drawNodes', () => {
   });
 
   it('calls roundRect for each non-CP node', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
     nodes.set('n2', makeNode('n2', 'memory', 10, 6));
     // CP nodes are skipped
@@ -188,7 +194,7 @@ describe('drawNodes', () => {
   });
 
   it('creates linear gradient using surfaceNode and surfaceNodeBottom stops', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
     const state = makeState({ chips: nodes });
@@ -203,10 +209,10 @@ describe('drawNodes', () => {
   });
 
   it('hover state produces brighter gradient', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ chips: nodes, hoveredNodeId: 'n1' });
+    const state = makeState({ chips: nodes, hoveredChipId: 'n1' });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // Body gradient has two stops (first gradient), but NOT raw token values (lerped toward white)
@@ -219,10 +225,10 @@ describe('drawNodes', () => {
   });
 
   it('selected state uses colorSelection stroke', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
-    const state = makeState({ chips: nodes, selectedNodeId: 'n1' });
+    const state = makeState({ chips: nodes, selectedChipId: 'n1' });
     drawNodes(mock.ctx, tokens, state, 40);
 
     // The border stroke should include colorSelection
@@ -230,7 +236,7 @@ describe('drawNodes', () => {
   });
 
   it('drop shadow is applied (shadowBlur > 0)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
     const state = makeState({ chips: nodes });
@@ -243,7 +249,7 @@ describe('drawNodes', () => {
   });
 
   it('label font family uses bold Space Grotesk (CARD_BODY_FONT)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
 
     const state = makeState({ chips: nodes });
@@ -253,11 +259,11 @@ describe('drawNodes', () => {
   });
 
   it('selection highlight draws on second pass (after all nodes)', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 5, 3));
     nodes.set('n2', makeNode('n2', 'memory', 10, 6));
 
-    const state = makeState({ chips: nodes, selectedNodeId: 'n1' });
+    const state = makeState({ chips: nodes, selectedChipId: 'n1' });
 
     const roundRectCallOrder: number[] = [];
     let callIndex = 0;
@@ -280,15 +286,23 @@ describe('drawNodes', () => {
   });
 
   it('modified indicator positioned at top-right of body rect', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     const utilNode = makeNode('u1', 'utility:tool', 4, 2, 2, 1);
     utilNode.libraryVersionHash = 'old-hash';
     nodes.set('u1', utilNode);
 
-    const utilityEntry = { title: 'Tool', inputCount: 2, outputCount: 1, versionHash: 'new-hash' };
-    const utilityNodes = new Map([['tool', utilityEntry]]);
+    const utilityEntry = {
+      utilityId: 'tool',
+      title: 'Tool',
+      socketCount: 2,
+      plugCount: 1,
+      versionHash: 'new-hash',
+      bakeMetadata: { topoOrder: [], chipConfigs: [], edges: [], socketCount: 2, plugCount: 1 },
+      board: { id: 'b1', chips: new Map(), paths: [] },
+    };
+    const craftedUtilities = new Map([['tool', utilityEntry]]);
 
-    const state = makeState({ chips: nodes, utilityNodes: utilityNodes as RenderNodesState['utilityNodes'] });
+    const state = makeState({ chips: nodes, craftedUtilities: craftedUtilities as RenderNodesState['craftedUtilities'] });
     const cellSize = 40;
     drawNodes(mock.ctx, tokens, state, cellSize);
 

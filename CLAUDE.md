@@ -36,7 +36,7 @@ A **recursive tool-building puzzle game** about signal processing. Players wire 
 | **Max** | `max` | A, B → 1 | `max(A, B)` | No params, size 2x2 |
 | **Min** | `min` | A, B → 1 | `min(A, B)` | No params, size 2x2 |
 | **Memory** | `memory` | A → 1 | Previous cycle's input | 1-cycle delay, initial output 0, size 3x2 |
-| **Split** | `split` | A → 2 | Duplicate signal | No params, size 2x2 |
+| **Duplicate** | `duplicate` | A → 2 | Duplicate signal | No params, size 2x2 |
 
 ### Two Custom Node Types
 
@@ -291,7 +291,7 @@ SIGNAL: [-100, +100], tolerance ±5
 CYCLES: 256 per evaluation, playpoint sweeps at 16 cycles/sec
 HISTORY: ~50 entries max
 METERS: 256 samples (flat array), 12 rows x 10 cols per meter
-NODE SIZES: Variable per definition (4x3 knob nodes, 2x2 max/min/split, 3x2 memory), Puzzle 3xN, Utility 5x3
+NODE SIZES: Variable per definition (4x3 knob nodes, 2x2 max/min/duplicate, 3x2 memory), Puzzle 3xN, Utility 5x3
 ```
 
 ---

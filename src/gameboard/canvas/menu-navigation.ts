@@ -2,7 +2,7 @@
  * Menu node click → zoom transition + navigation dispatch.
  * Extracted to keep GameboardCanvas.tsx focused on event handling.
  */
-import type { NodeState } from '../../shared/types/index.ts';
+import type { ChipState } from '../../shared/types/index.ts';
 import { useGameStore } from '../../store/index.ts';
 import { captureViewportSnapshot, captureCropSnapshot } from './snapshot.ts';
 import { getNodeGridSize } from '../../shared/grid/index.ts';
@@ -12,12 +12,13 @@ import { createPuzzleGameboard } from '../../puzzle/puzzle-gameboard.ts';
 import { buildSlotConfig } from '../../puzzle/types.ts';
 import { TUTORIAL_PUZZLE } from '../../tutorial/tutorial-puzzle.ts';
 import { TUTORIAL_STEPS } from '../../tutorial/tutorial-steps.ts';
+import { withSoundsSuppressed } from '../../shared/audio/index.ts';
 
 /**
  * Handle a click on a menu node: capture snapshot, start zoom animation,
  * then navigate to the appropriate destination.
  */
-export function navigateFromMenuNode(node: NodeState): void {
+export function navigateFromMenuNode(node: ChipState): void {
   if (node.params.locked) return;
 
   const state = useGameStore.getState();
@@ -46,12 +47,14 @@ export function navigateFromMenuNode(node: NodeState): void {
       state.exitCreativeMode();
     }
 
-    // Load the tutorial puzzle (starts on test case 0: passthrough)
-    state.loadPuzzle(TUTORIAL_PUZZLE);
-    state.setActiveBoard(createPuzzleGameboard(TUTORIAL_PUZZLE));
-    const slotConfig = TUTORIAL_PUZZLE.slotConfig
-      ?? buildSlotConfig(TUTORIAL_PUZZLE.activeInputs, TUTORIAL_PUZZLE.activeOutputs);
-    state.initializeMeters(slotConfig, 'hidden');
+    // Load the tutorial puzzle (single test case: offset +50)
+    withSoundsSuppressed(() => {
+      state.loadPuzzle(TUTORIAL_PUZZLE);
+      state.setActiveBoard(createPuzzleGameboard(TUTORIAL_PUZZLE));
+      const slotConfig = TUTORIAL_PUZZLE.slotConfig
+        ?? buildSlotConfig(TUTORIAL_PUZZLE.activeInputs, TUTORIAL_PUZZLE.activeOutputs);
+      state.initializeMeters(slotConfig, 'off');
+    });
 
     // Start the tutorial state machine (hidden until zoom animation completes)
     state.startTutorial(TUTORIAL_STEPS);
@@ -73,13 +76,16 @@ export function navigateFromMenuNode(node: NodeState): void {
       state.exitCreativeMode();
     }
 
-    // Load the puzzle
-    state.setCurrentLevel(levelIndex);
-    state.loadPuzzle(puzzle);
-    state.setActiveBoard(createPuzzleGameboard(puzzle));
-    const slotConfig = puzzle.slotConfig
-      ?? buildSlotConfig(puzzle.activeInputs, puzzle.activeOutputs);
-    state.initializeMeters(slotConfig, 'hidden');
+    // Load the puzzle (restore saved board if available)
+    withSoundsSuppressed(() => {
+      state.setCurrentLevel(levelIndex);
+      state.loadPuzzle(puzzle);
+      const savedEntry = state.craftedPuzzles.get(puzzle.id);
+      state.setActiveBoard(savedEntry?.savedBoard ?? createPuzzleGameboard(puzzle));
+      const slotConfig = puzzle.slotConfig
+        ?? buildSlotConfig(puzzle.activeInputs, puzzle.activeOutputs);
+      state.initializeMeters(slotConfig, 'off');
+    });
   } else if (menuKey.startsWith('custom-')) {
     // Extract custom puzzle ID (everything after 'custom-')
     const puzzleId = menuKey.slice('custom-'.length);

@@ -1,29 +1,29 @@
 /**
- * Node liveness — forward-reachability from input sources.
+ * Chip liveness — forward-reachability from input sources.
  *
- * A node is "live" if it is reachable from any source node (input CP)
- * by following wires forward (source → target). Non-live nodes are inert:
- * they produce no signal and their wires render as neutral base only.
+ * A chip is "live" if it is reachable from any source chip (input CP)
+ * by following paths forward (source → target). Non-live chips are inert:
+ * they produce no signal and their paths render as neutral base only.
  */
 
-import type { NodeId, Wire } from '../../shared/types/index.ts';
+import type { ChipId, Path } from '../../shared/types/index.ts';
 
 /**
- * Compute the set of live (forward-reachable) node IDs via BFS.
+ * Compute the set of live (forward-reachable) chip IDs via BFS.
  *
- * @param wires        All wires (signal + parameter) on the board
- * @param sourceNodeIds  Set of source node IDs (input CPs, creative input slots)
- * @returns Set of all node IDs reachable from any source
+ * @param paths        All paths (signal + parameter) on the board
+ * @param sourceChipIds  Set of source chip IDs (input CPs, creative input slots)
+ * @returns Set of all chip IDs reachable from any source
  */
 export function computeLiveNodes(
-  wires: ReadonlyArray<Wire>,
-  sourceNodeIds: ReadonlySet<NodeId>,
-): Set<NodeId> {
+  paths: ReadonlyArray<Path>,
+  sourceChipIds: ReadonlySet<ChipId>,
+): Set<ChipId> {
   // Build adjacency list: chipId → set of downstream chipIds
-  const adjacency = new Map<NodeId, Set<NodeId>>();
-  for (const wire of wires) {
-    const srcId = wire.source.chipId;
-    const tgtId = wire.target.chipId;
+  const adjacency = new Map<ChipId, Set<ChipId>>();
+  for (const path of paths) {
+    const srcId = path.source.chipId;
+    const tgtId = path.target.chipId;
     let neighbors = adjacency.get(srcId);
     if (!neighbors) {
       neighbors = new Set();
@@ -32,11 +32,11 @@ export function computeLiveNodes(
     neighbors.add(tgtId);
   }
 
-  // BFS from all source nodes
-  const live = new Set<NodeId>();
-  const queue: NodeId[] = [];
+  // BFS from all source chips
+  const live = new Set<ChipId>();
+  const queue: ChipId[] = [];
 
-  for (const srcId of sourceNodeIds) {
+  for (const srcId of sourceChipIds) {
     if (!live.has(srcId)) {
       live.add(srcId);
       queue.push(srcId);

@@ -1,4 +1,4 @@
-import type { GameboardState, NodeState } from '../shared/types/index.ts';
+import type { GameboardState, ChipState } from '../shared/types/index.ts';
 import type { MotherboardLayout, MotherboardSection, MotherboardEdgeCP, PaginationState } from './motherboard-types.ts';
 import { PUZZLE_LEVELS } from '../puzzle/levels/index.ts';
 import { MOTHERBOARD_PLAYABLE_START, MOTHERBOARD_PLAYABLE_END } from '../shared/grid/constants.ts';
@@ -43,12 +43,13 @@ const PLAYABLE_WIDTH = MOTHERBOARD_PLAYABLE_END - MOTHERBOARD_PLAYABLE_START; //
  * Custom: below primary (only if custom puzzles exist).
  */
 function computeSections(hasCustom: boolean): MotherboardSection[] {
-  // Split the playable width roughly 45% left / 10% gap / 45% right
-  const leftCols = 24;
+  // Both sections are 10 cols wide (SECTION_PAD 2 + chip 6 + pad 2), centered with gap
+  const leftCols = 10;
+  const rightCols = 10;
   const gap = 4;
-  const rightCols = PLAYABLE_WIDTH - leftCols - gap; // ~33
+  const totalWidth = leftCols + gap + rightCols;
 
-  const leftStart = MOTHERBOARD_PLAYABLE_START + Math.floor((PLAYABLE_WIDTH - leftCols - gap - rightCols) / 2);
+  const leftStart = MOTHERBOARD_PLAYABLE_START + Math.floor((PLAYABLE_WIDTH - totalWidth) / 2);
   const rightStart = leftStart + leftCols + gap;
 
   const primaryRows = hasCustom ? 16 : 32;
@@ -116,10 +117,11 @@ function precomputeWaveform(puzzle: typeof PUZZLE_LEVELS[0], slotIndex: number, 
 function buildEdgeCPs(
   chipId: string,
   puzzle: typeof PUZZLE_LEVELS[0],
-  _chipCol: number,
+  chipCol: number,
   chipRow: number,
   sectionBounds: { col: number; row: number; cols: number; rows: number },
   isCompleted: boolean,
+  isUnlocked: boolean,
 ): MotherboardEdgeCP[] {
   const slotConfig: SlotConfig = puzzle.slotConfig ?? buildSlotConfig(puzzle.activeInputs, puzzle.activeOutputs);
   const edgeCPs: MotherboardEdgeCP[] = [];
@@ -140,20 +142,28 @@ function buildEdgeCPs(
     const portRow = chipRow + Math.floor(perSideIdx * PUZZLE_MENU_ROWS / 3);
     const edgeCol = edgeSide === 'left'
       ? sectionBounds.col
-      : sectionBounds.col + sectionBounds.cols - 1;
+      : sectionBounds.col + sectionBounds.cols;
 
-    // Visibility: unsolved = input-side edge CPs only; solved = both
-    const isInputSide = portDir === 'input'; // chip has input port -> edge provides signal
-    const visible = isCompleted || isInputSide;
+    // Port position on the chip (left edge or right edge of chip body)
+    const portCol = edgeSide === 'left'
+      ? chipCol
+      : chipCol + PUZZLE_MENU_COLS;
+
+    // Connected = has active signal flowing
+    // Locked: all cold. Unlocked: inputs hot, outputs cold. Completed: all hot.
+    const isInputSide = portDir === 'input';
+    const connected = isCompleted || (isUnlocked && isInputSide);
 
     edgeCPs.push({
       chipId,
       slotIndex: i,
       side: edgeSide,
       gridPosition: { col: edgeCol, row: portRow },
+      portGridPosition: { col: portCol, row: portRow },
       direction: edgeDir,
       samples: precomputeWaveform(puzzle, i, portDir),
-      visible,
+      visible: true,
+      connected,
     });
   }
 
@@ -183,7 +193,7 @@ export function createMotherboard(
   customPuzzles?: ReadonlyMap<string, CustomPuzzle>,
   currentPage: number = 0,
 ): MotherboardResult {
-  const nodes = new Map<string, NodeState>();
+  const chips = new Map<string, ChipState>();
   const allEdgeCPs: MotherboardEdgeCP[] = [];
 
   const hasCustom = !!(customPuzzles && customPuzzles.size > 0);
@@ -199,27 +209,27 @@ export function createMotherboard(
 
   // Creative Mode chip (centered near top of primary section)
   const creativeRow = primaryBounds.row + SECTION_PAD;
-  const creativeNode: NodeState = {
+  const creativeChip: ChipState = {
     id: 'menu-creative',
     type: 'menu:creative',
     position: { col: primaryCenterCol, row: creativeRow },
     params: { label: 'Creative Mode' },
-    inputCount: 0,
-    outputCount: 0,
+    socketCount: 0,
+    plugCount: 0,
   };
-  nodes.set(creativeNode.id, creativeNode);
+  chips.set(creativeChip.id, creativeChip);
 
   // Tutorial chip (below creative)
   const tutorialRow = creativeRow + MENU_ROWS + V_GAP;
-  const tutorialNode: NodeState = {
+  const tutorialChip: ChipState = {
     id: 'menu-tutorial',
     type: 'menu:tutorial',
     position: { col: primaryCenterCol, row: tutorialRow },
     params: { label: 'Tutorial' },
-    inputCount: 0,
-    outputCount: 0,
+    socketCount: 0,
+    plugCount: 0,
   };
-  nodes.set(tutorialNode.id, tutorialNode);
+  chips.set(tutorialChip.id, tutorialChip);
 
   // ---------------------------------------------------------------------------
   // Puzzle section: paginated list of all puzzles (tutorials + puzzles combined)
@@ -256,7 +266,7 @@ export function createMotherboard(
         : slotConfig[s].direction === 'input' ? 1 : 2;
     }
 
-    const puzzleNode: NodeState = {
+    const puzzleChip: ChipState = {
       id: `menu-level-${puzzle.id}`,
       type: `menu:level-${puzzle.id}`,
       position: { col: puzzleChipCol, row },
@@ -268,15 +278,16 @@ export function createMotherboard(
         ...slotParams,
         isPuzzleChip: true,
       },
-      inputCount: 0,
-      outputCount: 0,
+      socketCount: 0,
+      plugCount: 0,
     };
-    nodes.set(puzzleNode.id, puzzleNode);
+    chips.set(puzzleChip.id, puzzleChip);
 
     // Build edge CPs for this chip
+    const effectiveUnlocked = isTutorial || isUnlocked;
     const chipEdgeCPs = buildEdgeCPs(
-      puzzleNode.id, puzzle, puzzleChipCol, row,
-      puzzleBounds, isCompleted,
+      puzzleChip.id, puzzle, puzzleChipCol, row,
+      puzzleBounds, isCompleted, effectiveUnlocked,
     );
     allEdgeCPs.push(...chipEdgeCPs);
   }
@@ -291,7 +302,7 @@ export function createMotherboard(
 
     const customEntries = Array.from(customPuzzles!.entries());
     for (const [puzzleId, entry] of customEntries) {
-      const customNode: NodeState = {
+      const customChip: ChipState = {
         id: `menu-custom-${puzzleId}`,
         type: `menu:custom-${puzzleId}`,
         position: { col: customCenterCol, row: customRow },
@@ -299,10 +310,10 @@ export function createMotherboard(
           label: entry.title,
           locked: false,
         },
-        inputCount: 0,
-        outputCount: 0,
+        socketCount: 0,
+        plugCount: 0,
       };
-      nodes.set(customNode.id, customNode);
+      chips.set(customChip.id, customChip);
       customRow += MENU_ROWS + V_GAP;
 
       // Don't overflow section
@@ -318,7 +329,7 @@ export function createMotherboard(
 
   const board: GameboardState = {
     id: 'motherboard',
-    chips: nodes,
+    chips,
     paths: [],
   };
 
@@ -332,7 +343,7 @@ export function createMotherboard(
 }
 
 /**
- * Rebuild the motherboard's occupancy grid from its nodes.
+ * Rebuild the motherboard's occupancy grid from its chips.
  */
 export function createMotherboardOccupancy(board: GameboardState): boolean[][] {
   return recomputeOccupancy(board.chips);

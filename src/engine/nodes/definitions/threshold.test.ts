@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { thresholdNode } from './threshold';
+import { thresholdChip } from './threshold';
 
 describe('Threshold node', () => {
   const evaluate = (a: number, x: number) =>
-    thresholdNode.evaluate({
+    thresholdChip.evaluate({
       inputs: [a, x],
       params: { level: 0 },
       state: undefined,
@@ -11,17 +11,17 @@ describe('Threshold node', () => {
     });
 
   it('has correct metadata', () => {
-    expect(thresholdNode.type).toBe('threshold');
-    expect(thresholdNode.category).toBe('math');
-    expect(thresholdNode.inputs).toHaveLength(2);
-    expect(thresholdNode.outputs).toHaveLength(1);
-    expect(thresholdNode.size).toEqual({ width: 4, height: 3 });
+    expect(thresholdChip.type).toBe('threshold');
+    expect(thresholdChip.category).toBe('math');
+    expect(thresholdChip.sockets).toHaveLength(2);
+    expect(thresholdChip.plugs).toHaveLength(1);
+    expect(thresholdChip.size).toEqual({ width: 4, height: 3 });
   });
 
   it('has X input with bottom side override and knob', () => {
-    expect(thresholdNode.inputs[1].name).toBe('X');
-    expect(thresholdNode.inputs[1].side).toBe('bottom');
-    expect(thresholdNode.inputs[1].knob).toBe('level');
+    expect(thresholdChip.sockets[1].name).toBe('X');
+    expect(thresholdChip.sockets[1].side).toBe('bottom');
+    expect(thresholdChip.sockets[1].knob).toBe('level');
   });
 
   it('outputs +100 when signal is above threshold', () => {
@@ -61,8 +61,8 @@ describe('Threshold node', () => {
   });
 
   it('has level parameter with correct config', () => {
-    expect(thresholdNode.params).toHaveLength(1);
-    const param = thresholdNode.params![0];
+    expect(thresholdChip.params).toHaveLength(1);
+    const param = thresholdChip.params![0];
     expect(param.key).toBe('level');
     expect(param.default).toBe(0);
     expect(param.min).toBe(-100);

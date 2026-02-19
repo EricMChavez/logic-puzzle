@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { GameboardCanvas } from './gameboard/canvas/index.ts'
 import { SimulationControls } from './ui/controls/SimulationControls.tsx'
-import { CompletionCeremony } from './ui/puzzle/CompletionCeremony.tsx'
 import { PaletteModal, ParameterPopover, ContextMenu, WaveformSelectorOverlay, SavePuzzleDialog, NodeCreationForm, SaveCancelDialog } from './ui/overlays/index.ts'
 import { PortConstantInput } from './ui/controls/PortConstantInput.tsx'
 import { useGameStore } from './store/index.ts'
@@ -123,7 +122,6 @@ function App() {
         <SavePuzzleDialog />
         <SaveCancelDialog />
         <NodeCreationForm />
-        <CompletionCeremony />
         <RetroPageHost />
       </div>
     </div>

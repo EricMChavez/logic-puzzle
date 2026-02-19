@@ -1,24 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { buildPaletteItems, computeRemainingBudgets, filterPaletteItems } from './palette-items.ts';
-import type { UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
-import { nodeRegistry } from '../../engine/nodes/registry.ts';
+import type { CraftedUtilityEntry } from '../../store/slices/palette-slice.ts';
+import { chipRegistry } from '../../engine/nodes/registry.ts';
 
-function makeUtilityEntry(utilityId: string, title: string): UtilityNodeEntry {
+function makeUtilityEntry(utilityId: string, title: string): CraftedUtilityEntry {
   return {
     utilityId,
     title,
-    inputCount: 1,
-    outputCount: 1,
-    bakeMetadata: { topoOrder: [], nodeConfigs: [], edges: [], inputCount: 1, outputCount: 1 },
+    socketCount: 1,
+    plugCount: 1,
+    bakeMetadata: { topoOrder: [], chipConfigs: [], edges: [], socketCount: 1, plugCount: 1 },
     board: { id: utilityId, chips: new Map(), paths: [] },
     versionHash: 'v1',
   };
 }
 
 describe('buildPaletteItems', () => {
-  const fundamentalCount = nodeRegistry.all.length;
+  const fundamentalCount = chipRegistry.all.length;
 
-  it('includes all fundamentals plus custom-blank when no allowedNodes', () => {
+  it('includes all fundamentals plus custom-blank when no allowedChips', () => {
     const items = buildPaletteItems(null, new Map(), null);
     // fundamentals + 1 custom-blank
     expect(items.length).toBe(fundamentalCount + 1);
@@ -32,33 +32,33 @@ describe('buildPaletteItems', () => {
     expect(customBlank!.canPlace).toBe(true);
   });
 
-  it('excludes custom-blank when custom is not in allowedNodes', () => {
+  it('excludes custom-blank when custom is not in allowedChips', () => {
     const items = buildPaletteItems({ offset: -1 }, new Map(), new Map([['offset', -1]]));
-    // 1 fundamental only (no custom-blank since 'custom' not in allowedNodes)
+    // 1 fundamental only (no custom-blank since 'custom' not in allowedChips)
     expect(items.length).toBe(1);
-    expect(items[0].nodeType).toBe('offset');
+    expect(items[0].chipType).toBe('offset');
     expect(items.find((i) => i.id === 'custom-blank')).toBeUndefined();
   });
 
-  it('includes custom-blank and utility nodes when custom is in allowedNodes', () => {
+  it('includes custom-blank and utility chips when custom is in allowedChips', () => {
     const utilities = new Map([['u1', makeUtilityEntry('u1', 'My Filter')]]);
     const budgets = new Map([['offset', -1], ['custom', -1]]);
     const items = buildPaletteItems({ offset: -1, custom: -1 }, utilities, budgets);
     // 1 fundamental + 1 custom-blank + 1 utility
     expect(items.length).toBe(3);
-    expect(items[0].nodeType).toBe('offset');
+    expect(items[0].chipType).toBe('offset');
     expect(items[1].id).toBe('custom-blank');
     expect(items[2].section).toBe('utility');
   });
 
-  it('excludes utility nodes when custom is not in allowedNodes', () => {
+  it('excludes utility chips when custom is not in allowedChips', () => {
     const utilities = new Map([['u1', makeUtilityEntry('u1', 'My Filter')]]);
     const items = buildPaletteItems({ offset: -1 }, utilities, new Map([['offset', -1]]));
     const utilityItems = items.filter((i) => i.section === 'utility');
     expect(utilityItems.length).toBe(0);
   });
 
-  it('returns empty when allowedNodes is empty object', () => {
+  it('returns empty when allowedChips is empty object', () => {
     const utilities = new Map([['u1', makeUtilityEntry('u1', 'My Filter')]]);
     const items = buildPaletteItems({}, utilities, new Map());
     // Nothing allowed
@@ -97,7 +97,7 @@ describe('buildPaletteItems', () => {
 });
 
 describe('computeRemainingBudgets', () => {
-  it('returns null when allowedNodes is null', () => {
+  it('returns null when allowedChips is null', () => {
     expect(computeRemainingBudgets(null, new Map())).toBeNull();
   });
 
@@ -107,20 +107,20 @@ describe('computeRemainingBudgets', () => {
     expect(budgets!.get('offset')).toBe(-1);
   });
 
-  it('subtracts board nodes from budgets', () => {
-    const nodes = new Map([
-      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
-      ['n2', { id: 'n2', type: 'offset', position: { col: 15, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+  it('subtracts board chips from budgets', () => {
+    const chips = new Map([
+      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, socketCount: 1, plugCount: 1 }],
+      ['n2', { id: 'n2', type: 'offset', position: { col: 15, row: 10 }, params: {}, socketCount: 1, plugCount: 1 }],
     ]);
-    const budgets = computeRemainingBudgets({ offset: 5 }, nodes as any);
+    const budgets = computeRemainingBudgets({ offset: 5 }, chips as any);
     expect(budgets!.get('offset')).toBe(3);
   });
 
   it('clamps remaining at 0', () => {
-    const nodes = new Map([
-      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, inputCount: 1, outputCount: 1 }],
+    const chips = new Map([
+      ['n1', { id: 'n1', type: 'offset', position: { col: 10, row: 10 }, params: {}, socketCount: 1, plugCount: 1 }],
     ]);
-    const budgets = computeRemainingBudgets({ offset: 0 }, nodes as any);
+    const budgets = computeRemainingBudgets({ offset: 0 }, chips as any);
     expect(budgets!.get('offset')).toBe(0);
   });
 });
@@ -130,8 +130,8 @@ describe('filterPaletteItems', () => {
 
   it('returns all items when query is empty', () => {
     // fundamentals + custom-blank
-    expect(filterPaletteItems(items, '').length).toBe(nodeRegistry.all.length + 1);
-    expect(filterPaletteItems(items, '  ').length).toBe(nodeRegistry.all.length + 1);
+    expect(filterPaletteItems(items, '').length).toBe(chipRegistry.all.length + 1);
+    expect(filterPaletteItems(items, '  ').length).toBe(chipRegistry.all.length + 1);
   });
 
   it('filters by case-insensitive substring', () => {

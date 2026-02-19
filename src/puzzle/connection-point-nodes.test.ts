@@ -62,16 +62,16 @@ describe('createConnectionPointNode', () => {
     const node = createConnectionPointNode('input', 0);
     expect(node.id).toBe('__cp_input_0__');
     expect(node.type).toBe('connection-input');
-    expect(node.inputCount).toBe(0);
-    expect(node.outputCount).toBe(1);
+    expect(node.socketCount).toBe(0);
+    expect(node.plugCount).toBe(1);
   });
 
   it('creates output CP with 1 input and 0 outputs', () => {
     const node = createConnectionPointNode('output', 1);
     expect(node.id).toBe('__cp_output_1__');
     expect(node.type).toBe('connection-output');
-    expect(node.inputCount).toBe(1);
-    expect(node.outputCount).toBe(0);
+    expect(node.socketCount).toBe(1);
+    expect(node.plugCount).toBe(0);
   });
 });
 
@@ -119,8 +119,8 @@ describe('createBidirectionalConnectionPointNode', () => {
     const node = createBidirectionalConnectionPointNode(2);
     expect(node.id).toBe('__cp_bidir_2__');
     expect(node.type).toBe('connection-point');
-    expect(node.inputCount).toBe(1);
-    expect(node.outputCount).toBe(1);
+    expect(node.socketCount).toBe(1);
+    expect(node.plugCount).toBe(1);
     expect(node.params.cpIndex).toBe(2);
   });
 });

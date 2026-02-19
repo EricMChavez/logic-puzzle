@@ -5,15 +5,15 @@ import { getNodeGridSize } from '../../shared/grid/index.ts';
 import styles from './NodeControls.module.css';
 
 export function NodeControls() {
-  const selectedNodeId = useGameStore((s) => s.selectedNodeId);
+  const selectedChipId = useGameStore((s) => s.selectedChipId);
   const activeBoard = useGameStore((s) => s.activeBoard);
-  const removeNode = useGameStore((s) => s.removeNode);
+  const removeChip = useGameStore((s) => s.removeChip);
   const clearSelection = useGameStore((s) => s.clearSelection);
   const readOnly = useGameStore((s) => s.activeBoardReadOnly);
   const zoomIntoNode = useGameStore((s) => s.zoomIntoNode);
 
-  if (!selectedNodeId || !activeBoard) return null;
-  const node = activeBoard.chips.get(selectedNodeId);
+  if (!selectedChipId || !activeBoard) return null;
+  const node = activeBoard.chips.get(selectedChipId);
   if (!node) return null;
 
   // Menu nodes don't show controls (click navigates immediately)
@@ -23,8 +23,8 @@ export function NodeControls() {
   const isUtilityNode = node.type.startsWith('utility:');
   const puzzleId = isPuzzleNode ? node.type.slice('puzzle:'.length) : null;
   const utilityId = isUtilityNode ? node.type.slice('utility:'.length) : null;
-  const puzzleEntry = puzzleId ? useGameStore.getState().puzzleNodes.get(puzzleId) : null;
-  const utilityEntry = utilityId ? useGameStore.getState().utilityNodes.get(utilityId) : null;
+  const puzzleEntry = puzzleId ? useGameStore.getState().craftedPuzzles.get(puzzleId) : null;
+  const utilityEntry = utilityId ? useGameStore.getState().craftedUtilities.get(utilityId) : null;
   const label = isPuzzleNode && puzzleEntry
     ? puzzleEntry.title
     : isUtilityNode && utilityEntry
@@ -43,17 +43,17 @@ export function NodeControls() {
     const state = useGameStore.getState();
     if (state.zoomTransitionState.type !== 'idle') return;
     if (!state.activeBoard) return;
-    const node = state.activeBoard.chips.get(selectedNodeId!);
+    const node = state.activeBoard.chips.get(selectedChipId!);
     if (!node) return;
 
     const snapshot = captureViewportSnapshot();
     if (snapshot) {
       const { cols, rows } = getNodeGridSize(node);
       const targetRect = { col: node.position.col, row: node.position.row, cols, rows };
-      const crop = captureCropSnapshot(selectedNodeId!, targetRect) ?? undefined;
+      const crop = captureCropSnapshot(selectedChipId!, targetRect) ?? undefined;
       state.startZoomCapture(snapshot, targetRect, 'in', crop);
     }
-    zoomIntoNode(selectedNodeId!);
+    zoomIntoNode(selectedChipId!);
   }
 
   return (
@@ -77,7 +77,7 @@ export function NodeControls() {
             <button
               className={styles.deleteBtn}
               onClick={() => {
-                removeNode(selectedNodeId);
+                removeChip(selectedChipId);
                 clearSelection();
               }}
               title="Delete chip"

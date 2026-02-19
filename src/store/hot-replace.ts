@@ -1,10 +1,10 @@
-import type { GameboardState, NodeState } from '../shared/types/index.ts';
+import type { GameboardState, ChipState } from '../shared/types/index.ts';
 import type { BoardStackEntry } from './slices/navigation-slice.ts';
-import type { UtilityNodeEntry } from './slices/palette-slice.ts';
+import type { CraftedUtilityEntry } from './slices/palette-slice.ts';
 
 export interface HotReplacePatch {
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
   libraryVersionHash: string;
   cpLayout?: ('input' | 'output' | 'off')[];
 }
@@ -12,53 +12,53 @@ export interface HotReplacePatch {
 export interface HotReplaceResult {
   activeBoard?: GameboardState;
   boardStack?: BoardStackEntry[];
-  utilityNodes?: Map<string, UtilityNodeEntry>;
+  craftedUtilities?: Map<string, CraftedUtilityEntry>;
 }
 
-function patchNode(node: NodeState, patch: HotReplacePatch): NodeState {
+function patchChip(chip: ChipState, patch: HotReplacePatch): ChipState {
   return {
-    ...node,
-    inputCount: patch.inputCount,
-    outputCount: patch.outputCount,
+    ...chip,
+    socketCount: patch.socketCount,
+    plugCount: patch.plugCount,
     libraryVersionHash: patch.libraryVersionHash,
     params: {
-      ...node.params,
+      ...chip.params,
       ...(patch.cpLayout ? { cpLayout: patch.cpLayout } : {}),
     },
   };
 }
 
-function patchBoard(board: GameboardState, nodeType: string, patch: HotReplacePatch): GameboardState | null {
+function patchBoard(board: GameboardState, chipType: string, patch: HotReplacePatch): GameboardState | null {
   let changed = false;
-  const nodes = new Map<string, NodeState>();
-  for (const [id, node] of board.chips) {
-    if (node.type === nodeType) {
-      nodes.set(id, patchNode(node, patch));
+  const chips = new Map<string, ChipState>();
+  for (const [id, chip] of board.chips) {
+    if (chip.type === chipType) {
+      chips.set(id, patchChip(chip, patch));
       changed = true;
     } else {
-      nodes.set(id, node);
+      chips.set(id, chip);
     }
   }
   if (!changed) return null;
-  return { ...board, chips: nodes };
+  return { ...board, chips };
 }
 
 /**
- * Traverse all board locations and update nodes matching `nodeType` with the given patch.
+ * Traverse all board locations and update chips matching `chipType` with the given patch.
  * Returns only the fields that changed (empty object if no matches found).
  */
-export function hotReplaceNodes(
-  nodeType: string,
+export function hotReplaceChips(
+  chipType: string,
   patch: HotReplacePatch,
   activeBoard: GameboardState | null,
   boardStack: BoardStackEntry[],
-  utilityNodes: Map<string, UtilityNodeEntry>,
+  craftedUtilities: Map<string, CraftedUtilityEntry>,
 ): HotReplaceResult {
   const result: HotReplaceResult = {};
 
   // 1. Scan activeBoard
   if (activeBoard) {
-    const patched = patchBoard(activeBoard, nodeType, patch);
+    const patched = patchBoard(activeBoard, chipType, patch);
     if (patched) {
       result.activeBoard = patched;
     }
@@ -68,7 +68,7 @@ export function hotReplaceNodes(
   let stackChanged = false;
   const newStack: BoardStackEntry[] = [];
   for (const entry of boardStack) {
-    const patched = patchBoard(entry.board, nodeType, patch);
+    const patched = patchBoard(entry.board, chipType, patch);
     if (patched) {
       newStack.push({ ...entry, board: patched });
       stackChanged = true;
@@ -80,11 +80,11 @@ export function hotReplaceNodes(
     result.boardStack = newStack;
   }
 
-  // 3. Scan utility node internal boards
+  // 3. Scan utility chip internal boards
   let utilityChanged = false;
-  const newUtility = new Map<string, UtilityNodeEntry>();
-  for (const [id, entry] of utilityNodes) {
-    const patched = patchBoard(entry.board, nodeType, patch);
+  const newUtility = new Map<string, CraftedUtilityEntry>();
+  for (const [id, entry] of craftedUtilities) {
+    const patched = patchBoard(entry.board, chipType, patch);
     if (patched) {
       newUtility.set(id, { ...entry, board: patched });
       utilityChanged = true;
@@ -93,7 +93,7 @@ export function hotReplaceNodes(
     }
   }
   if (utilityChanged) {
-    result.utilityNodes = newUtility;
+    result.craftedUtilities = newUtility;
   }
 
   return result;

@@ -42,6 +42,10 @@ export function initTutorialSubscriber(store: StoreApi<GameStore>): void {
       setTimeout(() => {
         const latestState = store.getState();
         if (latestState.tutorialState.type === 'completed') {
+          // Stop playback so meter audio stops
+          latestState.setPlayMode('paused');
+          // Unload the tutorial puzzle
+          latestState.unloadPuzzle();
           latestState.endTutorial();
           latestState.zoomOut();
         }
@@ -69,17 +73,6 @@ export function initTutorialSubscriber(store: StoreApi<GameStore>): void {
       } else if (curr.overlayType === 'none' && state.tutorialState.overlayHidden) {
         state.setTutorialOverlayHidden(false);
       }
-    }
-
-    // Phase transition: when moving from phase 1 to phase 2, switch test case
-    // Step 5 (undo-wire) is the start of phase 2 — switch to test case 1
-    if (step.id === 'undo-wire' && state.activeTestCaseIndex === 0) {
-      setTimeout(() => {
-        const s = store.getState();
-        if (s.activeTestCaseIndex === 0) {
-          s.setActiveTestCase(1);
-        }
-      }, 0);
     }
 
     // Check advance conditions

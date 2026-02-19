@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { NodeId, NodeState, Wire } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
+import type { ChipId, ChipState, Path } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
 import { bakeGraph, reconstructFromMetadata } from './bake.ts';
 import {
   cpInputId,
@@ -10,73 +10,73 @@ import {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function makeNode(
-  id: NodeId,
+function makeChip(
+  id: ChipId,
   type: string,
-  inputCount: number,
-  outputCount: number,
+  socketCount: number,
+  plugCount: number,
   params: Record<string, number | string> = {},
-): NodeState {
-  return { id, type, position: { col: 0, row: 0 }, params, inputCount, outputCount };
+): ChipState {
+  return { id, type, position: { col: 0, row: 0 }, params, socketCount, plugCount };
 }
 
-function makeWire(
-  sourceId: NodeId,
+function makePath(
+  sourceId: ChipId,
   sourcePort: number,
-  targetId: NodeId,
+  targetId: ChipId,
   targetPort: number,
-): Wire {
-  return createWire(
+): Path {
+  return createPath(
     `${sourceId}:${sourcePort}->${targetId}:${targetPort}`,
-    { chipId: sourceId, portIndex: sourcePort, side: 'output' },
-    { chipId: targetId, portIndex: targetPort, side: 'input' },
+    { chipId: sourceId, portIndex: sourcePort, side: 'plug' },
+    { chipId: targetId, portIndex: targetPort, side: 'socket' },
   );
 }
 
-/** Build a nodes Map and wires array from a description. */
+/** Build a chips Map and paths array from a description. */
 function buildGraph(
-  inputCount: number,
-  outputCount: number,
-  processingNodes: NodeState[],
-  wireSpecs: { from: NodeId; fromPort: number; to: NodeId; toPort: number }[],
+  socketCount: number,
+  plugCount: number,
+  processingChips: ChipState[],
+  pathSpecs: { from: ChipId; fromPort: number; to: ChipId; toPort: number }[],
 ) {
-  const nodes = new Map<NodeId, NodeState>();
+  const chips = new Map<ChipId, ChipState>();
 
-  for (let i = 0; i < inputCount; i++) {
+  for (let i = 0; i < socketCount; i++) {
     const cp = createConnectionPointNode('input', i);
-    nodes.set(cp.id, cp);
+    chips.set(cp.id, cp);
   }
 
-  for (let i = 0; i < outputCount; i++) {
+  for (let i = 0; i < plugCount; i++) {
     const cp = createConnectionPointNode('output', i);
-    nodes.set(cp.id, cp);
+    chips.set(cp.id, cp);
   }
 
-  for (const node of processingNodes) {
-    nodes.set(node.id, node);
+  for (const chip of processingChips) {
+    chips.set(chip.id, chip);
   }
 
-  const wires = wireSpecs.map((spec) =>
-    makeWire(spec.from, spec.fromPort, spec.to, spec.toPort),
+  const paths = pathSpecs.map((spec) =>
+    makePath(spec.from, spec.fromPort, spec.to, spec.toPort),
   );
 
-  return { nodes, wires };
+  return { chips, paths };
 }
 
 // ─── bakeGraph ─────────────────────────────────────────────────────────────
 
 describe('bakeGraph', () => {
   it('returns err for cyclic graphs', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    nodes.set('A', makeNode('A', 'offset', 2, 1));
-    nodes.set('B', makeNode('B', 'offset', 2, 1));
+    const chips = new Map<ChipId, ChipState>();
+    chips.set('A', makeChip('A', 'offset', 2, 1));
+    chips.set('B', makeChip('B', 'offset', 2, 1));
 
-    const wires = [
-      makeWire('A', 0, 'B', 0),
-      makeWire('B', 0, 'A', 0),
+    const paths = [
+      makePath('A', 0, 'B', 0),
+      makePath('B', 0, 'A', 0),
     ];
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain('Cycle');
@@ -84,16 +84,16 @@ describe('bakeGraph', () => {
   });
 
   it('returns ok for valid graphs', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
-      [makeNode('add1', 'offset', 2, 1)],
+      [makeChip('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(typeof result.value.evaluate).toBe('function');
@@ -102,7 +102,7 @@ describe('bakeGraph', () => {
   });
 
   it('handles direct CP-to-CP pass-through', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
       [],
       [
@@ -110,7 +110,7 @@ describe('bakeGraph', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -125,13 +125,13 @@ describe('bakeGraph', () => {
 
 describe('cycle-based evaluation', () => {
   it('pass-through: CP_in → CP_out', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
       [],
       [{ from: cpInputId(0), fromPort: 0, to: cpOutputId(0), toPort: 0 }],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -140,16 +140,16 @@ describe('cycle-based evaluation', () => {
   });
 
   it('single Add node as passthrough (A + 0 = A)', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
-      [makeNode('add1', 'offset', 2, 1)],
+      [makeChip('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -159,9 +159,9 @@ describe('cycle-based evaluation', () => {
   });
 
   it('two-input Add', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 1,
-      [makeNode('add1', 'offset', 2, 1)],
+      [makeChip('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'add1', toPort: 1 },
@@ -169,7 +169,7 @@ describe('cycle-based evaluation', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -178,16 +178,16 @@ describe('cycle-based evaluation', () => {
   });
 
   it('Memory node: outputs 0 on first cycle, then echoes previous input', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
-      [makeNode('mem', 'memory', 1, 1)],
+      [makeChip('mem', 'memory', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'mem', toPort: 0 },
         { from: 'mem', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -202,9 +202,9 @@ describe('cycle-based evaluation', () => {
   });
 
   it('Scale node: 80 * 50 / 100 = 40', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 1,
-      [makeNode('scl1', 'scale', 2, 1)],
+      [makeChip('scl1', 'scale', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'scl1', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'scl1', toPort: 1 },
@@ -212,7 +212,7 @@ describe('cycle-based evaluation', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -221,9 +221,9 @@ describe('cycle-based evaluation', () => {
   });
 
   it('Threshold node: 50 >= 0 saturates to +100', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 1,
-      [makeNode('thr', 'threshold', 2, 1)],
+      [makeChip('thr', 'threshold', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'thr', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'thr', toPort: 1 },
@@ -231,7 +231,7 @@ describe('cycle-based evaluation', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -241,11 +241,11 @@ describe('cycle-based evaluation', () => {
   });
 
   it('multi-input multi-output graph with Add passthroughs', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 2,
       [
-        makeNode('add1', 'offset', 2, 1),
-        makeNode('add2', 'offset', 2, 1),
+        makeChip('add1', 'offset', 2, 1),
+        makeChip('add2', 'offset', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
@@ -255,7 +255,7 @@ describe('cycle-based evaluation', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -269,12 +269,12 @@ describe('cycle-based evaluation', () => {
     // CP0 → Scale(port0), CP1 → Scale(port1) → Add(port0)
     // CP2 → Add(port1)
     // Add → Threshold(port0), constant 0 → Threshold(port1) → Out0
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       3, 1,
       [
-        makeNode('scl', 'scale', 2, 1),
-        makeNode('add1', 'offset', 2, 1),
-        makeNode('thr', 'threshold', 2, 1),
+        makeChip('scl', 'scale', 2, 1),
+        makeChip('add1', 'offset', 2, 1),
+        makeChip('thr', 'threshold', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'scl', toPort: 0 },
@@ -286,7 +286,7 @@ describe('cycle-based evaluation', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -304,11 +304,11 @@ describe('cycle-based evaluation', () => {
 
 describe('metadata serialization roundtrip', () => {
   it('JSON roundtrip produces identical outputs', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 1,
       [
-        makeNode('add1', 'offset', 2, 1),
-        makeNode('add2', 'offset', 2, 1),
+        makeChip('add1', 'offset', 2, 1),
+        makeChip('add2', 'offset', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
@@ -318,7 +318,7 @@ describe('metadata serialization roundtrip', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -336,16 +336,16 @@ describe('metadata serialization roundtrip', () => {
   });
 
   it('roundtrip with memory node preserves behavior', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
-      [makeNode('mem', 'memory', 1, 1)],
+      [makeChip('mem', 'memory', 1, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'mem', toPort: 0 },
         { from: 'mem', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -370,16 +370,16 @@ describe('metadata serialization roundtrip', () => {
 
 describe('edge cases', () => {
   it('unconnected input ports default to 0', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
-      [makeNode('add1', 'offset', 2, 1)],
+      [makeChip('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: 'add1', fromPort: 0, to: cpOutputId(0), toPort: 0 },
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -388,11 +388,11 @@ describe('edge cases', () => {
   });
 
   it('disconnected processing node does not affect output', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       1, 1,
       [
-        makeNode('add1', 'offset', 2, 1),
-        makeNode('orphan', 'scale', 2, 1),
+        makeChip('add1', 'offset', 2, 1),
+        makeChip('orphan', 'scale', 2, 1),
       ],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
@@ -400,7 +400,7 @@ describe('edge cases', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -410,10 +410,10 @@ describe('edge cases', () => {
   });
 
   it('empty graph with no nodes produces empty output', () => {
-    const nodes = new Map<NodeId, NodeState>();
-    const wires: Wire[] = [];
+    const chips = new Map<ChipId, ChipState>();
+    const paths: Path[] = [];
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -421,10 +421,10 @@ describe('edge cases', () => {
     expect(output).toEqual([]);
   });
 
-  it('Split node produces two identical outputs', () => {
-    const { nodes, wires } = buildGraph(
+  it('Duplicate node produces two identical outputs', () => {
+    const { chips, paths } = buildGraph(
       1, 2,
-      [makeNode('spl', 'split', 1, 2)],
+      [makeChip('spl', 'duplicate', 1, 2)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'spl', toPort: 0 },
         { from: 'spl', fromPort: 0, to: cpOutputId(0), toPort: 0 },
@@ -432,20 +432,20 @@ describe('edge cases', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const output = result.value.evaluate([80]);
-    // Split(80) = [80, 80]
+    // Duplicate(80) = [80, 80]
     expect(output[0]).toBe(80);
     expect(output[1]).toBe(80);
   });
 
   it('clamping: Add with values exceeding range', () => {
-    const { nodes, wires } = buildGraph(
+    const { chips, paths } = buildGraph(
       2, 1,
-      [makeNode('add1', 'offset', 2, 1)],
+      [makeChip('add1', 'offset', 2, 1)],
       [
         { from: cpInputId(0), fromPort: 0, to: 'add1', toPort: 0 },
         { from: cpInputId(1), fromPort: 0, to: 'add1', toPort: 1 },
@@ -453,7 +453,7 @@ describe('edge cases', () => {
       ],
     );
 
-    const result = bakeGraph(nodes, wires);
+    const result = bakeGraph(chips, paths);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 

@@ -7,11 +7,13 @@
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { TutorialStep, TutorialHighlight, CursorAnimation } from '../../store/slices/tutorial-slice.ts';
 import { PLAYABLE_START, PLAYABLE_END, METER_LEFT_START, METER_RIGHT_START, METER_RIGHT_END, GRID_ROWS } from '../../shared/grid/constants.ts';
-import { METER_GRID_ROWS, METER_VERTICAL_OFFSETS } from '../meters/meter-types.ts';
+import { METER_GRID_ROWS, METER_GAP_ROWS, METER_VERTICAL_OFFSETS } from '../meters/meter-types.ts';
 
 export interface TutorialRenderState {
   step: TutorialStep;
   stepStartTime: number;
+  /** Dynamically resolved cursor path (overrides step.cursor when present) */
+  resolvedCursor?: CursorAnimation;
 }
 
 // =============================================================================
@@ -37,9 +39,15 @@ export function drawTutorialOverlay(
   // 2. Tooltip card
   drawTooltipCard(ctx, tokens, step, cutoutRect, vpWidth, vpHeight);
 
-  // 3. Animated cursor
-  if (step.cursor) {
-    drawAnimatedCursor(ctx, step.cursor, cellSize, offset, timestamp, stepStartTime);
+  // 3. Next button (for next-button advance steps)
+  if (step.advanceOn.type === 'next-button') {
+    drawNextButton(ctx, vpWidth, vpHeight);
+  }
+
+  // 4. Animated cursor (prefer resolved path over static step.cursor)
+  const cursor = state.resolvedCursor ?? step.cursor;
+  if (cursor) {
+    drawAnimatedCursor(ctx, cursor, cellSize, offset, timestamp, stepStartTime);
   }
 }
 
@@ -74,7 +82,8 @@ function getHighlightRect(
     case 'meter-zone': {
       const meterCol = highlight.side === 'left' ? METER_LEFT_START : METER_RIGHT_START;
       const meterCols = highlight.side === 'left' ? (PLAYABLE_START - METER_LEFT_START) : (METER_RIGHT_END - METER_RIGHT_START + 1);
-      const meterRow = METER_VERTICAL_OFFSETS[highlight.slotIndex] ?? 0;
+      const meterStride = METER_GRID_ROWS + METER_GAP_ROWS;
+      const meterRow = highlight.slotIndex * meterStride + (METER_VERTICAL_OFFSETS[highlight.slotIndex] ?? 0);
       return {
         x: offset.x + meterCol * cellSize,
         y: offset.y + meterRow * cellSize,
@@ -270,7 +279,53 @@ function computeTooltipPosition(
 }
 
 // =============================================================================
-// Layer 3: Animated cursor
+// Next button (bottom-right)
+// =============================================================================
+
+const NEXT_BTN_WIDTH = 100;
+const NEXT_BTN_HEIGHT = 36;
+const NEXT_BTN_MARGIN = 24;
+const NEXT_BTN_RADIUS = 6;
+const NEXT_BTN_BG = 'rgba(245,175,40,0.9)';
+const NEXT_BTN_TEXT_COLOR = '#0d0f14';
+const NEXT_BTN_FONT_SIZE = 15;
+
+/** Returns the pixel rect for the Next button. Used for hit testing. */
+export function getNextButtonRect(vpWidth: number, vpHeight: number): PixelRect {
+  return {
+    x: vpWidth - NEXT_BTN_WIDTH - NEXT_BTN_MARGIN,
+    y: vpHeight - NEXT_BTN_HEIGHT - NEXT_BTN_MARGIN,
+    w: NEXT_BTN_WIDTH,
+    h: NEXT_BTN_HEIGHT,
+  };
+}
+
+function drawNextButton(
+  ctx: CanvasRenderingContext2D,
+  vpWidth: number,
+  vpHeight: number,
+): void {
+  const r = getNextButtonRect(vpWidth, vpHeight);
+  ctx.save();
+
+  // Button background
+  ctx.beginPath();
+  roundedRectPath(ctx, r.x, r.y, r.w, r.h, NEXT_BTN_RADIUS);
+  ctx.fillStyle = NEXT_BTN_BG;
+  ctx.fill();
+
+  // Button text
+  ctx.font = `bold ${NEXT_BTN_FONT_SIZE}px 'Bungee', monospace`;
+  ctx.fillStyle = NEXT_BTN_TEXT_COLOR;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Next >', r.x + r.w / 2, r.y + r.h / 2);
+
+  ctx.restore();
+}
+
+// =============================================================================
+// Layer 4: Animated cursor
 // =============================================================================
 
 const CURSOR_SIZE = 16;

@@ -1,18 +1,18 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 import { clamp } from '../../../shared/math';
 
 export type ScaleParams = { factor: number };
 
-export const scaleNode = defineNode<ScaleParams>({
+export const scaleChip = defineChip<ScaleParams>({
   type: 'scale',
   category: 'math',
   description: 'Multiplies signal strength by a percentage',
 
-  inputs: [
+  sockets: [
     { name: 'A', gridPosition: 0 },
     { name: 'X', description: 'Scale factor', side: 'bottom', knob: 'factor' },
   ],
-  outputs: [{ name: 'Out', gridPosition: 0 }],
+  plugs: [{ name: 'Out', gridPosition: 0 }],
 
   params: [
     { key: 'factor', type: 'number', default: 100, label: 'Factor', min: -100, max: 100, step: 25 },

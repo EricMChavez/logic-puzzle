@@ -5,7 +5,7 @@
  * cascading in topological evaluation order.
  */
 
-import type { Wire, NodeState } from '../../shared/types/index.ts';
+import type { Path, ChipState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { WireAnimationCache } from './wire-animation.ts';
 import { buildWirePixelPath, signalToColor, signalToGlow } from './render-wires.ts';
@@ -91,8 +91,8 @@ const BLIP_ALPHA_STEPS = 5;
 export function drawWireBlips(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  wires: ReadonlyArray<Wire>,
-  nodes: ReadonlyMap<string, NodeState>,
+  wires: ReadonlyArray<Path>,
+  nodes: ReadonlyMap<string, ChipState>,
   cellSize: number,
   cache: WireAnimationCache,
   globalProgress: number,

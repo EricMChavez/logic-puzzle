@@ -1,5 +1,5 @@
 import type { GridPoint } from '../grid/types.ts';
-import type { NodeState, NodeRotation } from '../types/index.ts';
+import type { ChipState, ChipRotation } from '../types/index.ts';
 import { GRID_COLS, GRID_ROWS, PLAYABLE_START, PLAYABLE_END } from '../grid/constants.ts';
 import { getNodeGridSize } from '../grid/occupancy.ts';
 import {
@@ -8,7 +8,7 @@ import {
   rotateExplicitSide,
   type PortSide,
 } from '../grid/rotation.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import {
   isConnectionPointNode,
   isConnectionInputNode,
@@ -30,7 +30,6 @@ import {
   DIR_N,
   STEM_PHASES,
   getAllowedDirections,
-  isRoutable,
   isPassable,
   stateKey,
   chebyshevDistance,
@@ -75,7 +74,7 @@ export function portSideToWireDirection(portSide: PortSide): number {
  * For utility nodes with cpLayout, ports are placed on the side of their originating CP.
  */
 function resolvePortSide(
-  node: NodeState,
+  node: ChipState,
   side: 'input' | 'output',
   portIndex: number,
 ): PortSide {
@@ -93,10 +92,10 @@ function resolvePortSide(
     return side === 'input' ? 'left' : 'right';
   }
 
-  const rotation: NodeRotation = node.rotation ?? 0;
-  const def = getNodeDefinition(node.type);
+  const rotation: ChipRotation = node.rotation ?? 0;
+  const def = getChipDefinition(node.type);
   if (def) {
-    const ports = side === 'input' ? def.inputs : def.outputs;
+    const ports = side === 'input' ? def.sockets : def.plugs;
     const portDef = ports[portIndex];
     if (portDef?.side) {
       return rotateExplicitSide(portDef.side, rotation);
@@ -109,15 +108,15 @@ function resolvePortSide(
  * Count ports on a specific physical side (across both inputs and outputs).
  */
 function countPortsOnSide(
-  node: NodeState,
+  node: ChipState,
   physicalSide: PortSide,
 ): { inputCount: number; outputCount: number } {
   let inputCount = 0;
   let outputCount = 0;
-  for (let i = 0; i < node.inputCount; i++) {
+  for (let i = 0; i < node.socketCount; i++) {
     if (resolvePortSide(node, 'input', i) === physicalSide) inputCount++;
   }
-  for (let i = 0; i < node.outputCount; i++) {
+  for (let i = 0; i < node.plugCount; i++) {
     if (resolvePortSide(node, 'output', i) === physicalSide) outputCount++;
   }
   return { inputCount, outputCount };
@@ -127,7 +126,7 @@ function countPortsOnSide(
  * Get a port's index among ports on the same physical side.
  */
 function getPortIndexOnPhysicalSide(
-  node: NodeState,
+  node: ChipState,
   side: 'input' | 'output',
   portIndex: number,
   physicalSide: PortSide,
@@ -140,10 +139,12 @@ function getPortIndexOnPhysicalSide(
 }
 
 export function getPortWireDirection(
-  node: NodeState,
-  side: 'input' | 'output',
+  node: ChipState,
+  side: 'input' | 'output' | 'socket' | 'plug',
   portIndex: number = 0,
 ): number {
+  // Normalize PortRef side names to logical side
+  const logicalSide: 'input' | 'output' = side === 'socket' ? 'input' : side === 'plug' ? 'output' : side;
   if (isConnectionPointNode(node.id)) {
     // Determine which physical side the CP is on
     let isLeftPhysical: boolean;
@@ -162,13 +163,13 @@ export function getPortWireDirection(
     const facingDir = isLeftPhysical ? DIR_E : DIR_W;
     // Output port (source): wire exits in facing direction
     // Input port (target): wire enters from opposite direction
-    return side === 'output' ? facingDir : (facingDir + 4) % 8;
+    return logicalSide === 'output' ? facingDir : (facingDir + 4) % 8;
   }
 
-  const portSide = resolvePortSide(node, side, portIndex);
+  const portSide = resolvePortSide(node, logicalSide, portIndex);
   const portFacingDir = portSideToWireDirection(portSide);
 
-  if (side === 'output') {
+  if (logicalSide === 'output') {
     return portFacingDir;
   } else {
     return (portFacingDir + 4) % 8;
@@ -191,10 +192,12 @@ export function getPortWireDirection(
  * - 270°: inputs=bottom, outputs=top
  */
 export function getPortGridAnchor(
-  node: NodeState,
-  side: 'input' | 'output',
+  node: ChipState,
+  side: 'input' | 'output' | 'socket' | 'plug',
   portIndex: number,
 ): GridPoint {
+  // Normalize PortRef side names to logical side
+  const logicalSide: 'input' | 'output' = side === 'socket' ? 'input' : side === 'plug' ? 'output' : side;
   if (isConnectionPointNode(node.id)) {
     return getConnectionPointAnchor(node);
   }
@@ -206,7 +209,7 @@ export function getPortGridAnchor(
     const cpLayout = node.params.cpLayout as string[];
     let count = 0;
     for (let i = 0; i < cpLayout.length; i++) {
-      if (cpLayout[i] === side) {
+      if (cpLayout[i] === logicalSide) {
         if (count === portIndex) {
           const isLeft = i < 3;
           const slotOnSide = i < 3 ? i : i - 3; // 0, 1, or 2 within the side
@@ -223,14 +226,14 @@ export function getPortGridAnchor(
   }
 
   // Get the physical side for this specific port (handles per-port overrides)
-  const portSide = resolvePortSide(node, side, portIndex);
+  const portSide = resolvePortSide(node, logicalSide, portIndex);
 
   // Count ports on this same physical side (across both inputs and outputs)
   const { inputCount: sameInputs, outputCount: sameOutputs } = countPortsOnSide(node, portSide);
   const totalOnSide = sameInputs + sameOutputs;
 
   // Get this port's index within ports on this side (inputs first, then outputs)
-  const indexOnSide = side === 'input'
+  const indexOnSide = logicalSide === 'input'
     ? getPortIndexOnPhysicalSide(node, 'input', portIndex, portSide)
     : sameInputs + getPortIndexOnPhysicalSide(node, 'output', portIndex, portSide);
 
@@ -238,9 +241,9 @@ export function getPortGridAnchor(
   const offset = getPortOffset(cols, rows, totalOnSide, indexOnSide, portSide);
 
   // Apply explicit gridPosition override from port definition (must match renderer)
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   if (def) {
-    const ports = side === 'input' ? def.inputs : def.outputs;
+    const ports = logicalSide === 'input' ? def.sockets : def.plugs;
     const portDef = ports[portIndex];
     if (portDef?.gridPosition !== undefined) {
       if (portSide === 'left' || portSide === 'right') {
@@ -273,7 +276,7 @@ export function getPortGridAnchor(
  * - No margin, meters fill full height (6 rows each, no gaps)
  * - CP row = floor(index * stride + METER_GRID_ROWS / 2)
  */
-function getConnectionPointAnchor(node: NodeState): GridPoint {
+function getConnectionPointAnchor(node: ChipState): GridPoint {
   // All CP node types encode a slot index (0-5). Extract it.
   let slotIdx: number;
   if (isCreativeSlotNode(node.id)) {

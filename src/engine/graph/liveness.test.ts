@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { computeLiveNodes } from './liveness.ts';
-import { createWire } from '../../shared/types/index.ts';
-import type { Wire, NodeId } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
+import type { Path, ChipId } from '../../shared/types/index.ts';
 
-/** Helper to create a minimal wire between two nodes */
-function wire(sourceId: NodeId, targetId: NodeId, id?: string): Wire {
-  return createWire(
+/** Helper to create a minimal path between two chips */
+function wire(sourceId: ChipId, targetId: ChipId, id?: string): Path {
+  return createPath(
     id ?? `${sourceId}->${targetId}`,
-    { chipId: sourceId, portIndex: 0, side: 'output' },
-    { chipId: targetId, portIndex: 0, side: 'input' },
+    { chipId: sourceId, portIndex: 0, side: 'plug' },
+    { chipId: targetId, portIndex: 0, side: 'socket' },
   );
 }
 
@@ -64,9 +64,9 @@ describe('computeLiveNodes', () => {
     // Simulates a knob wire: src → A (signal), A → B (parameter wire to knob port)
     const wires = [
       wire('src', 'A', 'signal-wire'),
-      createWire('param-wire',
-        { chipId: 'A', portIndex: 0, side: 'output' },
-        { chipId: 'B', portIndex: 1, side: 'input' }, // knob port
+      createPath('param-wire',
+        { chipId: 'A', portIndex: 0, side: 'plug' },
+        { chipId: 'B', portIndex: 1, side: 'socket' }, // knob port
       ),
     ];
     const result = computeLiveNodes(wires, new Set(['src']));

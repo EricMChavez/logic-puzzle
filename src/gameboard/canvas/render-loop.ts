@@ -26,29 +26,74 @@ import { drawZoomTransition, computeProgress, gridRectToViewport, drawRevealOver
 import { registerCropCapture, unregisterCropCapture } from './snapshot.ts';
 import { drawKeyboardFocus } from './render-focus.ts';
 import { getFocusTarget, isFocusVisible } from '../interaction/keyboard-focus.ts';
-import { getRejectedKnobNodeId } from './rejected-knob.ts';
+import { getRejectedKnobChipId } from './rejected-knob.ts';
 import { drawPlaybackBar, getHoveredPlaybackButton, getPressedPlaybackButton } from './render-playback-bar.ts';
 import { drawBackButton, getHoveredBackButton } from './render-back-button.ts';
-import { drawRecordButton, getHoveredRecordButton, isRecordButtonDisabled, setRecordButtonDisabled } from './render-record-button.ts';
-import { drawMotherboardSections, drawPaginationControls } from './render-motherboard-sections.ts';
+import { drawRecordButton, getHoveredRecordButton, setRecordButtonDisabled } from './render-record-button.ts';
+import { drawMotherboardSections, drawPaginationControls, drawPuzzleIndicatorLights } from './render-motherboard-sections.ts';
+import type { PuzzleIndicatorLight } from './render-motherboard-sections.ts';
 import { drawEdgeCPs } from './render-edge-cps.ts';
 import { playSound } from '../../shared/audio/index.ts';
 import { getPortGridAnchor, getPortWireDirection, findPath, DIR_E } from '../../shared/routing/index.ts';
 import type { GridPoint, GridRect } from '../../shared/grid/types.ts';
 import type { KnobInfo } from './render-types.ts';
-import type { NodeState, Wire } from '../../shared/types/index.ts';
+import type { ChipState, Path } from '../../shared/types/index.ts';
 import type { CycleResults } from '../../engine/evaluation/index.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { isConnectionInputNode, isConnectionOutputNode, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, isBidirectionalCpNode, getBidirectionalCpIndex, isUtilitySlotNode, getUtilitySlotIndex, cpInputId, cpOutputId, creativeSlotId, cpBidirectionalId, utilitySlotId } from '../../puzzle/connection-point-nodes.ts';
 import { findNearestSnapTarget, WIRE_SNAP_RADIUS_CELLS } from './hit-testing.ts';
 import { drawTutorialOverlay } from './render-tutorial-overlay.ts';
 import type { TutorialRenderState } from './render-tutorial-overlay.ts';
-import { drawChipDrawer, updateDrawerAnimation, getDrawerProgress, isDrawerVisible } from './render-chip-drawer.ts';
+import type { CursorAnimation } from '../../store/slices/tutorial-slice.ts';
+import { drawChipDrawer, updateDrawerAnimation, isDrawerVisible } from './render-chip-drawer.ts';
 import type { ChipDrawerRenderState } from './render-chip-drawer.ts';
 import { buildPaletteItems, computeRemainingBudgets } from '../../ui/overlays/palette-items.ts';
 
 const PLAYPOINT_RATE_NORMAL = 16; // cycles per second
+
+/**
+ * Resolve dynamic cursor paths for tutorial wire-drawing steps.
+ * Returns a CursorAnimation with paths pointing to actual chip port positions,
+ * or undefined if static cursor is fine.
+ */
+function resolveTutorialCursor(
+  stepId: string,
+  staticCursor: CursorAnimation | undefined,
+  chips: ReadonlyMap<string, ChipState>,
+): CursorAnimation | undefined {
+  if (!staticCursor) return undefined;
+
+  // Find the placed offset chip
+  const offsetChip = Array.from(chips.values()).find(
+    (c) => c.type === 'offset',
+  );
+  if (!offsetChip) return undefined;
+
+  if (stepId === 'wire-input-to-chip') {
+    // Start: input CP (middle slot) — use its grid anchor
+    const cpNode = chips.get(cpInputId(1));
+    const start = cpNode
+      ? getPortGridAnchor(cpNode, 'plug', 0)
+      : staticCursor.path[0];
+    // End: offset chip's socket port A
+    const end = getPortGridAnchor(offsetChip, 'socket', 0);
+    return { ...staticCursor, path: [start, end] };
+  }
+
+  if (stepId === 'wire-chip-to-output') {
+    // Start: offset chip's plug port
+    const start = getPortGridAnchor(offsetChip, 'plug', 0);
+    // End: output CP (middle slot) — use its grid anchor
+    const cpNode = chips.get(cpOutputId(1));
+    const end = cpNode
+      ? getPortGridAnchor(cpNode, 'socket', 0)
+      : staticCursor.path[1];
+    return { ...staticCursor, path: [start, end] };
+  }
+
+  return undefined;
+}
 
 /**
  * Extract the flat slot index (0-5) from any CP node type for connected-CP set building.
@@ -58,7 +103,7 @@ const PLAYPOINT_RATE_NORMAL = 16; // cycles per second
 function getCpSlotIdx(
   chipId: string,
   expectedDir: 'input' | 'output',
-  nodes?: ReadonlyMap<string, NodeState> | null,
+  nodes?: ReadonlyMap<string, ChipState> | null,
 ): number {
   if (isCreativeSlotNode(chipId)) {
     const node = nodes?.get(chipId);
@@ -114,42 +159,42 @@ function computeCpSignals(
   return result;
 }
 
-/** Build a map of signal value per node port at current playpoint, from cycle results. */
+/** Build a map of signal value per chip port at current playpoint, from cycle results. */
 function computePortSignals(
   cycleResults: CycleResults | null,
   playpoint: number,
-  wires: ReadonlyArray<Wire>,
+  paths: ReadonlyArray<Path>,
 ): ReadonlyMap<string, number> {
   const result = new Map<string, number>();
   if (!cycleResults) return result;
 
-  // For each wire, the source output port value = the wire's value at this cycle
-  for (const wire of wires) {
-    const wireVal = cycleResults.wireValues.get(wire.id)?.[playpoint] ?? 0;
-    result.set(`${wire.source.chipId}:output:${wire.source.portIndex}`, wireVal);
-    result.set(`${wire.target.chipId}:input:${wire.target.portIndex}`, wireVal);
+  // For each path, the source plug port value = the path's value at this cycle
+  for (const path of paths) {
+    const pathVal = cycleResults.pathValues.get(path.id)?.[playpoint] ?? 0;
+    result.set(`${path.source.chipId}:plug:${path.source.portIndex}`, pathVal);
+    result.set(`${path.target.chipId}:socket:${path.target.portIndex}`, pathVal);
   }
 
   return result;
 }
 
-/** Build a map of wire signal values at the current playpoint. */
-function computeWireValues(
+/** Build a map of path signal values at the current playpoint. */
+function computePathValues(
   cycleResults: CycleResults | null,
   playpoint: number,
-  wires: ReadonlyArray<Wire>,
+  paths: ReadonlyArray<Path>,
 ): ReadonlyMap<string, number> {
   const result = new Map<string, number>();
   if (!cycleResults) return result;
 
-  for (const wire of wires) {
-    result.set(wire.id, cycleResults.wireValues.get(wire.id)?.[playpoint] ?? 0);
+  for (const path of paths) {
+    result.set(path.id, cycleResults.pathValues.get(path.id)?.[playpoint] ?? 0);
   }
 
   return result;
 }
 
-// Module-scope cache for wire preview A* path (avoid recomputing every frame)
+// Module-scope cache for path preview A* route (avoid recomputing every frame)
 let lastPreviewGridCol = -1;
 let lastPreviewGridRow = -1;
 let cachedPreviewPath: GridPoint[] | null = null;
@@ -160,14 +205,14 @@ let cachedPreviewPath: GridPoint[] | null = null;
  */
 function resolveSnapPortRef(
   hit: ReturnType<typeof findNearestSnapTarget>,
-  nodes: ReadonlyMap<string, NodeState>,
-  fromPort: { chipId: string; side: 'input' | 'output' },
+  nodes: ReadonlyMap<string, ChipState>,
+  fromPort: { chipId: string; side: 'socket' | 'plug' },
   slotConfig?: SlotConfig,
-): { chipId: string; side: 'input' | 'output'; portIndex: number } | null {
+): { chipId: string; side: 'socket' | 'plug'; portIndex: number } | null {
   if (!hit) return null;
 
   if (hit.type === 'port') {
-    // Basic validation: must connect output↔input, no self-loops
+    // Basic validation: must connect plug↔socket, no self-loops
     if (hit.portRef.side === fromPort.side) return null;
     if (hit.portRef.chipId === fromPort.chipId) return null;
     return hit.portRef;
@@ -183,7 +228,7 @@ function resolveSnapPortRef(
     if (dirIndex >= 0) {
       const chipId = direction === 'input' ? cpInputId(dirIndex) : cpOutputId(dirIndex);
       if (nodes.has(chipId)) {
-        const side = direction === 'input' ? 'output' : 'input';
+        const side: 'socket' | 'plug' = direction === 'input' ? 'plug' : 'socket';
         if (side === fromPort.side) return null; // same side → invalid
         return { chipId, portIndex: 0, side };
       }
@@ -193,7 +238,7 @@ function resolveSnapPortRef(
     const utilId = utilitySlotId(slotIndex);
     if (nodes.has(utilId)) {
       const node = nodes.get(utilId)!;
-      const side = node.type === 'connection-input' ? 'output' : 'input';
+      const side: 'socket' | 'plug' = node.type === 'connection-input' ? 'plug' : 'socket';
       if (side === fromPort.side) return null;
       return { chipId: utilId, portIndex: 0, side };
     }
@@ -201,7 +246,7 @@ function resolveSnapPortRef(
     // Try bidirectional CP nodes
     const bidirId = cpBidirectionalId(slotIndex);
     if (nodes.has(bidirId)) {
-      const side: 'input' | 'output' = 'input'; // wire ending at CP → input
+      const side: 'socket' | 'plug' = 'socket'; // path ending at CP → socket
       if (side === fromPort.side) return null;
       return { chipId: bidirId, portIndex: 0, side };
     }
@@ -210,7 +255,7 @@ function resolveSnapPortRef(
     const creativeId = creativeSlotId(slotIndex);
     if (nodes.has(creativeId)) {
       const node = nodes.get(creativeId)!;
-      const side = node.type === 'connection-input' ? 'output' : 'input';
+      const side: 'socket' | 'plug' = node.type === 'connection-input' ? 'plug' : 'socket';
       if (side === fromPort.side) return null;
       return { chipId: creativeId, portIndex: 0, side };
     }
@@ -259,46 +304,50 @@ let _cpSignalsCache: ReadonlyMap<string, number> = new Map();
 let _cpSignalsMeterArrays: ReadonlyMap<string, number[]> | null = null;
 let _cpSignalsPlaypoint = -1;
 
-// Cache: port signals map (rebuild only when cycleResults, playpoint, or wires change)
+// Cache: port signals map (rebuild only when cycleResults, playpoint, or paths change)
 let _portSignalsCache: ReadonlyMap<string, number> = new Map();
 let _portSignalsCycleResults: CycleResults | null = null;
 let _portSignalsPlaypoint = -1;
-let _portSignalsWires: ReadonlyArray<Wire> | null = null;
+let _portSignalsPaths: ReadonlyArray<Path> | null = null;
 
-// Cache: wire values map (rebuild only when cycleResults, playpoint, or wires change)
-let _wireValuesCache: ReadonlyMap<string, number> = new Map();
-let _wireValuesCycleResults: CycleResults | null = null;
-let _wireValuesPlaypoint = -1;
-let _wireValuesWires: ReadonlyArray<Wire> | null = null;
+// Cache: path values map (rebuild only when cycleResults, playpoint, or paths change)
+let _pathValuesCache: ReadonlyMap<string, number> = new Map();
+let _pathValuesCycleResults: CycleResults | null = null;
+let _pathValuesPlaypoint = -1;
+let _pathValuesPaths: ReadonlyArray<Path> | null = null;
 
-// Cache: connected input ports set (rebuild only when wires change)
-let _connectedInputPortsCache: ReadonlySet<string> = new Set();
-let _connectedInputPortsWires: ReadonlyArray<Wire> | null = null;
+// Cache: connected socket ports set (rebuild only when paths change)
+let _connectedSocketPortsCache: ReadonlySet<string> = new Set();
+let _connectedSocketPortsPaths: ReadonlyArray<Path> | null = null;
 
-// Cache: connected output CPs set (rebuild only when wires change)
+// Cache: connected plug ports set (rebuild only when paths change)
+let _connectedPlugPortsCache: ReadonlySet<string> = new Set();
+let _connectedPlugPortsPaths: ReadonlyArray<Path> | null = null;
+
+// Cache: connected output CPs set (rebuild only when paths change)
 let _connectedOutputCPsCache: ReadonlySet<string> = new Set();
-let _connectedOutputCPsWires: ReadonlyArray<Wire> | null = null;
+let _connectedOutputCPsPaths: ReadonlyArray<Path> | null = null;
 
-// Cache: connected input CPs set (rebuild only when wires change)
+// Cache: connected input CPs set (rebuild only when paths change)
 let _connectedInputCPsCache: ReadonlySet<string> = new Set();
-let _connectedInputCPsWires: ReadonlyArray<Wire> | null = null;
+let _connectedInputCPsPaths: ReadonlyArray<Path> | null = null;
 
-// Cache: knob wire lookup map (rebuild only when wires change)
-let _knobWireLookup: Map<string, Wire> = new Map();
-let _knobWireLookupWires: ReadonlyArray<Wire> | null = null;
+// Cache: knob path lookup map (rebuild only when paths change)
+let _knobPathLookup: Map<string, Path> = new Map();
+let _knobPathLookupPaths: ReadonlyArray<Path> | null = null;
 
 // Cache: knob values map (rebuild only when inputs change)
 let _knobValuesCache: ReadonlyMap<string, KnobInfo> = new Map();
-let _knobValuesNodes: ReadonlyMap<string, NodeState> | null = null;
-let _knobValuesWires: ReadonlyArray<Wire> | null = null;
+let _knobValuesChips: ReadonlyMap<string, ChipState> | null = null;
+let _knobValuesPaths: ReadonlyArray<Path> | null = null;
 let _knobValuesCycleResults: CycleResults | null = null;
 let _knobValuesPlaypoint = -1;
 
 // Cache: liveness sets (rebuild only when cycleResults changes)
-let _liveNodeIdsCache: ReadonlySet<string> = new Set();
-let _liveWireIdsCache: ReadonlySet<string> = new Set();
+let _liveChipIdsCache: ReadonlySet<string> = new Set();
+let _livePathIdsCache: ReadonlySet<string> = new Set();
 let _livenessCycleResults: CycleResults | null = null;
-let _livenessWires: ReadonlyArray<Wire> | null = null;
+let _livenessPaths: ReadonlyArray<Path> | null = null;
 
 // Cache: canRecord flag (rebuild when cycleResults changes)
 let _canRecordCache = false;
@@ -306,8 +355,8 @@ let _canRecordCycleResults: CycleResults | null = null;
 
 // Cache: palette items for chip drawer (rebuild when palette/board changes)
 let _paletteItemsCache: ReturnType<typeof buildPaletteItems> = [];
-let _paletteItemsAllowedNodes: unknown = null;
-let _paletteItemsUtilityNodes: unknown = null;
+let _paletteItemsAllowedChips: unknown = null;
+let _paletteItemsCraftedUtilities: unknown = null;
 let _paletteItemsBoardChips: unknown = null;
 
 /**
@@ -363,15 +412,16 @@ export function startRenderLoop(
     // Render node at zoomed cellSize using module-level caches
     drawSingleNode(cropCtx as unknown as CanvasRenderingContext2D, tok, node, {
       chips: st.activeBoard!.chips,
-      puzzleNodes: st.puzzleNodes,
-      utilityNodes: st.utilityNodes,
-      selectedNodeId: null,
-      hoveredNodeId: null,
+      craftedPuzzles: st.craftedPuzzles,
+      craftedUtilities: st.craftedUtilities,
+      selectedChipId: null,
+      hoveredChipId: null,
       knobValues: _knobValuesCache,
       portSignals: _portSignalsCache,
-      rejectedKnobNodeId: null,
-      connectedInputPorts: _connectedInputPortsCache,
-      liveNodeIds: _liveNodeIdsCache,
+      rejectedKnobChipId: null,
+      connectedSocketPorts: _connectedSocketPortsCache,
+      connectedPlugPorts: _connectedPlugPortsCache,
+      liveChipIds: _liveChipIdsCache,
     }, zCS);
 
     return crop;
@@ -486,9 +536,6 @@ export function startRenderLoop(
       }
     }
 
-    // --- Ceremony state ---
-    const ceremony = state.ceremonyState;
-
     // === Viewport-level rendering (before grid translate) ===
     const devOverrides = getDevOverrides();
     const bgColor = devOverrides.enabled ? devOverrides.colors.pageBackground : '#0d0f14';
@@ -528,8 +575,8 @@ export function startRenderLoop(
     const cycleResults = state.cycleResults;
     const playpoint = state.playpoint;
 
-    // Read wires early (needed for node/wire rendering on all boards)
-    const boardWires = state.activeBoard?.paths ?? null;
+    // Read paths early (needed for chip/path rendering on all boards)
+    const boardPaths = state.activeBoard?.paths ?? null;
 
     // Meters and connection points (skip on motherboard — no meter zones)
     let meterSignalArrays: ReadonlyMap<string, number[]> = _meterSignalCache;
@@ -568,37 +615,37 @@ export function startRenderLoop(
       }
       const meterTargetArrays = _meterTargetCache;
 
-      // Build connected output CP set (cached on wires reference)
-      // Output CPs receive signal from the graph — wires target them
+      // Build connected output CP set (cached on paths reference)
+      // Output CPs receive signal from the graph — paths target them
       // Keys: `output:${slotIndex}` uniformly
-      if (boardWires !== _connectedOutputCPsWires) {
+      if (boardPaths !== _connectedOutputCPsPaths) {
         const set = new Set<string>();
-        if (boardWires) {
-          for (const wire of boardWires) {
-            const targetId = wire.target.chipId;
+        if (boardPaths) {
+          for (const p of boardPaths) {
+            const targetId = p.target.chipId;
             const slotIdx = getCpSlotIdx(targetId, 'output', state.activeBoard?.chips);
             if (slotIdx >= 0) set.add(`output:${slotIdx}`);
           }
         }
         _connectedOutputCPsCache = set;
-        _connectedOutputCPsWires = boardWires;
+        _connectedOutputCPsPaths = boardPaths;
       }
       connectedOutputCPs = _connectedOutputCPsCache;
 
-      // Build connected input CP set (cached on wires reference)
-      // Input CPs emit signal into the graph — wires source from them
+      // Build connected input CP set (cached on paths reference)
+      // Input CPs emit signal into the graph — paths source from them
       // Keys: `input:${slotIndex}` uniformly
-      if (boardWires !== _connectedInputCPsWires) {
+      if (boardPaths !== _connectedInputCPsPaths) {
         const set = new Set<string>();
-        if (boardWires) {
-          for (const wire of boardWires) {
-            const sourceId = wire.source.chipId;
+        if (boardPaths) {
+          for (const p of boardPaths) {
+            const sourceId = p.source.chipId;
             const slotIdx = getCpSlotIdx(sourceId, 'input', state.activeBoard?.chips);
             if (slotIdx >= 0) set.add(`input:${slotIdx}`);
           }
         }
         _connectedInputCPsCache = set;
-        _connectedInputCPsWires = boardWires;
+        _connectedInputCPsPaths = boardPaths;
       }
 
       // Calculate meter starting offset (meters fill the full height)
@@ -660,52 +707,67 @@ export function startRenderLoop(
     if (
       cycleResults !== _portSignalsCycleResults ||
       playpoint !== _portSignalsPlaypoint ||
-      boardWires !== _portSignalsWires
+      boardPaths !== _portSignalsPaths
     ) {
-      _portSignalsCache = boardWires
-        ? computePortSignals(cycleResults, playpoint, boardWires)
+      _portSignalsCache = boardPaths
+        ? computePortSignals(cycleResults, playpoint, boardPaths)
         : new Map<string, number>();
       _portSignalsCycleResults = cycleResults;
       _portSignalsPlaypoint = playpoint;
-      _portSignalsWires = boardWires;
+      _portSignalsPaths = boardPaths;
     }
     const portSignals = _portSignalsCache;
 
-    // Build connected input port set (cached on wires reference)
-    if (boardWires !== _connectedInputPortsWires) {
+    // Build connected socket port set (cached on paths reference)
+    if (boardPaths !== _connectedSocketPortsPaths) {
       const set = new Set<string>();
-      if (boardWires) {
-        for (const wire of boardWires) {
-          if (wire.target.side === 'input') {
-            set.add(`${wire.target.chipId}:${wire.target.portIndex}`);
+      if (boardPaths) {
+        for (const p of boardPaths) {
+          if (p.target.side === 'socket') {
+            set.add(`${p.target.chipId}:${p.target.portIndex}`);
           }
         }
       }
-      _connectedInputPortsCache = set;
-      _connectedInputPortsWires = boardWires;
+      _connectedSocketPortsCache = set;
+      _connectedSocketPortsPaths = boardPaths;
     }
-    const connectedInputPorts = _connectedInputPortsCache;
+    const connectedSocketPorts = _connectedSocketPortsCache;
 
-    // Rebuild liveness caches when cycleResults or wires change
-    if (cycleResults !== _livenessCycleResults || boardWires !== _livenessWires) {
-      if (cycleResults && boardWires) {
-        _liveNodeIdsCache = cycleResults.liveNodeIds;
-        const liveWires = new Set<string>();
-        for (const wire of boardWires) {
-          if (cycleResults.liveNodeIds.has(wire.source.chipId)) {
-            liveWires.add(wire.id);
+    // Build connected plug port set (cached on paths reference)
+    if (boardPaths !== _connectedPlugPortsPaths) {
+      const set = new Set<string>();
+      if (boardPaths) {
+        for (const p of boardPaths) {
+          if (p.source.side === 'plug') {
+            set.add(`${p.source.chipId}:${p.source.portIndex}`);
           }
         }
-        _liveWireIdsCache = liveWires;
+      }
+      _connectedPlugPortsCache = set;
+      _connectedPlugPortsPaths = boardPaths;
+    }
+    const connectedPlugPorts = _connectedPlugPortsCache;
+
+    // Rebuild liveness caches when cycleResults or paths change
+    if (cycleResults !== _livenessCycleResults || boardPaths !== _livenessPaths) {
+      if (cycleResults && boardPaths) {
+        _liveChipIdsCache = cycleResults.liveChipIds;
+        const livePaths = new Set<string>();
+        for (const p of boardPaths) {
+          if (cycleResults.liveChipIds.has(p.source.chipId)) {
+            livePaths.add(p.id);
+          }
+        }
+        _livePathIdsCache = livePaths;
       } else {
-        _liveNodeIdsCache = new Set();
-        _liveWireIdsCache = new Set();
+        _liveChipIdsCache = new Set();
+        _livePathIdsCache = new Set();
       }
       _livenessCycleResults = cycleResults;
-      _livenessWires = boardWires;
+      _livenessPaths = boardPaths;
     }
-    const liveNodeIds = _liveNodeIdsCache;
-    const liveWireIds = _liveWireIdsCache;
+    const liveChipIds = _liveChipIdsCache;
+    const livePathIds = _livePathIdsCache;
 
     if (state.activeBoard) {
       // Wire rendering: fully paused (fade complete) shows neutral + blips;
@@ -720,53 +782,54 @@ export function startRenderLoop(
           cachedWireAnimResults = cycleResults;
           cachedWireAnimPlaypoint = playpoint;
         }
-        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, undefined, true, liveWireIds);
+        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, undefined, true, livePathIds);
         if (cachedWireAnim) {
-          drawWireBlips(ctx!, tokens, state.activeBoard.paths, state.activeBoard.chips, cellSize, cachedWireAnim, pauseProgress, liveWireIds);
+          drawWireBlips(ctx!, tokens, state.activeBoard.paths, state.activeBoard.chips, cellSize, cachedWireAnim, pauseProgress, livePathIds);
         }
       } else {
         if (
-          cycleResults !== _wireValuesCycleResults ||
-          playpoint !== _wireValuesPlaypoint ||
-          state.activeBoard.paths !== _wireValuesWires
+          cycleResults !== _pathValuesCycleResults ||
+          playpoint !== _pathValuesPlaypoint ||
+          state.activeBoard.paths !== _pathValuesPaths
         ) {
-          _wireValuesCache = computeWireValues(cycleResults, playpoint, state.activeBoard.paths);
-          _wireValuesCycleResults = cycleResults;
-          _wireValuesPlaypoint = playpoint;
-          _wireValuesWires = state.activeBoard.paths;
+          _pathValuesCache = computePathValues(cycleResults, playpoint, state.activeBoard.paths);
+          _pathValuesCycleResults = cycleResults;
+          _pathValuesPlaypoint = playpoint;
+          _pathValuesPaths = state.activeBoard.paths;
         }
-        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, _wireValuesCache, false, liveWireIds, undefined, colorFade);
+        drawWires(ctx!, tokens, state.activeBoard.paths, cellSize, state.activeBoard.chips, _pathValuesCache, false, livePathIds, undefined, colorFade);
       }
 
       // Compute knob values from cycle results (cached)
       if (
-        state.activeBoard.chips !== _knobValuesNodes ||
-        state.activeBoard.paths !== _knobValuesWires ||
+        state.activeBoard.chips !== _knobValuesChips ||
+        state.activeBoard.paths !== _knobValuesPaths ||
         cycleResults !== _knobValuesCycleResults ||
         playpoint !== _knobValuesPlaypoint
       ) {
         _knobValuesCache = computeKnobValues(state.activeBoard.chips, state.activeBoard.paths, cycleResults, playpoint);
-        _knobValuesNodes = state.activeBoard.chips;
-        _knobValuesWires = state.activeBoard.paths;
+        _knobValuesChips = state.activeBoard.chips;
+        _knobValuesPaths = state.activeBoard.paths;
         _knobValuesCycleResults = cycleResults;
         _knobValuesPlaypoint = playpoint;
       }
       const knobValues = _knobValuesCache;
 
       drawNodes(ctx!, tokens, {
-        puzzleNodes: state.puzzleNodes,
-        utilityNodes: state.utilityNodes,
+        craftedPuzzles: state.craftedPuzzles,
+        craftedUtilities: state.craftedUtilities,
         chips: state.activeBoard.chips,
-        selectedNodeId: state.selectedNodeId,
-        hoveredNodeId: state.hoveredNodeId,
+        selectedChipId: state.selectedChipId,
+        hoveredChipId: state.hoveredChipId,
         knobValues,
         portSignals,
-        rejectedKnobNodeId: getRejectedKnobNodeId(),
-        connectedInputPorts,
-        liveNodeIds,
+        rejectedKnobChipId: getRejectedKnobChipId(),
+        connectedSocketPorts,
+        connectedPlugPorts,
+        liveChipIds,
       }, cellSize);
 
-      // Keyboard focus ring (after nodes, before wire preview)
+      // Keyboard focus ring (after nodes, before path preview)
       drawKeyboardFocus(
         ctx!, tokens, getFocusTarget(), isFocusVisible(),
         state.activeBoard.chips, state.activeBoard.paths,
@@ -782,12 +845,29 @@ export function startRenderLoop(
       const puzzleSection = state.motherboardLayout.sections.find(s => s.id === 'puzzles');
       if (puzzleSection) {
         drawPaginationControls(ctx!, tokens, puzzleSection, state.motherboardLayout.pagination, cellSize);
+
+        // Build indicator lights from puzzle chips on the current page
+        const lights: PuzzleIndicatorLight[] = [];
+        for (const node of state.activeBoard!.chips.values()) {
+          if (!node.params.isPuzzleChip) continue;
+          const gridRow = node.position.row + 1.0; // visual center (body spans row-0.5 to row+2.5)
+          const lightState: PuzzleIndicatorLight['state'] = node.params.completed
+            ? 'completed'
+            : node.params.locked
+              ? 'locked'
+              : 'unlocked';
+          lights.push({ gridRow, state: lightState });
+        }
+        if (lights.length > 0) {
+          const rightCol = puzzleSection.gridBounds.col + puzzleSection.gridBounds.cols;
+          drawPuzzleIndicatorLights(ctx!, tokens, lights, rightCol, cellSize);
+        }
       }
     }
 
-    // Wire preview during drawing-wire mode (drawn before CPs so it appears behind them)
+    // Path preview during drawing-path mode (drawn before CPs so it appears behind them)
     const overlayActive = state.activeOverlay.type !== 'none';
-    if (!overlayActive && state.interactionMode.type === 'drawing-wire' && state.mousePosition && state.activeBoard) {
+    if (!overlayActive && state.interactionMode.type === 'drawing-path' && state.mousePosition && state.activeBoard) {
       const cursorGrid = pixelToGrid(state.mousePosition.x, state.mousePosition.y, cellSize);
 
       // Recompute A* path only when cursor moves to a different grid cell
@@ -796,14 +876,14 @@ export function startRenderLoop(
         lastPreviewGridRow = cursorGrid.row;
 
         const fromPort = state.interactionMode.fromPort;
-        const sourceNode = state.activeBoard.chips.get(fromPort.chipId);
-        if (sourceNode) {
-          const sourceAnchor = getPortGridAnchor(sourceNode, fromPort.side, fromPort.portIndex);
-          const startDir = getPortWireDirection(sourceNode, fromPort.side, fromPort.portIndex);
+        const sourceChip = state.activeBoard.chips.get(fromPort.chipId);
+        if (sourceChip) {
+          const sourceAnchor = getPortGridAnchor(sourceChip, fromPort.side, fromPort.portIndex);
+          const startDir = getPortWireDirection(sourceChip, fromPort.side, fromPort.portIndex);
 
-          // Check for snap target within the wire snap radius
+          // Check for snap target within the path snap radius
           const maxRadiusPx = WIRE_SNAP_RADIUS_CELLS * cellSize;
-          const wires = state.activeBoard.paths;
+          const paths = state.activeBoard.paths;
           const snapHit = findNearestSnapTarget(
             state.mousePosition.x, state.mousePosition.y, maxRadiusPx,
             state.activeBoard.chips, cellSize,
@@ -814,12 +894,12 @@ export function startRenderLoop(
             (hit) => {
               if (hit.type !== 'port') return true; // CPs validated in resolveSnapPortRef
               const p = hit.portRef;
-              // Must connect output↔input, no self-loops
+              // Must connect plug↔socket, no self-loops
               if (p.side === fromPort.side || p.chipId === fromPort.chipId) return false;
-              // Port must not already have a wire
-              return !wires.some((w) =>
-                (w.source.chipId === p.chipId && w.source.portIndex === p.portIndex && p.side === 'output') ||
-                (w.target.chipId === p.chipId && w.target.portIndex === p.portIndex && p.side === 'input'),
+              // Port must not already have a path
+              return !paths.some((w) =>
+                (w.source.chipId === p.chipId && w.source.portIndex === p.portIndex && p.side === 'plug') ||
+                (w.target.chipId === p.chipId && w.target.portIndex === p.portIndex && p.side === 'socket'),
               );
             },
           );
@@ -828,10 +908,10 @@ export function startRenderLoop(
 
           if (snapPort) {
             // Route to the snapped target's actual grid anchor with correct direction
-            const targetNode = state.activeBoard.chips.get(snapPort.chipId);
-            if (targetNode) {
-              const targetAnchor = getPortGridAnchor(targetNode, snapPort.side, snapPort.portIndex);
-              const endDir = getPortWireDirection(targetNode, snapPort.side, snapPort.portIndex);
+            const targetChip = state.activeBoard.chips.get(snapPort.chipId);
+            if (targetChip) {
+              const targetAnchor = getPortGridAnchor(targetChip, snapPort.side, snapPort.portIndex);
+              const endDir = getPortWireDirection(targetChip, snapPort.side, snapPort.portIndex);
               cachedPreviewPath = findPath(sourceAnchor, targetAnchor, state.occupancy, startDir, endDir);
             } else {
               cachedPreviewPath = findPath(sourceAnchor, cursorGrid, state.occupancy, startDir, DIR_E);
@@ -847,13 +927,13 @@ export function startRenderLoop(
 
       renderWirePreview(ctx!, tokens, state.interactionMode.fromPosition, state.mousePosition, cachedPreviewPath, cellSize);
     } else {
-      // Reset cache when not in drawing-wire mode
+      // Reset cache when not in drawing-path mode
       lastPreviewGridCol = -1;
       lastPreviewGridRow = -1;
       cachedPreviewPath = null;
     }
 
-    // Draw connection points on top of wires and wire preview (skip on motherboard)
+    // Draw connection points on top of paths and path preview (skip on motherboard)
     if (!isHomeBoard) {
       renderConnectionPoints(ctx!, tokens, {
         activePuzzle: state.activePuzzle,
@@ -862,24 +942,32 @@ export function startRenderLoop(
         meterSlots: state.meterSlots,
         cpSignals,
         connectedOutputCPs,
+        connectedInputCPs: _connectedInputCPsCache,
       }, cellSize);
     }
 
-    // Placement ghost (suppressed when overlay is active)
-    if (!overlayActive) {
-      renderPlacementGhost(ctx!, tokens, {
-        interactionMode: state.interactionMode,
-        mousePosition: state.mousePosition,
-        occupancy: state.occupancy,
-        puzzleNodes: state.puzzleNodes,
-        utilityNodes: state.utilityNodes,
-        keyboardGhostPosition: state.keyboardGhostPosition,
-        activeBoardId: state.activeBoardId,
-      }, cellSize);
+    // Compute aggregate indicator state from output meter borders
+    let indicatorState: 'neutral' | 'matched' | 'mismatched' = 'neutral';
+    if (!isHomeBoard) {
+      let hasOutputWithTarget = false;
+      let allOutputsMatch = true;
+      for (let i = 0; i < TOTAL_SLOTS; i++) {
+        const key: MeterKey = meterKey(i);
+        const slot = state.meterSlots.get(key);
+        if (!slot) continue;
+        const dir = modeToDirection(slot.mode);
+        if (dir !== 'output') continue;
+        const isConnected = connectedOutputCPs.has(`output:${i}`);
+        if (!isConnected) continue;
+        if (!_meterTargetCache.has(`target:${i}`)) continue;
+        hasOutputWithTarget = true;
+        if (state.perPortMatch[i] !== true) {
+          allOutputsMatch = false;
+        }
+      }
+      if (hasOutputWithTarget && !allOutputsMatch) indicatorState = 'mismatched';
+      else if (hasOutputWithTarget && allOutputsMatch) indicatorState = 'matched';
     }
-
-    // --- Ceremony active check (used for overlay dimming) ---
-    const ceremonyActive = ceremony.type !== 'inactive';
 
     // Playback bar (persistent UI chrome — skip on home board)
     if (!isHomeBoard) {
@@ -887,12 +975,29 @@ export function startRenderLoop(
         playMode: state.playMode,
         hoveredButton: getHoveredPlaybackButton(),
         pressedButton: getPressedPlaybackButton(),
+        indicatorState,
+        viewportTopY: -offset.y,
       }, cellSize);
     }
 
     // Back button (top-left, above meter zone — all boards)
+    // Pulse green when: puzzle indicator is matched, or all motherboard puzzles completed
+    let backButtonPulsing = false;
+    if (!isHomeBoard && indicatorState === 'matched') {
+      backButtonPulsing = true;
+    } else if (isHomeBoard && state.activeBoard) {
+      let hasPuzzleChips = false;
+      let allCompleted = true;
+      for (const node of state.activeBoard.chips.values()) {
+        if (!node.params.isPuzzleChip) continue;
+        hasPuzzleChips = true;
+        if (!node.params.completed) { allCompleted = false; break; }
+      }
+      backButtonPulsing = hasPuzzleChips && allCompleted;
+    }
     drawBackButton(ctx!, tokens, {
       hovered: getHoveredBackButton(),
+      pulsing: backButtonPulsing,
     }, cellSize);
 
     // Record button (top-right, creative mode idle only)
@@ -928,39 +1033,52 @@ export function startRenderLoop(
       updateDrawerAnimation(timestamp);
 
       // Rebuild palette items cache when inputs change
-      const allowedNodes = state.activePuzzle?.allowedNodes ?? null;
+      const allowedChips = state.activePuzzle?.allowedChips ?? null;
       if (
-        allowedNodes !== _paletteItemsAllowedNodes ||
-        state.utilityNodes !== _paletteItemsUtilityNodes ||
+        allowedChips !== _paletteItemsAllowedChips ||
+        state.craftedUtilities !== _paletteItemsCraftedUtilities ||
         state.activeBoard?.chips !== _paletteItemsBoardChips
       ) {
         const budgets = state.activeBoard
-          ? computeRemainingBudgets(allowedNodes, state.activeBoard.chips)
+          ? computeRemainingBudgets(allowedChips, state.activeBoard.chips)
           : null;
-        _paletteItemsCache = buildPaletteItems(allowedNodes, state.utilityNodes, budgets);
-        _paletteItemsAllowedNodes = allowedNodes;
-        _paletteItemsUtilityNodes = state.utilityNodes;
+        _paletteItemsCache = buildPaletteItems(allowedChips, state.craftedUtilities, budgets).filter(item => item.canPlace);
+        _paletteItemsAllowedChips = allowedChips;
+        _paletteItemsCraftedUtilities = state.craftedUtilities;
         _paletteItemsBoardChips = state.activeBoard?.chips ?? null;
       }
 
-      if (isDrawerVisible() || state.interactionMode.type === 'dragging-node') {
+      if (isDrawerVisible() || state.interactionMode.type === 'dragging-chip') {
         const drawerRenderState: ChipDrawerRenderState = {
           paletteItems: _paletteItemsCache,
-          isDraggingNode: state.interactionMode.type === 'dragging-node',
-          puzzleNodes: state.puzzleNodes,
-          utilityNodes: state.utilityNodes,
+          isDraggingChip: state.interactionMode.type === 'dragging-chip',
+          craftedPuzzles: state.craftedPuzzles,
+          craftedUtilities: state.craftedUtilities,
         };
         drawChipDrawer(ctx!, tokens, drawerRenderState, cellSize);
       } else {
         // Always draw the handle even when drawer is fully closed
         const drawerRenderState: ChipDrawerRenderState = {
           paletteItems: _paletteItemsCache,
-          isDraggingNode: false,
-          puzzleNodes: state.puzzleNodes,
-          utilityNodes: state.utilityNodes,
+          isDraggingChip: false,
+          craftedPuzzles: state.craftedPuzzles,
+          craftedUtilities: state.craftedUtilities,
         };
         drawChipDrawer(ctx!, tokens, drawerRenderState, cellSize);
       }
+    }
+
+    // Placement ghost — drawn after chip drawer so drag preview appears on top
+    if (!overlayActive) {
+      renderPlacementGhost(ctx!, tokens, {
+        interactionMode: state.interactionMode,
+        mousePosition: state.mousePosition,
+        occupancy: state.occupancy,
+        craftedPuzzles: state.craftedPuzzles,
+        craftedUtilities: state.craftedUtilities,
+        keyboardGhostPosition: state.keyboardGhostPosition,
+        activeBoardId: state.activeBoardId ?? undefined,
+      }, cellSize);
     }
 
     // Zoom transition: capture second snapshot when in 'capturing' state
@@ -1032,8 +1150,8 @@ export function startRenderLoop(
       drawRevealOverlay(ctx!, zoomState.zoomedCrop, 0, vpWidth, vpHeight);
     }
 
-    // Dim canvas when an overlay is active (but not during ceremony or zoom transition)
-    if (overlayActive && !zoomAnimating && !ceremonyActive) {
+    // Dim canvas when an overlay is active (but not during zoom transition)
+    if (overlayActive && !zoomAnimating) {
       ctx!.fillStyle = 'rgba(0,0,0,0.15)';
       ctx!.fillRect(-offset.x, -offset.y, vpWidth, vpHeight);
     }
@@ -1047,6 +1165,9 @@ export function startRenderLoop(
         const tutRenderState: TutorialRenderState = {
           step: tutStep,
           stepStartTime: tutState.stepStartTime,
+          resolvedCursor: state.activeBoard
+            ? resolveTutorialCursor(tutStep.id, tutStep.cursor, state.activeBoard.chips)
+            : undefined,
         };
         drawTutorialOverlay(ctx!, tokens, tutRenderState, cellSize, offset, vpWidth, vpHeight, timestamp);
       }
@@ -1176,51 +1297,51 @@ function buildMeterTargetArrays(
 }
 
 /**
- * Build a wire lookup map: "chipId:portIndex" → Wire for wire targets.
- * Rebuilt only when the wires array reference changes.
+ * Build a path lookup map: "chipId:portIndex" → Path for path targets.
+ * Rebuilt only when the paths array reference changes.
  */
-function getWireTargetLookup(wires: ReadonlyArray<Wire>): Map<string, Wire> {
-  if (wires === _knobWireLookupWires) return _knobWireLookup;
+function getPathTargetLookup(paths: ReadonlyArray<Path>): Map<string, Path> {
+  if (paths === _knobPathLookupPaths) return _knobPathLookup;
 
-  _knobWireLookup = new Map();
-  for (const wire of wires) {
-    _knobWireLookup.set(`${wire.target.chipId}:${wire.target.portIndex}`, wire);
+  _knobPathLookup = new Map();
+  for (const p of paths) {
+    _knobPathLookup.set(`${p.target.chipId}:${p.target.portIndex}`, p);
   }
-  _knobWireLookupWires = wires;
-  return _knobWireLookup;
+  _knobPathLookupPaths = paths;
+  return _knobPathLookup;
 }
 
 /**
- * Compute knob display values for all knob-equipped nodes on the active board.
- * Uses cycle results for wired knobs, or node params for unwired knobs.
- * Uses a cached wire lookup map to avoid O(nodes × wires) search per frame.
+ * Compute knob display values for all knob-equipped chips on the active board.
+ * Uses cycle results for wired knobs, or chip params for unwired knobs.
+ * Uses a cached path lookup map to avoid O(chips x paths) search per frame.
  */
 function computeKnobValues(
-  nodes: ReadonlyMap<string, NodeState>,
-  wires: ReadonlyArray<Wire>,
+  chips: ReadonlyMap<string, ChipState>,
+  paths: ReadonlyArray<Path>,
   cycleResults: CycleResults | null,
   playpoint: number,
 ): ReadonlyMap<string, KnobInfo> {
   const result = new Map<string, KnobInfo>();
-  const wireLookup = getWireTargetLookup(wires);
+  const pathLookup = getPathTargetLookup(paths);
 
-  for (const node of nodes.values()) {
-    const knobConfig = getKnobConfig(getNodeDefinition(node.type));
+  for (const chip of chips.values()) {
+    const knobConfig = getKnobConfig(getChipDefinition(chip.type));
     if (!knobConfig) continue;
 
     const { portIndex, paramKey } = knobConfig;
 
-    // O(1) lookup instead of O(wires) linear search
-    const wire = wireLookup.get(`${node.id}:${portIndex}`);
+    // O(1) lookup instead of O(paths) linear search
+    const path = pathLookup.get(`${chip.id}:${portIndex}`);
 
-    if (wire) {
+    if (path) {
       // Read value from cycle results at current playpoint
-      const wireVal = cycleResults?.wireValues.get(wire.id)?.[playpoint] ?? 0;
-      result.set(node.id, { value: wireVal, isWired: true });
+      const pathVal = cycleResults?.pathValues.get(path.id)?.[playpoint] ?? 0;
+      result.set(chip.id, { value: pathVal, isWired: true });
     } else {
-      // Use the node's param value
-      const value = Number(node.params[paramKey] ?? 0);
-      result.set(node.id, { value, isWired: false });
+      // Use the chip's param value
+      const value = Number(chip.params[paramKey] ?? 0);
+      result.set(chip.id, { value, isWired: false });
     }
   }
 

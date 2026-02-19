@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { createRoutingSlice, initRouting } from './routing-slice.ts';
 import type { RoutingSlice } from './routing-slice.ts';
 import { createOccupancyGrid } from '../../shared/grid/occupancy.ts';
-import type { GameboardState, Wire, NodeState } from '../../shared/types/index.ts';
-import { createWire } from '../../shared/types/index.ts';
+import type { GameboardState, Path, ChipState } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
 
-function makeNode(id: string, col: number, row: number, inputCount = 1, outputCount = 1): NodeState {
-  return { id, type: 'invert', position: { col, row }, params: {}, inputCount, outputCount };
+function makeNode(id: string, col: number, row: number, socketCount = 1, plugCount = 1): ChipState {
+  return { id, type: 'invert', position: { col, row }, params: {}, socketCount, plugCount };
 }
 
 /**
@@ -20,16 +20,16 @@ function createTestHarness(board: GameboardState | null = null) {
     return g;
   })() : createOccupancyGrid();
 
-  let currentWires = board?.paths ?? [];
-  const updateWiresSpy = vi.fn((paths: Wire[]) => {
-    currentWires = paths;
+  let currentPaths = board?.paths ?? [];
+  const updatePathsSpy = vi.fn((paths: Path[]) => {
+    currentPaths = paths;
   });
 
   const fakeStore = {
     activeBoard: board,
     activeBoardId: board?.id ?? null,
     occupancy,
-    updateWires: updateWiresSpy,
+    updatePaths: updatePathsSpy,
   };
 
   let state: RoutingSlice = {} as RoutingSlice;
@@ -43,33 +43,33 @@ function createTestHarness(board: GameboardState | null = null) {
   return {
     get: () => state,
     actions: state,
-    updateWiresSpy,
-    getWires: () => currentWires,
+    updatePathsSpy,
+    getWires: () => currentPaths,
     fakeStore,
   };
 }
 
 describe('routing-slice', () => {
   it('routeAllWires does nothing when no active board', () => {
-    const { actions, updateWiresSpy } = createTestHarness(null);
+    const { actions, updatePathsSpy } = createTestHarness(null);
     actions.routeAllWires();
-    expect(updateWiresSpy).not.toHaveBeenCalled();
+    expect(updatePathsSpy).not.toHaveBeenCalled();
   });
 
   it('routeAllWires computes paths for wires between nodes', () => {
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 25, 8);
-    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
+    const wire = createPath('w1', { chipId: 'a', portIndex: 0, side: 'plug' }, { chipId: 'b', portIndex: 0, side: 'socket' });
     const board: GameboardState = {
       id: 'test-board',
       chips: new Map([['a', nodeA], ['b', nodeB]]),
       paths: [wire],
     };
 
-    const { actions, updateWiresSpy, getWires } = createTestHarness(board);
+    const { actions, updatePathsSpy, getWires } = createTestHarness(board);
     actions.routeAllWires();
 
-    expect(updateWiresSpy).toHaveBeenCalledTimes(1);
+    expect(updatePathsSpy).toHaveBeenCalledTimes(1);
     const routed = getWires();
     expect(routed.length).toBe(1);
     expect(routed[0].route.length).toBeGreaterThan(0);
@@ -82,7 +82,7 @@ describe('routing-slice', () => {
   it('routeAllWires preserves wire id and source/target', () => {
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 25, 8);
-    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
+    const wire = createPath('w1', { chipId: 'a', portIndex: 0, side: 'plug' }, { chipId: 'b', portIndex: 0, side: 'socket' });
     const board: GameboardState = {
       id: 'test-board',
       chips: new Map([['a', nodeA], ['b', nodeB]]),
@@ -102,7 +102,7 @@ describe('routing-slice', () => {
     // Place nodes with a wall between them
     const nodeA = makeNode('a', 12, 8);
     const nodeB = makeNode('b', 30, 8);
-    const wire = createWire('w1', { chipId: 'a', portIndex: 0, side: 'output' }, { chipId: 'b', portIndex: 0, side: 'input' });
+    const wire = createPath('w1', { chipId: 'a', portIndex: 0, side: 'plug' }, { chipId: 'b', portIndex: 0, side: 'socket' });
     const board: GameboardState = {
       id: 'test-board',
       chips: new Map([['a', nodeA], ['b', nodeB]]),

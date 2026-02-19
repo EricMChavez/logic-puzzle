@@ -1,4 +1,23 @@
-import { playSound, playWin } from './audio-manager.ts';
+import { playSound } from './audio-manager.ts';
+
+/** Module-level flag to suppress all sound effects during puzzle loads */
+let _suppressed = false;
+
+/** Timeout IDs for the victory meter-valid burst, so we can cancel on status change */
+let _victoryTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+/**
+ * Run `fn` with sound effects suppressed.
+ * Uses try/finally so the flag is always cleared, even on exceptions.
+ */
+export function withSoundsSuppressed(fn: () => void): void {
+  _suppressed = true;
+  try {
+    fn();
+  } finally {
+    _suppressed = false;
+  }
+}
 
 /**
  * Subscribe to store changes and play sound effects.
@@ -8,14 +27,25 @@ export function initSoundEffects(store: {
   subscribe(listener: (state: SoundState, prev: SoundState) => void): () => void;
 }): void {
   store.subscribe((state, prev) => {
+    if (_suppressed) return;
     // Play/pause toggle
     if (state.playMode !== prev.playMode) {
       playSound(state.playMode === 'playing' ? 'play' : 'pause');
     }
 
-    // Victory ceremony
-    if (state.ceremonyState.type === 'it-works' && prev.ceremonyState.type !== 'it-works') {
-      playWin();
+    // Victory — rapid meter-valid burst (one per valid output port)
+    if (state.puzzleStatus === 'victory' && prev.puzzleStatus !== 'victory') {
+      const validCount = state.perPortMatch.filter(Boolean).length;
+      const INITIAL_DELAY = 400;
+      const INTERVAL = 120;
+      for (let i = 0; i < validCount; i++) {
+        _victoryTimeouts.push(setTimeout(() => playSound('meter-valid'), INITIAL_DELAY + i * INTERVAL));
+      }
+    }
+    // Cancel pending victory burst if puzzle breaks back to playing
+    if (state.puzzleStatus !== 'victory' && prev.puzzleStatus === 'victory') {
+      for (const id of _victoryTimeouts) clearTimeout(id);
+      _victoryTimeouts = [];
     }
 
     // Playpoint step (next/prev cycle) — only when NOT in fade transition
@@ -58,7 +88,7 @@ export function initSoundEffects(store: {
 interface SoundState {
   playMode: string;
   playPauseTransitioning: boolean;
-  ceremonyState: { type: string };
+  puzzleStatus: string;
   playpoint: number;
   zoomTransitionState: { type: string; direction?: 'in' | 'out' };
   perPortMatch: boolean[];

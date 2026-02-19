@@ -1,11 +1,12 @@
-import type { GameboardState, NodeState, Wire } from '../shared/types/index.ts';
-import { createWire } from '../shared/types/index.ts';
+import type { GameboardState, ChipState, Path } from '../shared/types/index.ts';
+import { createPath } from '../shared/types/index.ts';
 import type { PuzzleDefinition } from './types.ts';
 import { createConnectionPointNode } from './connection-point-nodes.ts';
+import { slotSide, slotPerSideIndex } from '../shared/grid/slot-helpers.ts';
 
-/** Create a gameboard pre-populated with virtual CP nodes for the given puzzle */
+/** Create a gameboard pre-populated with virtual CP chips for the given puzzle */
 export function createPuzzleGameboard(puzzle: PuzzleDefinition): GameboardState {
-  const nodes = new Map<string, NodeState>();
+  const chips = new Map<string, ChipState>();
 
   if (puzzle.connectionPoints) {
     // Use explicit connection point config — preserves meter positions
@@ -18,55 +19,69 @@ export function createPuzzleGameboard(puzzle: PuzzleDefinition): GameboardState 
         const slot = slots[i];
         if (!slot.active) continue;
         const cpIndex = slot.cpIndex ?? 0;
-        const node = createConnectionPointNode(slot.direction, cpIndex, {
+        const chip = createConnectionPointNode(slot.direction, cpIndex, {
           physicalSide: side,
           meterIndex: i,
         });
-        nodes.set(node.id, node);
+        chips.set(chip.id, chip);
       }
+    }
+  } else if (puzzle.slotConfig) {
+    // Use flat slot config — derives physical side and meter index from slot index
+    let inputCount = 0;
+    let outputCount = 0;
+    for (let i = 0; i < puzzle.slotConfig.length; i++) {
+      const slot = puzzle.slotConfig[i];
+      if (!slot.active) continue;
+      const perDirectionIndex = slot.direction === 'input' ? inputCount++ : outputCount++;
+      const chip = createConnectionPointNode(slot.direction, perDirectionIndex, {
+        physicalSide: slotSide(i),
+        meterIndex: slotPerSideIndex(i),
+      });
+      chips.set(chip.id, chip);
     }
   } else {
     // Fallback: pack inputs on left, outputs on right
     for (let i = 0; i < puzzle.activeInputs; i++) {
-      const node = createConnectionPointNode('input', i);
-      nodes.set(node.id, node);
+      const chip = createConnectionPointNode('input', i);
+      chips.set(chip.id, chip);
     }
     for (let i = 0; i < puzzle.activeOutputs; i++) {
-      const node = createConnectionPointNode('output', i);
-      nodes.set(node.id, node);
+      const chip = createConnectionPointNode('output', i);
+      chips.set(chip.id, chip);
     }
   }
 
-  // Add initial nodes from puzzle definition
-  if (puzzle.initialNodes) {
-    for (const nodeDef of puzzle.initialNodes) {
-      const node: NodeState = {
-        id: nodeDef.id,
-        type: nodeDef.type,
-        position: { col: nodeDef.position.col, row: nodeDef.position.row },
-        params: { ...nodeDef.params },
-        inputCount: nodeDef.inputCount,
-        outputCount: nodeDef.outputCount,
-        rotation: nodeDef.rotation ?? 0,
-        locked: nodeDef.locked ?? true,
+  // Add initial chips from puzzle definition
+  if (puzzle.initialChips) {
+    for (const chipDef of puzzle.initialChips) {
+      const chip: ChipState = {
+        id: chipDef.id,
+        type: chipDef.type,
+        position: { col: chipDef.position.col, row: chipDef.position.row },
+        params: { ...chipDef.params } as Record<string, number | string | boolean>,
+        socketCount: chipDef.socketCount,
+        plugCount: chipDef.plugCount,
+        rotation: chipDef.rotation ?? 0,
+        locked: chipDef.locked ?? true,
       };
-      nodes.set(node.id, node);
+      chips.set(chip.id, chip);
     }
   }
 
-  // Add initial wires from puzzle definition
-  const paths: Wire[] = [];
-  if (puzzle.initialWires) {
-    for (const wireDef of puzzle.initialWires) {
-      const wireId = `wire-${wireDef.source.chipId}-${wireDef.source.portIndex}-${wireDef.target.chipId}-${wireDef.target.portIndex}`;
-      const wire = createWire(
-        wireId,
-        { chipId: wireDef.source.chipId, portIndex: wireDef.source.portIndex, side: 'output' },
-        { chipId: wireDef.target.chipId, portIndex: wireDef.target.portIndex, side: 'input' },
+  // Add initial paths from puzzle definition
+  const paths: Path[] = [];
+  if (puzzle.initialPaths) {
+    for (const pathDef of puzzle.initialPaths) {
+      const pathId = `wire-${pathDef.source.chipId}-${pathDef.source.portIndex}-${pathDef.target.chipId}-${pathDef.target.portIndex}`;
+      const path = createPath(
+        pathId,
+        { chipId: pathDef.source.chipId, portIndex: pathDef.source.portIndex, side: 'plug' },
+        { chipId: pathDef.target.chipId, portIndex: pathDef.target.portIndex, side: 'socket' },
       );
-      paths.push(wire);
+      paths.push(path);
     }
   }
 
-  return { id: `puzzle-${puzzle.id}`, chips: nodes, paths };
+  return { id: `puzzle-${puzzle.id}`, chips, paths };
 }

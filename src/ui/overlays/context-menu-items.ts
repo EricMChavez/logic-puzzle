@@ -1,4 +1,4 @@
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 
 export interface ContextMenuItem {
   id: string;
@@ -8,8 +8,8 @@ export interface ContextMenuItem {
 }
 
 export type ContextTarget =
-  | { type: 'node'; chipId: string; nodeType: string; locked?: boolean; isCustomPuzzle?: boolean }
-  | { type: 'wire'; wireId: string };
+  | { type: 'chip'; chipId: string; chipType: string; locked?: boolean; isCustomPuzzle?: boolean }
+  | { type: 'path'; pathId: string };
 
 /**
  * Build context menu items for a given target element.
@@ -20,17 +20,17 @@ export function buildContextMenuItems(
   target: ContextTarget,
   isReadOnly = false,
 ): ContextMenuItem[] {
-  if (target.type === 'wire') {
+  if (target.type === 'path') {
     if (isReadOnly) return [];
     return [
-      { id: 'delete-wire', label: 'Delete Path', action: 'delete-wire', danger: true },
+      { id: 'delete-path', label: 'Delete Path', action: 'delete-path', danger: true },
     ];
   }
 
-  if (target.type === 'node') {
+  if (target.type === 'chip') {
     const items: ContextMenuItem[] = [];
 
-    if (target.nodeType.startsWith('puzzle:')) {
+    if (target.chipType.startsWith('puzzle:')) {
       items.push({ id: 'inspect', label: 'Inspect', action: 'inspect' });
     }
 
@@ -38,12 +38,12 @@ export function buildContextMenuItems(
       items.push({ id: 'export', label: 'Export', action: 'export' });
     }
 
-    if (target.nodeType.startsWith('utility:') || target.nodeType === 'custom-blank') {
+    if (target.chipType.startsWith('utility:') || target.chipType === 'custom-blank') {
       items.push({ id: 'edit', label: 'Edit', action: 'edit' });
     }
 
     if (!isReadOnly && !target.locked) {
-      items.push({ id: 'delete-node', label: 'Delete Chip', action: 'delete-node', danger: true });
+      items.push({ id: 'delete-chip', label: 'Delete Chip', action: 'delete-chip', danger: true });
     }
 
     return items;
@@ -52,9 +52,9 @@ export function buildContextMenuItems(
   return [];
 }
 
-/** Returns true for node types that have user-editable parameters */
-export function hasEditableParams(nodeType: string): boolean {
-  const def = getNodeDefinition(nodeType);
+/** Returns true for chip types that have user-editable parameters */
+export function hasEditableParams(chipType: string): boolean {
+  const def = getChipDefinition(chipType);
   if (def) return (def.params?.length ?? 0) > 0;
   return false;
 }

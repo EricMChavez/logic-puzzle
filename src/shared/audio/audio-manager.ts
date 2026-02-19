@@ -142,9 +142,10 @@ export async function initAudio(): Promise<void> {
   muted = loadMuteState();
   loadVolumes();
 
-  // Default all sounds to full volume if not yet saved
+  // Default volumes (most sounds at full, win quieter)
+  const defaultVolumes: Record<string, number> = { win: 0.2 };
   for (const name of Object.keys(soundUrls)) {
-    if (!volumes.has(name)) volumes.set(name, 1.0);
+    if (!volumes.has(name)) volumes.set(name, defaultVolumes[name] ?? 1.0);
   }
 
   // Pre-load all sounds (context created lazily on first playSound)

@@ -1,18 +1,18 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 
 export type ThresholdParams = { level: number };
 
 /** Outputs +100 when input >= threshold level, -100 otherwise */
-export const thresholdNode = defineNode<ThresholdParams>({
+export const thresholdChip = defineChip<ThresholdParams>({
   type: 'threshold',
   category: 'math',
   description: 'Outputs +100 or -100 based on whether input exceeds a level',
 
-  inputs: [
+  sockets: [
     { name: 'A' },
     { name: 'X', description: 'Threshold level', side: 'bottom', knob: 'level' },
   ],
-  outputs: [{ name: 'Out' }],
+  plugs: [{ name: 'Out' }],
 
   params: [
     { key: 'level', type: 'number', default: 0, label: 'Level', min: -100, max: 100, step: 25 },

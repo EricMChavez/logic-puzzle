@@ -1,10 +1,10 @@
 import { GRID_COLS, GRID_ROWS, PLAYABLE_START, PLAYABLE_END, MOTHERBOARD_PLAYABLE_START, MOTHERBOARD_PLAYABLE_END } from './constants.ts';
 import { PLAYBACK_BAR } from '../constants/index.ts';
-import type { NodeState, NodeRotation } from '../types/index.ts';
-import type { PuzzleNodeEntry, UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
+import type { ChipState, ChipRotation } from '../types/index.ts';
+import type { CraftedPuzzleEntry, CraftedUtilityEntry } from '../../store/slices/palette-slice.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { getRotatedSize } from './rotation.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 
 // --- Per-category grid sizing constants ---
 
@@ -20,9 +20,9 @@ export const UTILITY_GRID_ROWS = 3;
 export const PUZZLE_GRID_COLS = 4;
 export const PUZZLE_MIN_GRID_ROWS = 2;
 
-/** Puzzle menu chip footprint — taller to show 3 port positions per side. */
+/** Puzzle menu chip footprint — shows 3 port positions per side. */
 export const PUZZLE_MENU_GRID_COLS = 6;
-export const PUZZLE_MENU_GRID_ROWS = 4;
+export const PUZZLE_MENU_GRID_ROWS = 3;
 
 /** @deprecated Use FUNDAMENTAL_GRID_COLS instead. */
 export const NODE_GRID_COLS = FUNDAMENTAL_GRID_COLS;
@@ -37,7 +37,7 @@ export const NODE_GRID_ROWS = FUNDAMENTAL_GRID_ROWS;
  * - Puzzle nodes (puzzle:*): 3 cols, max(2, max(inputs,outputs)+1) rows
  * - Utility nodes (utility:*): 5x3
  */
-export function getNodeGridSize(node: NodeState): { cols: number; rows: number } {
+export function getNodeGridSize(node: ChipState): { cols: number; rows: number } {
   let cols: number;
   let rows: number;
 
@@ -48,12 +48,12 @@ export function getNodeGridSize(node: NodeState): { cols: number; rows: number }
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (node.type.startsWith('puzzle:')) {
-    const maxPorts = Math.max(node.inputCount, node.outputCount);
+    const maxPorts = Math.max(node.socketCount, node.plugCount);
     cols = PUZZLE_GRID_COLS;
     rows = Math.max(PUZZLE_MIN_GRID_ROWS, maxPorts + 1);
   } else {
     // Look up definition for per-node size (e.g. mixer is 3x3, not 3x2)
-    const def = getNodeDefinition(node.type);
+    const def = getChipDefinition(node.type);
     if (def) {
       cols = def.size.width;
       rows = def.size.height;
@@ -69,32 +69,32 @@ export function getNodeGridSize(node: NodeState): { cols: number; rows: number }
 }
 
 /**
- * Compute the grid footprint for a node type without needing a full NodeState.
+ * Compute the grid footprint for a node type without needing a full ChipState.
  * Used by placement ghost and validation before the node exists.
  *
  * @param nodeType - Node type string
- * @param puzzleNodes - Map of puzzle node entries
- * @param _utilityNodes - Map of utility node entries
+ * @param craftedPuzzles - Map of crafted puzzle entries
+ * @param _craftedUtilities - Map of crafted utility entries
  * @param rotation - Optional rotation (default 0)
  */
 export function getNodeGridSizeFromType(
   nodeType: string,
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>,
-  _utilityNodes: ReadonlyMap<string, UtilityNodeEntry>,
-  rotation: NodeRotation = 0,
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>,
+  _craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>,
+  rotation: ChipRotation = 0,
 ): { cols: number; rows: number } {
   let cols: number;
   let rows: number;
 
-  // Note: puzzle menu chips (isPuzzleChip param) are handled in getNodeGridSize via NodeState
+  // Note: puzzle menu chips (isPuzzleChip param) are handled in getNodeGridSize via ChipState
   if (nodeType.startsWith('utility:') || nodeType === 'custom-blank' || nodeType.startsWith('menu:')) {
     cols = UTILITY_GRID_COLS;
     rows = UTILITY_GRID_ROWS;
   } else if (nodeType.startsWith('puzzle:')) {
     const puzzleId = nodeType.slice('puzzle:'.length);
-    const entry = puzzleNodes.get(puzzleId);
+    const entry = craftedPuzzles.get(puzzleId);
     if (entry) {
-      const maxPorts = Math.max(entry.inputCount, entry.outputCount);
+      const maxPorts = Math.max(entry.socketCount, entry.plugCount);
       cols = PUZZLE_GRID_COLS;
       rows = Math.max(PUZZLE_MIN_GRID_ROWS, maxPorts + 1);
     } else {
@@ -102,7 +102,7 @@ export function getNodeGridSizeFromType(
       rows = PUZZLE_MIN_GRID_ROWS;
     }
   } else {
-    const def = getNodeDefinition(nodeType);
+    const def = getChipDefinition(nodeType);
     if (def) {
       cols = def.size.width;
       rows = def.size.height;
@@ -130,7 +130,7 @@ export function createOccupancyGrid(): boolean[][] {
  */
 export function markNodeOccupied(
   grid: boolean[][],
-  node: NodeState,
+  node: ChipState,
 ): void {
   if (isConnectionPointNode(node.id)) return;
 
@@ -152,7 +152,7 @@ export function markNodeOccupied(
  */
 export function clearNodeOccupied(
   grid: boolean[][],
-  node: NodeState,
+  node: ChipState,
 ): void {
   if (isConnectionPointNode(node.id)) return;
 
@@ -174,7 +174,7 @@ export function clearNodeOccupied(
  * Used on deserialization and board load (occupancy is derived state).
  */
 export function recomputeOccupancy(
-  nodes: ReadonlyMap<string, NodeState>,
+  nodes: ReadonlyMap<string, ChipState>,
 ): boolean[][] {
   const grid = createOccupancyGrid();
   for (const node of nodes.values()) {
@@ -259,10 +259,10 @@ export function mergeOccupancy(a: readonly boolean[][], b: readonly boolean[][])
  */
 export function canMoveNode(
   grid: readonly boolean[][],
-  node: NodeState,
+  node: ChipState,
   newCol: number,
   newRow: number,
-  newRotation?: NodeRotation,
+  newRotation?: ChipRotation,
   bounds?: { playableStart: number; playableEnd: number },
 ): boolean {
   if (isConnectionPointNode(node.id)) return false;
@@ -285,9 +285,9 @@ export function canMoveNode(
     baseRows = UTILITY_GRID_ROWS;
   } else if (node.type.startsWith('puzzle:')) {
     baseCols = PUZZLE_GRID_COLS;
-    baseRows = Math.max(PUZZLE_MIN_GRID_ROWS, Math.max(node.inputCount, node.outputCount) + 1);
+    baseRows = Math.max(PUZZLE_MIN_GRID_ROWS, Math.max(node.socketCount, node.plugCount) + 1);
   } else {
-    const def = getNodeDefinition(node.type);
+    const def = getChipDefinition(node.type);
     if (def) {
       baseCols = def.size.width;
       baseRows = def.size.height;
@@ -303,7 +303,7 @@ export function canMoveNode(
 }
 
 /** Return the playable column bounds for the given board ID. */
-export function getPlayableBounds(boardId: string | undefined): { playableStart: number; playableEnd: number } {
+export function getPlayableBounds(boardId: string | undefined | null): { playableStart: number; playableEnd: number } {
   if (boardId === 'motherboard') {
     return { playableStart: MOTHERBOARD_PLAYABLE_START, playableEnd: MOTHERBOARD_PLAYABLE_END };
   }

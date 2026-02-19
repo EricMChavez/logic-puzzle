@@ -1,11 +1,11 @@
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { InteractionMode } from '../../store/slices/interaction-slice.ts';
-import type { Vec2, NodeState, NodeRotation } from '../../shared/types/index.ts';
+import type { Vec2, ChipState, ChipRotation } from '../../shared/types/index.ts';
 import type { GridPoint } from '../../shared/grid/types.ts';
-import type { PuzzleNodeEntry, UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
+import type { CraftedPuzzleEntry, CraftedUtilityEntry } from '../../store/slices/palette-slice.ts';
 import type { RenderNodesState, KnobInfo } from './render-types.ts';
 import { pixelToGrid, getNodeGridSizeFromType, canPlaceNode, canMoveNode, GRID_ROWS, getPlayableBounds } from '../../shared/grid/index.ts';
-import { getNodeDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
+import { getChipDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
 import { drawSingleNode } from './render-nodes.ts';
 import { getNodeBodyPixelRect } from './port-positions.ts';
@@ -14,8 +14,8 @@ export interface RenderPlacementGhostState {
   interactionMode: InteractionMode;
   mousePosition: Vec2 | null;
   occupancy: readonly boolean[][];
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>;
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>;
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>;
   keyboardGhostPosition: GridPoint | null;
   activeBoardId?: string;
 }
@@ -25,47 +25,47 @@ export interface RenderPlacementGhostState {
  */
 export function getPortCountsFromType(
   nodeType: string,
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>,
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>,
-): { inputCount: number; outputCount: number } {
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>,
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>,
+): { socketCount: number; plugCount: number } {
   if (nodeType.startsWith('puzzle:')) {
     const puzzleId = nodeType.slice('puzzle:'.length);
-    const entry = puzzleNodes.get(puzzleId);
-    return { inputCount: entry?.inputCount ?? 1, outputCount: entry?.outputCount ?? 1 };
+    const entry = craftedPuzzles.get(puzzleId);
+    return { socketCount: entry?.socketCount ?? 1, plugCount: entry?.plugCount ?? 1 };
   }
   if (nodeType.startsWith('utility:')) {
     const utilityId = nodeType.slice('utility:'.length);
-    const entry = utilityNodes.get(utilityId);
-    return { inputCount: entry?.inputCount ?? 1, outputCount: entry?.outputCount ?? 1 };
+    const entry = craftedUtilities.get(utilityId);
+    return { socketCount: entry?.socketCount ?? 1, plugCount: entry?.plugCount ?? 1 };
   }
-  // Fundamental node - get from registry
-  const def = getNodeDefinition(nodeType);
+  // Fundamental chip - get from registry
+  const def = getChipDefinition(nodeType);
   if (def) {
-    return { inputCount: def.inputs.length, outputCount: def.outputs.length };
+    return { socketCount: def.sockets.length, plugCount: def.plugs.length };
   }
-  return { inputCount: 1, outputCount: 1 };
+  return { socketCount: 1, plugCount: 1 };
 }
 
 /**
- * Build a synthetic NodeState for the placement ghost preview.
+ * Build a synthetic ChipState for the placement ghost preview.
  */
-function buildGhostNodeState(
+function buildGhostChipState(
   nodeType: string,
   col: number,
   row: number,
-  rotation: NodeRotation,
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>,
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>,
-): NodeState {
-  const { inputCount, outputCount } = getPortCountsFromType(nodeType, puzzleNodes, utilityNodes);
+  rotation: ChipRotation,
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>,
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>,
+): ChipState {
+  const { socketCount, plugCount } = getPortCountsFromType(nodeType, craftedPuzzles, craftedUtilities);
   const params = getDefaultParams(nodeType);
   return {
     id: '__ghost__',
     type: nodeType,
     position: { col, row },
     params,
-    inputCount,
-    outputCount,
+    socketCount,
+    plugCount,
     rotation,
   };
 }
@@ -74,28 +74,29 @@ function buildGhostNodeState(
  * Build a minimal RenderNodesState containing only the ghost node.
  */
 function buildGhostRenderState(
-  ghostNode: NodeState,
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>,
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>,
+  ghostNode: ChipState,
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>,
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>,
 ): RenderNodesState {
   const knobValues = new Map<string, KnobInfo>();
-  const knobCfg = getKnobConfig(getNodeDefinition(ghostNode.type));
+  const knobCfg = getKnobConfig(getChipDefinition(ghostNode.type));
   if (knobCfg) {
     const defaultValue = (ghostNode.params[knobCfg.paramKey] as number) ?? 0;
     knobValues.set('__ghost__', { value: defaultValue, isWired: false });
   }
 
   return {
-    puzzleNodes,
-    utilityNodes,
+    craftedPuzzles,
+    craftedUtilities,
     chips: new Map([['__ghost__', ghostNode]]),
-    selectedNodeId: null,
-    hoveredNodeId: null,
+    selectedChipId: null,
+    hoveredChipId: null,
     knobValues,
     portSignals: new Map(),
-    rejectedKnobNodeId: null,
-    connectedInputPorts: new Set(),
-    liveNodeIds: new Set(['__ghost__']),
+    rejectedKnobChipId: null,
+    connectedSocketPorts: new Set(),
+    connectedPlugPorts: new Set(),
+    liveChipIds: new Set(['__ghost__']),
   };
 }
 
@@ -105,27 +106,27 @@ export function renderPlacementGhost(
   state: RenderPlacementGhostState,
   cellSize: number,
 ): void {
-  if (state.interactionMode.type === 'placing-node') {
-    renderPlacingNodeGhost(ctx, tokens, state, cellSize);
-  } else if (state.interactionMode.type === 'dragging-node') {
-    renderDraggingNodeGhost(ctx, tokens, state, cellSize);
+  if (state.interactionMode.type === 'placing-chip') {
+    renderPlacingChipGhost(ctx, tokens, state, cellSize);
+  } else if (state.interactionMode.type === 'dragging-chip') {
+    renderDraggingChipGhost(ctx, tokens, state, cellSize);
   }
 }
 
-function renderPlacingNodeGhost(
+function renderPlacingChipGhost(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   state: RenderPlacementGhostState,
   cellSize: number,
 ): void {
-  if (state.interactionMode.type !== 'placing-node') return;
+  if (state.interactionMode.type !== 'placing-chip') return;
 
   // Keyboard ghost position takes priority over mouse
   if (!state.keyboardGhostPosition && !state.mousePosition) return;
 
-  const nodeType = state.interactionMode.nodeType;
-  const rotation: NodeRotation = state.interactionMode.rotation ?? 0;
-  const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+  const nodeType = state.interactionMode.chipType;
+  const rotation: ChipRotation = state.interactionMode.rotation ?? 0;
+  const { cols, rows } = getNodeGridSizeFromType(nodeType, state.craftedPuzzles, state.craftedUtilities, rotation);
 
   let col: number;
   let row: number;
@@ -149,8 +150,8 @@ function renderPlacingNodeGhost(
   const valid = canPlaceNode(state.occupancy as boolean[][], col, row, cols, rows, bounds);
 
   // Build synthetic node and render state
-  const ghostNode = buildGhostNodeState(nodeType, col, row, rotation, state.puzzleNodes, state.utilityNodes);
-  const renderState = buildGhostRenderState(ghostNode, state.puzzleNodes, state.utilityNodes);
+  const ghostNode = buildGhostChipState(nodeType, col, row, rotation, state.craftedPuzzles, state.craftedUtilities);
+  const renderState = buildGhostRenderState(ghostNode, state.craftedPuzzles, state.craftedUtilities);
 
   // Draw using real node renderer at reduced opacity
   ctx.save();
@@ -171,18 +172,18 @@ function renderPlacingNodeGhost(
   }
 }
 
-function renderDraggingNodeGhost(
+function renderDraggingChipGhost(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   state: RenderPlacementGhostState,
   cellSize: number,
 ): void {
-  if (state.interactionMode.type !== 'dragging-node') return;
+  if (state.interactionMode.type !== 'dragging-chip') return;
   if (!state.mousePosition) return;
 
-  const { draggedNode, grabOffset, rotation } = state.interactionMode;
-  const nodeType = draggedNode.type;
-  const { cols, rows } = getNodeGridSizeFromType(nodeType, state.puzzleNodes, state.utilityNodes, rotation);
+  const { draggedChip, grabOffset, rotation } = state.interactionMode;
+  const nodeType = draggedChip.type;
+  const { cols, rows } = getNodeGridSizeFromType(nodeType, state.craftedPuzzles, state.craftedUtilities, rotation);
 
   // Snap mouse to grid, subtract grab offset so ghost stays under cursor
   const grid = pixelToGrid(state.mousePosition.x, state.mousePosition.y, cellSize);
@@ -190,16 +191,16 @@ function renderDraggingNodeGhost(
   const col = Math.max(bounds.playableStart + 1, Math.min(grid.col - grabOffset.col, bounds.playableEnd - cols));
   const row = Math.max(1, Math.min(grid.row - grabOffset.row, GRID_ROWS - rows - 1));
 
-  const valid = canMoveNode(state.occupancy as boolean[][], draggedNode, col, row, rotation, bounds);
+  const valid = canMoveNode(state.occupancy as boolean[][], draggedChip, col, row, rotation, bounds);
 
-  // Copy the dragged node with overridden position/rotation
-  const ghostNode: NodeState = {
-    ...draggedNode,
+  // Copy the dragged chip with overridden position/rotation
+  const ghostNode: ChipState = {
+    ...draggedChip,
     id: '__ghost__',
     position: { col, row },
     rotation,
   };
-  const renderState = buildGhostRenderState(ghostNode, state.puzzleNodes, state.utilityNodes);
+  const renderState = buildGhostRenderState(ghostNode, state.craftedPuzzles, state.craftedUtilities);
 
   // Draw using real node renderer at reduced opacity
   ctx.save();

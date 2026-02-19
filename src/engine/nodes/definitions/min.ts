@@ -1,16 +1,16 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 
 /** Returns the smaller of two input signals */
-export const minNode = defineNode({
+export const minChip = defineChip({
   type: 'min',
   category: 'math',
   description: 'Outputs the lower of two signals',
 
-  inputs: [
+  sockets: [
     { name: 'A', gridPosition: 0 },
     { name: 'B', gridPosition: 1 },
   ],
-  outputs: [{ name: 'Out', gridPosition: 1 }],
+  plugs: [{ name: 'Out', gridPosition: 1 }],
 
   evaluate: ({ inputs }) => {
     const [a, b] = inputs;

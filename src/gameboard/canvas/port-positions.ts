@@ -1,6 +1,6 @@
-import type { NodeState, Vec2 } from '../../shared/types/index.ts';
+import type { ChipState, Vec2 } from '../../shared/types/index.ts';
 import { getNodeGridSize, PLAYABLE_START, METER_RIGHT_START, getRotatedPortSide, getPortOffset, rotateExplicitSide } from '../../shared/grid/index.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { METER_GRID_ROWS, METER_GAP_ROWS, METER_VERTICAL_OFFSETS } from '../meters/meter-types.ts';
 import type { PortSide } from '../../shared/grid/index.ts';
 
@@ -10,7 +10,7 @@ import type { PortSide } from '../../shared/grid/index.ts';
  * For utility nodes with cpLayout, ports are placed on the side of their originating CP.
  */
 export function getPortPhysicalSide(
-  node: NodeState,
+  node: ChipState,
   logicalSide: 'input' | 'output',
   portIndex: number,
 ): PortSide {
@@ -29,9 +29,9 @@ export function getPortPhysicalSide(
   }
 
   const rotation = node.rotation ?? 0;
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   if (def) {
-    const ports = logicalSide === 'input' ? def.inputs : def.outputs;
+    const ports = logicalSide === 'input' ? def.sockets : def.plugs;
     const portDef = ports[portIndex];
     if (portDef?.side) {
       return rotateExplicitSide(portDef.side, rotation);
@@ -44,11 +44,11 @@ export function getPortPhysicalSide(
  * Count how many ports on a given logical side land on a specific physical side.
  */
 function countPortsOnPhysicalSide(
-  node: NodeState,
+  node: ChipState,
   logicalSide: 'input' | 'output',
   physicalSide: PortSide,
 ): number {
-  const count = logicalSide === 'input' ? node.inputCount : node.outputCount;
+  const count = logicalSide === 'input' ? node.socketCount : node.plugCount;
   let n = 0;
   for (let i = 0; i < count; i++) {
     if (getPortPhysicalSide(node, logicalSide, i) === physicalSide) n++;
@@ -60,7 +60,7 @@ function countPortsOnPhysicalSide(
  * Get the index of a port among ports on the same physical side.
  */
 function getPortIndexOnSide(
-  node: NodeState,
+  node: ChipState,
   logicalSide: 'input' | 'output',
   portIndex: number,
   physicalSide: PortSide,
@@ -79,7 +79,7 @@ function getPortIndexOnSide(
  * Utility nodes with cpLayout use fixed 3-slot positions per side.
  */
 export function getNodePortPosition(
-  node: NodeState,
+  node: ChipState,
   side: 'input' | 'output',
   portIndex: number,
   cellSize: number,
@@ -109,9 +109,9 @@ export function getNodePortPosition(
   const offset = getPortOffset(cols, rows, totalOnSide, indexOnSide, physicalSide);
 
   // Check for explicit grid position override from port definition
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   if (def) {
-    const ports = side === 'input' ? def.inputs : def.outputs;
+    const ports = side === 'input' ? def.sockets : def.plugs;
     const portDef = ports[portIndex];
     if (portDef?.gridPosition !== undefined) {
       if (physicalSide === 'left' || physicalSide === 'right') {
@@ -135,7 +135,7 @@ export function getNodePortPosition(
  * preserving gaps where CPs are 'off'.
  */
 function getUtilityPortPosition(
-  node: NodeState,
+  node: ChipState,
   side: 'input' | 'output',
   portIndex: number,
   cellSize: number,
@@ -172,25 +172,25 @@ function getUtilityPortPosition(
  * Check if a node has any ports with explicit side overrides in its definition,
  * or is a utility node with cpLayout (ports can be on both sides).
  */
-function hasMultiSidePorts(node: NodeState): boolean {
+function hasMultiSidePorts(node: ChipState): boolean {
   // Utility nodes with cpLayout can have ports on both sides
   if ((node.type.startsWith('utility:') || node.type === 'custom-blank') && node.params?.cpLayout) {
     return true;
   }
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   if (!def) return false;
-  return def.inputs.some(p => p.side !== undefined) || def.outputs.some(p => p.side !== undefined);
+  return def.sockets.some(p => p.side !== undefined) || def.plugs.some(p => p.side !== undefined);
 }
 
 /**
  * Get the set of physical sides that have ports on them.
  */
-function getPortBearingSides(node: NodeState): Set<PortSide> {
+function getPortBearingSides(node: ChipState): Set<PortSide> {
   const sides = new Set<PortSide>();
-  for (let i = 0; i < node.inputCount; i++) {
+  for (let i = 0; i < node.socketCount; i++) {
     sides.add(getPortPhysicalSide(node, 'input', i));
   }
-  for (let i = 0; i < node.outputCount; i++) {
+  for (let i = 0; i < node.plugCount; i++) {
     sides.add(getPortPhysicalSide(node, 'output', i));
   }
   return sides;
@@ -204,13 +204,13 @@ function getPortBearingSides(node: NodeState): Set<PortSide> {
  * with 0.5 cell padding on sides that have no ports.
  */
 export function getNodeBodyPixelRect(
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): { x: number; y: number; width: number; height: number } {
   const { cols, rows } = getNodeGridSize(node);
 
   // custom-blank with no ports: same body as a saved utility node (0.5 cell above/below)
-  if (node.type === 'custom-blank' && node.inputCount === 0 && node.outputCount === 0) {
+  if (node.type === 'custom-blank' && node.socketCount === 0 && node.plugCount === 0) {
     const x = node.position.col * cellSize;
     const y = (node.position.row - 0.5) * cellSize;
     return { x, y, width: cols * cellSize, height: rows * cellSize };
@@ -245,7 +245,7 @@ export function getNodeBodyPixelRect(
   }
 
   const rotation = node.rotation ?? 0;
-  const maxPortCount = Math.max(node.inputCount, node.outputCount, 1);
+  const maxPortCount = Math.max(node.socketCount, node.plugCount, 1);
 
   // Determine if ports are on vertical sides (left/right) or horizontal sides (top/bottom)
   const portsOnVerticalSides = rotation === 0 || rotation === 180;
@@ -310,7 +310,7 @@ export function getNodeBodyPixelRect(
  * Matches the visual body rect so clicks align with what the user sees.
  */
 export function getNodeHitRect(
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): { x: number; y: number; width: number; height: number } {
   return getNodeBodyPixelRect(node, cellSize);

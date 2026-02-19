@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeWireAnimationCache } from './wire-animation';
 import type { CycleResults } from '../../engine/evaluation/index';
-import type { Wire } from '../../shared/types/index';
+import type { Path } from '../../shared/types/index';
 
 function makeWire(
   id: string,
@@ -9,11 +9,11 @@ function makeWire(
   sourcePort: number,
   targetNodeId: string,
   targetPort: number,
-): Wire {
+): Path {
   return {
     id,
-    source: { chipId: sourceNodeId, portIndex: sourcePort, side: 'output' },
-    target: { chipId: targetNodeId, portIndex: targetPort, side: 'input' },
+    source: { chipId: sourceNodeId, portIndex: sourcePort, side: 'plug' },
+    target: { chipId: targetNodeId, portIndex: targetPort, side: 'socket' },
     route: [],
   };
 }
@@ -26,13 +26,13 @@ function makeCycleResults(
 ): CycleResults {
   return {
     outputValues: [],
-    wireValues: wireValues ?? new Map(),
-    nodeOutputs: new Map(),
+    pathValues: wireValues ?? new Map(),
+    chipOutputs: new Map(),
     crossCycleState: new Map(),
     processingOrder,
-    nodeDepths: nodeDepths ?? new Map(),
+    chipDepths: nodeDepths ?? new Map(),
     maxDepth: maxDepth ?? 0,
-    liveNodeIds: new Set(processingOrder),
+    liveChipIds: new Set(processingOrder),
   };
 }
 
@@ -49,7 +49,7 @@ describe('computeWireAnimationCache', () => {
 
   it('linear chain: phases monotonically increase', () => {
     // input_cp(depth 0) -> nodeA(depth 1) -> nodeB(depth 2) -> output_cp(depth 3)
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, 'nodeA', 0),
       makeWire('w2', 'nodeA', 0, 'nodeB', 0),
       makeWire('w3', 'nodeB', 0, '__cp_output_0__', 0),
@@ -89,7 +89,7 @@ describe('computeWireAnimationCache', () => {
   });
 
   it('input CP wires: departPhase = 0', () => {
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, 'nodeA', 0),
     ];
     const depths = new Map<string, number>([
@@ -102,7 +102,7 @@ describe('computeWireAnimationCache', () => {
   });
 
   it('output CP wires: arrivePhase = 1', () => {
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', 'nodeA', 0, '__cp_output_0__', 0),
     ];
     const depths = new Map<string, number>([
@@ -115,7 +115,7 @@ describe('computeWireAnimationCache', () => {
   });
 
   it('direct CP-to-CP wire: full range', () => {
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, '__cp_output_0__', 0),
     ];
     const depths = new Map<string, number>([
@@ -132,7 +132,7 @@ describe('computeWireAnimationCache', () => {
   it('cross-cycle feedback: arrivePhase wraps to 1', () => {
     // nodeA has higher depth than nodeB, but wire goes nodeA → nodeB
     // This simulates a feedback/backward wire
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', 'nodeA', 0, 'nodeB', 0),
     ];
     const depths = new Map<string, number>([
@@ -153,7 +153,7 @@ describe('computeWireAnimationCache', () => {
     const wireValues = new Map<string, number[]>();
     wireValues.set('w1', [10, 20, 30, 40]);
 
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, 'nodeA', 0),
     ];
     const depths = new Map<string, number>([
@@ -167,7 +167,7 @@ describe('computeWireAnimationCache', () => {
   });
 
   it('signal value defaults to 0 when wire not in wireValues', () => {
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, 'nodeA', 0),
     ];
     const depths = new Map<string, number>([
@@ -180,7 +180,7 @@ describe('computeWireAnimationCache', () => {
   });
 
   it('creative slot CPs are treated as connection points', () => {
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_creative_0__', 0, 'nodeA', 0),
       makeWire('w2', 'nodeA', 0, '__cp_creative_3__', 0),
     ];
@@ -200,7 +200,7 @@ describe('computeWireAnimationCache', () => {
 
   it('parallel paths fire at same phase (wavefront behavior)', () => {
     // input_cp(0) → nodeA(1), input_cp(0) → nodeB(1), nodeA(1) → output_cp(2), nodeB(1) → output_cp2(2)
-    const wires: Wire[] = [
+    const wires: Path[] = [
       makeWire('w1', '__cp_input_0__', 0, 'nodeA', 0),
       makeWire('w2', '__cp_input_0__', 0, 'nodeB', 0),
       makeWire('w3', 'nodeA', 0, '__cp_output_0__', 0),

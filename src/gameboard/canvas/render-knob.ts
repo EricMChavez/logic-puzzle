@@ -10,6 +10,49 @@ const SWEEP_RAD = (SWEEP_DEG * Math.PI) / 180;
 const START_ANGLE = (135 * Math.PI) / 180;
 /** End angle: 5 o'clock position */
 const END_ANGLE = START_ANGLE + SWEEP_RAD;
+const TWO_PI = Math.PI * 2;
+/** Dead zone boundaries (the 90° gap at bottom of knob) */
+const DEAD_ZONE_LOW = END_ANGLE % TWO_PI; // 45° (PI/4)
+const DEAD_ZONE_HIGH = START_ANGLE;        // 135° (3*PI/4)
+const DEAD_ZONE_MID = Math.PI / 2;        // 90° — straight down
+
+/**
+ * Map cursor position to a knob value in [-100, +100] for radial drag mode.
+ * Angles within the 90° dead zone (bottom of knob) clamp to the nearest extreme.
+ * Result is snapped to 50-unit intervals: -100, -50, 0, +50, +100.
+ */
+export function radialAngleToValue(
+  cursorX: number,
+  cursorY: number,
+  centerX: number,
+  centerY: number,
+): number {
+  const dx = cursorX - centerX;
+  const dy = cursorY - centerY;
+
+  // Degenerate case: cursor exactly at knob center
+  if (dx === 0 && dy === 0) return 0;
+
+  // atan2 gives [-PI, PI], normalize to [0, 2PI)
+  const raw = Math.atan2(dy, dx);
+  const angle = ((raw % TWO_PI) + TWO_PI) % TWO_PI;
+
+  // Dead zone: [PI/4, 3*PI/4] — the 90° gap at bottom of knob
+  if (angle >= DEAD_ZONE_LOW && angle <= DEAD_ZONE_HIGH) {
+    return angle < DEAD_ZONE_MID ? 100 : -100;
+  }
+
+  // Angular offset from START_ANGLE going clockwise, mod 2PI
+  const offset = ((angle - START_ANGLE) % TWO_PI + TWO_PI) % TWO_PI;
+
+  // Map through 270° sweep to t in [0, 1]
+  const t = Math.min(1, Math.max(0, offset / SWEEP_RAD));
+
+  // Map to [-100, +100] and snap to 50-unit intervals
+  const rawValue = t * 200 - 100;
+  const snapped = Math.round(rawValue / 50) * 50;
+  return Math.max(-100, Math.min(100, snapped)) || 0; // avoid -0
+}
 
 /**
  * Map a value in [-100, +100] to an angle on the knob arc.
@@ -39,7 +82,7 @@ export function drawKnob(
   centerY: number,
   radius: number,
   value: number,
-  isWired: boolean,
+  _isWired: boolean,
   isRejected: boolean,
 ): void {
   const arcWidth = Math.max(2, radius * 0.18);

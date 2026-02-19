@@ -7,10 +7,9 @@
  * Priority:
  * 1. Retro screen is active → close it ('close-menu')
  * 2. Zoom animation playing → block ('noop')
- * 3. Ceremony active (victory-screen) → block ('noop')
- * 4. Non-dismissible overlay → block ('noop')
- * 5. Dismissible overlay / active interaction → cancel + open menu ('cancel-and-menu')
- * 6. Nothing active → open menu ('open-menu')
+ * 3. Non-dismissible overlay → block ('noop')
+ * 4. Dismissible overlay / active interaction → cancel + open menu ('cancel-and-menu')
+ * 5. Nothing active → open menu ('open-menu')
  */
 
 export type EscapeAction =
@@ -30,14 +29,13 @@ export interface EscapeHandlerState {
   isOverlayEscapeDismissible: () => boolean;
   closeOverlay: () => void;
   interactionMode: { type: string };
-  cancelWireDraw: () => void;
+  cancelPathDraw: () => void;
   cancelPlacing: () => void;
   cancelKeyboardWiring: () => void;
   commitKnobAdjust: () => void;
-  selectedNodeId: string | null;
+  selectedChipId: string | null;
   clearSelection: () => void;
   zoomTransitionType: string;
-  ceremonyType: string;
   isTutorialActive: boolean;
   endTutorial: () => void;
   isDrawerOpen?: boolean;
@@ -60,18 +58,15 @@ export function getEscapeAction(state: EscapeHandlerState): EscapeAction {
   // 3. Zoom animation playing → block
   if (state.zoomTransitionType !== 'idle') return 'noop';
 
-  // 3. Ceremony active → block
-  if (state.ceremonyType === 'victory-screen' || state.ceremonyType === 'it-works') return 'noop';
-
   // 4. Non-dismissible overlay → block
   if (state.hasActiveOverlay() && !state.isOverlayEscapeDismissible()) return 'noop';
 
   // 5. Dismissible overlay or active interaction → cancel + open menu
   if (state.hasActiveOverlay() && state.isOverlayEscapeDismissible()) return 'cancel-and-menu';
-  if (state.interactionMode.type === 'drawing-wire' || state.interactionMode.type === 'keyboard-wiring') return 'cancel-and-menu';
+  if (state.interactionMode.type === 'drawing-path' || state.interactionMode.type === 'keyboard-wiring') return 'cancel-and-menu';
   if (state.interactionMode.type === 'adjusting-knob') return 'cancel-and-menu';
-  if (state.interactionMode.type === 'placing-node') return 'cancel-and-menu';
-  if (state.selectedNodeId !== null) return 'cancel-and-menu';
+  if (state.interactionMode.type === 'placing-chip') return 'cancel-and-menu';
+  if (state.selectedChipId !== null) return 'cancel-and-menu';
 
   // 6. Nothing active → open menu
   return 'open-menu';
@@ -104,13 +99,13 @@ export function executeEscapeAction(state: EscapeHandlerState, action: EscapeAct
         state.closeOverlay();
       } else if (state.interactionMode.type === 'keyboard-wiring') {
         state.cancelKeyboardWiring();
-      } else if (state.interactionMode.type === 'drawing-wire') {
-        state.cancelWireDraw();
-      } else if (state.interactionMode.type === 'placing-node') {
+      } else if (state.interactionMode.type === 'drawing-path') {
+        state.cancelPathDraw();
+      } else if (state.interactionMode.type === 'placing-chip') {
         state.cancelPlacing();
       } else if (state.interactionMode.type === 'adjusting-knob') {
         state.commitKnobAdjust();
-      } else if (state.selectedNodeId !== null) {
+      } else if (state.selectedChipId !== null) {
         state.clearSelection();
       }
       // Then open menu

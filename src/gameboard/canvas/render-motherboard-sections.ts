@@ -11,7 +11,7 @@ import { CARD_BODY_FONT } from '../../shared/fonts/font-ready.ts';
 // ---------------------------------------------------------------------------
 
 /** Section container corner radius in cells. */
-const SECTION_CORNER_RADIUS_CELLS = 1.5;
+const SECTION_CORNER_RADIUS_CELLS = 0.5;
 
 /** Dot matrix parameters (matching gameboard grid style). */
 const DOT_OPACITY = 0.3;
@@ -217,6 +217,128 @@ function drawSectionDots(
   ctx.fill();
   ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// Puzzle indicator lights
+// ---------------------------------------------------------------------------
+
+export interface PuzzleIndicatorLight {
+  gridRow: number;
+  state: 'locked' | 'unlocked' | 'completed';
+}
+
+/**
+ * Draw LED indicator lights to the right of the puzzle section.
+ * Each light is vertically centered with its corresponding puzzle chip.
+ *
+ * - locked: dark gray, no glow
+ * - unlocked: pulsing red
+ * - completed: steady green glow
+ */
+export function drawPuzzleIndicatorLights(
+  ctx: CanvasRenderingContext2D,
+  _tokens: ThemeTokens,
+  lights: readonly PuzzleIndicatorLight[],
+  puzzleSectionRightCol: number,
+  cellSize: number,
+): void {
+  const cx = (puzzleSectionRightCol + 1.5) * cellSize;
+  const radius = 0.35 * cellSize;
+  const now = Date.now();
+
+  for (const light of lights) {
+    const cy = light.gridRow * cellSize;
+
+    // --- Housing bezel (dark ring) ---
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + cellSize * 0.06, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1a16';
+    ctx.fill();
+
+    // Inset shadow on housing
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = cellSize * 0.15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = cellSize * 0.04;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a2a22';
+    ctx.fill();
+    ctx.restore();
+
+    // --- Glow pass ---
+    if (light.state === 'unlocked') {
+      // Pulsing red glow: sin wave over 1200ms period
+      const pulse = 0.5 + 0.5 * Math.sin((now / 1200) * Math.PI * 2);
+      const glowAlpha = 0.3 + 0.5 * pulse;
+      ctx.save();
+      ctx.shadowColor = `rgba(224, 56, 56, ${glowAlpha})`;
+      ctx.shadowBlur = cellSize * (0.3 + 0.4 * pulse);
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(224, 56, 56, 0)'; // transparent fill, shadow provides glow
+      ctx.fill();
+      ctx.restore();
+    } else if (light.state === 'completed') {
+      // Steady green glow
+      ctx.save();
+      ctx.shadowColor = 'rgba(80, 200, 120, 0.6)';
+      ctx.shadowBlur = cellSize * 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(80, 200, 120, 0)';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // --- LED fill ---
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    if (light.state === 'locked') {
+      ctx.fillStyle = '#4a4a3a';
+    } else if (light.state === 'unlocked') {
+      const pulse = 0.5 + 0.5 * Math.sin((now / 1200) * Math.PI * 2);
+      const brightness = 0.55 + 0.45 * pulse;
+      const r = Math.round(224 * brightness);
+      const g = Math.round(56 * brightness);
+      const b = Math.round(56 * brightness);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+    } else {
+      ctx.fillStyle = '#50c878';
+    }
+    ctx.fill();
+
+    // --- Border ring ---
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = Math.max(1, cellSize * 0.06);
+    ctx.stroke();
+
+    // --- Specular highlight (small bright spot, upper-left) ---
+    const hlX = cx - radius * 0.3;
+    const hlY = cy - radius * 0.3;
+    const hlRadius = radius * 0.35;
+    const grad = ctx.createRadialGradient(hlX, hlY, 0, hlX, hlY, hlRadius);
+    if (light.state === 'locked') {
+      grad.addColorStop(0, 'rgba(255,255,255,0.15)');
+    } else if (light.state === 'unlocked') {
+      grad.addColorStop(0, 'rgba(255,200,200,0.4)');
+    } else {
+      grad.addColorStop(0, 'rgba(200,255,220,0.45)');
+    }
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(hlX, hlY, hlRadius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /**
  * Inset shadow using gameboard-matched DEPTH constants.

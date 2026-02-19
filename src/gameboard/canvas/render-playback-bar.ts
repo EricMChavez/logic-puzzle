@@ -1,5 +1,5 @@
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
-import { PLAYBACK_BAR } from '../../shared/constants/index.ts';
+import { PLAYBACK_BAR, RETRO_PANEL, RETRO_SCREW } from '../../shared/constants/index.ts';
 
 // --- Types ---
 
@@ -9,6 +9,9 @@ export interface PlaybackBarRenderState {
   playMode: 'playing' | 'paused';
   hoveredButton: PlaybackButton | null;
   pressedButton: PlaybackButton | null;
+  indicatorState: 'neutral' | 'matched' | 'mismatched';
+  /** Y coordinate of the viewport top edge in grid-translated coordinates (i.e. -offsetY). */
+  viewportTopY: number;
 }
 
 export interface PlaybackBarHit {
@@ -63,14 +66,14 @@ const PULSE_PERIOD_MS = (256 / 16) * 1000; // 16 000 ms
 // Tray
 const TRAY_BG = '#121214';
 
-// Side panels
-const PANEL_GRAD_TOP = '#ddd6c2';
-const PANEL_GRAD_MID = '#ccc4ae';
-const PANEL_GRAD_BOT = '#c0b8a0';
+// Side panels (from shared retro-plastic constants)
+const PANEL_GRAD_TOP = RETRO_PANEL.GRAD_TOP;
+const PANEL_GRAD_MID = RETRO_PANEL.GRAD_MID;
+const PANEL_GRAD_BOT = RETRO_PANEL.GRAD_BOT;
 
-// Screws
-const SCREW_GRAD_LIGHT = '#b8ad96';
-const SCREW_GRAD_DARK = '#a89e88';
+// Screws (from shared retro-plastic constants)
+const SCREW_GRAD_LIGHT = RETRO_SCREW.GRAD_LIGHT;
+const SCREW_GRAD_DARK = RETRO_SCREW.GRAD_DARK;
 
 // Buttons (Jet Black)
 const BTN_REST_TOP = '#3a3a3e';
@@ -346,6 +349,78 @@ function drawNextIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, siz
   ctx.fillRect(cx + half * 0.8 - barW, cy - half, barW, size);
 }
 
+// --- Indicator light ---
+
+/** Indicator pill width as fraction of tray width */
+const INDICATOR_WIDTH_RATIO = 0.35;
+/** Indicator pill height in pixels */
+const INDICATOR_HEIGHT = 10;
+/** Bezel ring width */
+const INDICATOR_BEZEL = 1.5;
+
+/** Draw a wide pill-shaped LED indicator centered between the viewport top and the playback bar. */
+function drawIndicatorLight(
+  ctx: CanvasRenderingContext2D,
+  tokens: ThemeTokens,
+  indicatorState: 'neutral' | 'matched' | 'mismatched',
+  bar: ReturnType<typeof getBarRect>,
+  viewportTopY: number,
+): void {
+  const trayWidth = bar.trayRight - bar.trayLeft;
+  const w = trayWidth * INDICATOR_WIDTH_RATIO;
+  const h = INDICATOR_HEIGHT;
+  const cx = (bar.trayLeft + bar.trayRight) / 2;
+  const cy = (viewportTopY + bar.top) / 2;
+  const left = cx - w / 2;
+  const top = cy - h / 2;
+  const cornerRadius = h / 2; // pill shape
+
+  const color = indicatorState === 'matched'
+    ? tokens.meterBorderMatch
+    : indicatorState === 'mismatched'
+      ? tokens.meterBorderMismatch
+      : tokens.meterBorder;
+
+  ctx.save();
+
+  // Glow for active states
+  if (indicatorState !== 'neutral') {
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+  }
+
+  // Bezel ring
+  ctx.beginPath();
+  ctx.roundRect(
+    left - INDICATOR_BEZEL, top - INDICATOR_BEZEL,
+    w + INDICATOR_BEZEL * 2, h + INDICATOR_BEZEL * 2,
+    cornerRadius + INDICATOR_BEZEL,
+  );
+  ctx.fillStyle = '#1a1a1e';
+  ctx.fill();
+
+  // Lens: linear gradient (lighter center → full color at edges) for wide pill
+  const grad = ctx.createLinearGradient(cx, top, cx, top + h);
+  grad.addColorStop(0, lerpColor(color, '#ffffff', 0.35));
+  grad.addColorStop(0.4, lerpColor(color, '#ffffff', 0.2));
+  grad.addColorStop(1, color);
+  ctx.beginPath();
+  ctx.roundRect(left, top, w, h, cornerRadius);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Specular highlight (thin bright line near top)
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(left, top, w, h, cornerRadius);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillRect(left + w * 0.15, top + 1, w * 0.7, 2);
+  ctx.restore();
+
+  ctx.restore();
+}
+
 // --- Main draw function ---
 
 /**
@@ -355,7 +430,7 @@ function drawNextIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, siz
  */
 export function drawPlaybackBar(
   ctx: CanvasRenderingContext2D,
-  _tokens: ThemeTokens,
+  tokens: ThemeTokens,
   state: PlaybackBarRenderState,
   cellSize: number,
 ): void {
@@ -363,6 +438,9 @@ export function drawPlaybackBar(
 
   const bar = getBarRect(cellSize);
   const isPlaying = state.playMode === 'playing';
+
+  // 0. Indicator light (centered between viewport top and tray top)
+  drawIndicatorLight(ctx, tokens, state.indicatorState, bar, state.viewportTopY);
 
   // 1. Tray: dark recessed channel behind buttons
   ctx.fillStyle = TRAY_BG;

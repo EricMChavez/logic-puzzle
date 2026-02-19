@@ -16,10 +16,10 @@ import {
   PUZZLE_MIN_GRID_ROWS,
 } from './occupancy.ts';
 import { GRID_COLS, GRID_ROWS } from './constants.ts';
-import type { NodeState } from '../types/index.ts';
+import type { ChipState } from '../types/index.ts';
 
-function makeNode(id: string, col: number, row: number, type = 'invert', inputs = 1, outputs = 1): NodeState {
-  return { id, type, position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
+function makeNode(id: string, col: number, row: number, type = 'invert', inputs = 1, outputs = 1): ChipState {
+  return { id, type, position: { col, row }, params: {}, socketCount: inputs, plugCount: outputs };
 }
 
 describe('createOccupancyGrid', () => {
@@ -59,13 +59,13 @@ describe('markNodeOccupied', () => {
 
   it('ignores connection point virtual nodes', () => {
     const grid = createOccupancyGrid();
-    const cpNode: NodeState = {
+    const cpNode: ChipState = {
       id: '__cp_input_0__',
       type: 'connection-input',
       position: { col: 0, row: 0 },
       params: {},
-      inputCount: 0,
-      outputCount: 1,
+      socketCount: 0,
+      plugCount: 1,
     };
     markNodeOccupied(grid, cpNode);
     expect(grid[0][0]).toBe(false);
@@ -90,7 +90,7 @@ describe('clearNodeOccupied', () => {
 
 describe('recomputeOccupancy', () => {
   it('recomputes from a set of nodes', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 5, 3));
     nodes.set('n2', makeNode('n2', 10, 8));
 
@@ -110,7 +110,7 @@ describe('recomputeOccupancy', () => {
   });
 
   it('matches result of incremental mark operations', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('a', makeNode('a', 3, 2));
     nodes.set('b', makeNode('b', 12, 7));
     nodes.set('c', makeNode('c', 20, 14));

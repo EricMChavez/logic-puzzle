@@ -10,51 +10,51 @@ import {
   initPersistence,
 } from './persistence.ts';
 import type { HydratableState } from './persistence.ts';
-import type { PuzzleNodeEntry, UtilityNodeEntry } from './slices/palette-slice.ts';
+import type { CraftedPuzzleEntry, CraftedUtilityEntry } from './slices/palette-slice.ts';
 import type { BakeMetadata } from '../engine/baking/index.ts';
 import type { GameboardState } from '../shared/types/index.ts';
-import { createWire } from '../shared/types/index.ts';
+import { createPath } from '../shared/types/index.ts';
 
 const fakeMeta: BakeMetadata = {
   topoOrder: ['n1'],
-  nodeConfigs: [{ id: 'n1', type: 'invert', params: {}, inputCount: 1, outputCount: 1 }],
+  chipConfigs: [{ id: 'n1', type: 'invert', params: {}, socketCount: 1, plugCount: 1 }],
   edges: [],
-  inputCount: 1,
-  outputCount: 1,
+  socketCount: 1,
+  plugCount: 1,
 };
 
-function makePuzzleEntry(id: string): PuzzleNodeEntry {
+function makePuzzleEntry(id: string): CraftedPuzzleEntry {
   return {
     puzzleId: id,
     title: `Puzzle ${id}`,
     description: `Desc ${id}`,
-    inputCount: 1,
-    outputCount: 1,
+    socketCount: 1,
+    plugCount: 1,
     bakeMetadata: fakeMeta,
     versionHash: `hash-${id}`,
   };
 }
 
 function makeBoard(id: string): GameboardState {
-  const wire = createWire('w1',
-    { chipId: 'cp-in-0', portIndex: 0, side: 'output' },
-    { chipId: 'node-1', portIndex: 0, side: 'input' },
+  const path = createPath('w1',
+    { chipId: 'cp-in-0', portIndex: 0, side: 'plug' },
+    { chipId: 'node-1', portIndex: 0, side: 'socket' },
   );
   return {
     id,
     chips: new Map([
-      ['node-1', { id: 'node-1', type: 'invert', position: { col: 10, row: 20 }, params: {}, inputCount: 1, outputCount: 1 }],
+      ['node-1', { id: 'node-1', type: 'invert', position: { col: 10, row: 20 }, params: {}, socketCount: 1, plugCount: 1 }],
     ]),
-    paths: [wire],
+    paths: [path],
   };
 }
 
-function makeUtilityEntry(id: string): UtilityNodeEntry {
+function makeUtilityEntry(id: string): CraftedUtilityEntry {
   return {
     utilityId: id,
     title: `Utility ${id}`,
-    inputCount: 1,
-    outputCount: 1,
+    socketCount: 1,
+    plugCount: 1,
     bakeMetadata: fakeMeta,
     board: makeBoard(`board-${id}`),
     versionHash: `uhash-${id}`,
@@ -65,11 +65,11 @@ function makeState(): HydratableState {
   return {
     completedLevels: new Set(['level-01', 'level-02']),
     currentLevelIndex: 2,
-    puzzleNodes: new Map([
+    craftedPuzzles: new Map([
       ['level-01', makePuzzleEntry('level-01')],
       ['level-02', makePuzzleEntry('level-02')],
     ]),
-    utilityNodes: new Map([
+    craftedUtilities: new Map([
       ['util-1', makeUtilityEntry('util-1')],
     ]),
   };
@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe('gameboard serialization', () => {
-  it('roundtrip preserves board id, nodes, and wires', () => {
+  it('roundtrip preserves board id, chips, and paths', () => {
     const board = makeBoard('test-board');
     const serialized = serializeGameboard(board);
     const deserialized = deserializeGameboard(serialized);
@@ -104,7 +104,7 @@ describe('gameboard serialization', () => {
     expect(deserialized.chips.get('node-1')!.position).toEqual({ col: 10, row: 20 });
   });
 
-  it('preserves wire structure', () => {
+  it('preserves path structure', () => {
     const board = makeBoard('test-board');
     const serialized = serializeGameboard(board);
     const deserialized = deserializeGameboard(serialized);
@@ -120,21 +120,21 @@ describe('state serialization', () => {
     const state = makeState();
     const serialized = serializeState(state);
 
-    expect(serialized.version).toBe(2);
+    expect(serialized.version).toBe(3);
     expect(Array.isArray(serialized.completedLevels)).toBe(true);
     expect(serialized.completedLevels).toContain('level-01');
     expect(serialized.completedLevels).toContain('level-02');
     expect(serialized.currentLevelIndex).toBe(2);
-    expect(Array.isArray(serialized.puzzleNodes)).toBe(true);
-    expect(serialized.puzzleNodes.length).toBe(2);
-    expect(Array.isArray(serialized.utilityNodes)).toBe(true);
-    expect(serialized.utilityNodes.length).toBe(1);
+    expect(Array.isArray(serialized.craftedPuzzles)).toBe(true);
+    expect(serialized.craftedPuzzles.length).toBe(2);
+    expect(Array.isArray(serialized.craftedUtilities)).toBe(true);
+    expect(serialized.craftedUtilities.length).toBe(1);
   });
 
-  it('serialized utility node board has array nodes, not Map', () => {
+  it('serialized utility chip board has array chips, not Map', () => {
     const state = makeState();
     const serialized = serializeState(state);
-    const utilEntry = serialized.utilityNodes[0][1];
+    const utilEntry = serialized.craftedUtilities[0][1];
 
     expect(Array.isArray(utilEntry.board.chips)).toBe(true);
     expect(utilEntry.board.chips.length).toBe(1);
@@ -152,13 +152,13 @@ describe('state serialization', () => {
     expect(deserialized!.completedLevels.has('level-01')).toBe(true);
     expect(deserialized!.currentLevelIndex).toBe(2);
 
-    expect(deserialized!.puzzleNodes).toBeInstanceOf(Map);
-    expect(deserialized!.puzzleNodes.size).toBe(2);
-    expect(deserialized!.puzzleNodes.get('level-01')!.title).toBe('Puzzle level-01');
+    expect(deserialized!.craftedPuzzles).toBeInstanceOf(Map);
+    expect(deserialized!.craftedPuzzles.size).toBe(2);
+    expect(deserialized!.craftedPuzzles.get('level-01')!.title).toBe('Puzzle level-01');
 
-    expect(deserialized!.utilityNodes).toBeInstanceOf(Map);
-    expect(deserialized!.utilityNodes.size).toBe(1);
-    const util = deserialized!.utilityNodes.get('util-1')!;
+    expect(deserialized!.craftedUtilities).toBeInstanceOf(Map);
+    expect(deserialized!.craftedUtilities.size).toBe(1);
+    const util = deserialized!.craftedUtilities.get('util-1')!;
     expect(util.board.chips).toBeInstanceOf(Map);
     expect(util.board.chips.size).toBe(1);
   });
@@ -168,12 +168,12 @@ describe('state serialization', () => {
     const json = JSON.stringify(serializeState(state));
     const deserialized = deserializeState(json)!;
 
-    const puzzleNode = deserialized.puzzleNodes.get('level-01')!;
-    expect(puzzleNode.bakeMetadata.topoOrder).toEqual(['n1']);
-    expect(puzzleNode.bakeMetadata.inputCount).toBe(1);
+    const puzzleEntry = deserialized.craftedPuzzles.get('level-01')!;
+    expect(puzzleEntry.bakeMetadata.topoOrder).toEqual(['n1']);
+    expect(puzzleEntry.bakeMetadata.socketCount).toBe(1);
 
-    const utilNode = deserialized.utilityNodes.get('util-1')!;
-    expect(utilNode.bakeMetadata.topoOrder).toEqual(['n1']);
+    const utilEntry = deserialized.craftedUtilities.get('util-1')!;
+    expect(utilEntry.bakeMetadata.topoOrder).toEqual(['n1']);
   });
 });
 
@@ -206,8 +206,8 @@ describe('deserializeState error handling', () => {
     expect(result).not.toBeNull();
     expect(result!.completedLevels.size).toBe(0);
     expect(result!.currentLevelIndex).toBe(0);
-    expect(result!.puzzleNodes.size).toBe(0);
-    expect(result!.utilityNodes.size).toBe(0);
+    expect(result!.craftedPuzzles.size).toBe(0);
+    expect(result!.craftedUtilities.size).toBe(0);
   });
 
   it('handles missing fields gracefully (v2)', () => {
@@ -216,8 +216,8 @@ describe('deserializeState error handling', () => {
     expect(result).not.toBeNull();
     expect(result!.completedLevels.size).toBe(0);
     expect(result!.currentLevelIndex).toBe(0);
-    expect(result!.puzzleNodes.size).toBe(0);
-    expect(result!.utilityNodes.size).toBe(0);
+    expect(result!.craftedPuzzles.size).toBe(0);
+    expect(result!.craftedUtilities.size).toBe(0);
   });
 
   it('handles missing fields gracefully (v1 migration)', () => {
@@ -226,8 +226,8 @@ describe('deserializeState error handling', () => {
     expect(result).not.toBeNull();
     expect(result!.completedLevels.size).toBe(0);
     expect(result!.currentLevelIndex).toBe(0);
-    expect(result!.puzzleNodes.size).toBe(0);
-    expect(result!.utilityNodes.size).toBe(0);
+    expect(result!.craftedPuzzles.size).toBe(0);
+    expect(result!.craftedUtilities.size).toBe(0);
   });
 });
 
@@ -264,12 +264,12 @@ describe('v1 → v2 migration', () => {
     expect(result!.currentLevelIndex).toBe(1);
 
     // Utility board should have migrated field names
-    const util = result!.utilityNodes.get('util-1')!;
+    const util = result!.craftedUtilities.get('util-1')!;
     expect(util.board.chips).toBeInstanceOf(Map);
     expect(util.board.chips.size).toBe(1);
     expect(util.board.chips.get('n1')!.type).toBe('offset');
 
-    // Wire should have chipId (not nodeId) and route (not path)
+    // Path should have chipId (not nodeId) and route (not path)
     expect(util.board.paths.length).toBe(1);
     expect(util.board.paths[0].source.chipId).toBe('cp-in-0');
     expect(util.board.paths[0].target.chipId).toBe('n1');
@@ -304,7 +304,7 @@ describe('v1 → v2 migration', () => {
 
     const result = deserializeState(v1Data);
     expect(result).not.toBeNull();
-    const util = result!.utilityNodes.get('u1')!;
+    const util = result!.craftedUtilities.get('u1')!;
     expect(util.board.chips.get('n1')!.type).toBe('scale');
     expect(util.board.paths[0].source.chipId).toBe('cp-in-0');
   });
@@ -320,8 +320,8 @@ describe('localStorage adapter', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.completedLevels.size).toBe(2);
     expect(loaded!.currentLevelIndex).toBe(2);
-    expect(loaded!.puzzleNodes.size).toBe(2);
-    expect(loaded!.utilityNodes.size).toBe(1);
+    expect(loaded!.craftedPuzzles.size).toBe(2);
+    expect(loaded!.craftedUtilities.size).toBe(1);
   });
 
   it('loadFromStorage returns null when nothing saved', () => {
@@ -360,15 +360,15 @@ describe('persistenceFieldsChanged', () => {
     expect(persistenceFieldsChanged(next, prev)).toBe(true);
   });
 
-  it('returns true when puzzleNodes changes', () => {
+  it('returns true when craftedPuzzles changes', () => {
     const prev = makeState();
-    const next = { ...prev, puzzleNodes: new Map(prev.puzzleNodes) };
+    const next = { ...prev, craftedPuzzles: new Map(prev.craftedPuzzles) };
     expect(persistenceFieldsChanged(next, prev)).toBe(true);
   });
 
-  it('returns true when utilityNodes changes', () => {
+  it('returns true when craftedUtilities changes', () => {
     const prev = makeState();
-    const next = { ...prev, utilityNodes: new Map(prev.utilityNodes) };
+    const next = { ...prev, craftedUtilities: new Map(prev.craftedUtilities) };
     expect(persistenceFieldsChanged(next, prev)).toBe(true);
   });
 });
@@ -381,8 +381,8 @@ describe('initPersistence', () => {
     let storeState: HydratableState = {
       completedLevels: new Set(),
       currentLevelIndex: 0,
-      puzzleNodes: new Map(),
-      utilityNodes: new Map(),
+      craftedPuzzles: new Map(),
+      craftedUtilities: new Map(),
     };
 
     const mockStore = {
@@ -397,16 +397,16 @@ describe('initPersistence', () => {
 
     expect(storeState.completedLevels.size).toBe(2);
     expect(storeState.currentLevelIndex).toBe(2);
-    expect(storeState.puzzleNodes.size).toBe(2);
-    expect(storeState.utilityNodes.size).toBe(1);
+    expect(storeState.craftedPuzzles.size).toBe(2);
+    expect(storeState.craftedUtilities.size).toBe(1);
   });
 
   it('does not modify store when no saved state exists', () => {
     let storeState: HydratableState = {
       completedLevels: new Set(),
       currentLevelIndex: 0,
-      puzzleNodes: new Map(),
-      utilityNodes: new Map(),
+      craftedPuzzles: new Map(),
+      craftedUtilities: new Map(),
     };
 
     const mockStore = {
@@ -508,22 +508,22 @@ describe('auto-save via subscribe', () => {
 });
 
 describe('data footprint', () => {
-  it('serialized state with 15 levels and 5 utility nodes is under 1MB', () => {
+  it('serialized state with 15 levels and 5 utility chips is under 1MB', () => {
     const state: HydratableState = {
       completedLevels: new Set(
         Array.from({ length: 15 }, (_, i) => `level-${String(i + 1).padStart(2, '0')}`),
       ),
       currentLevelIndex: 14,
-      puzzleNodes: new Map(
+      craftedPuzzles: new Map(
         Array.from({ length: 15 }, (_, i) => {
           const id = `level-${String(i + 1).padStart(2, '0')}`;
-          return [id, makePuzzleEntry(id)] as [string, PuzzleNodeEntry];
+          return [id, makePuzzleEntry(id)] as [string, CraftedPuzzleEntry];
         }),
       ),
-      utilityNodes: new Map(
+      craftedUtilities: new Map(
         Array.from({ length: 5 }, (_, i) => {
           const id = `util-${i}`;
-          return [id, makeUtilityEntry(id)] as [string, UtilityNodeEntry];
+          return [id, makeUtilityEntry(id)] as [string, CraftedUtilityEntry];
         }),
       ),
     };

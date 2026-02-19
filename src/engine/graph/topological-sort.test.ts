@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { topologicalSort, topologicalSortWithDepths } from './topological-sort.ts';
-import { createWire } from '../../shared/types/index.ts';
-import type { Wire, NodeId } from '../../shared/types/index.ts';
+import { createPath } from '../../shared/types/index.ts';
+import type { Path, ChipId } from '../../shared/types/index.ts';
 
-/** Helper to create a minimal wire between two nodes */
-function wire(sourceId: NodeId, targetId: NodeId): Wire {
-  return createWire(
+/** Helper to create a minimal path between two chips */
+function wire(sourceId: ChipId, targetId: ChipId): Path {
+  return createPath(
     `${sourceId}->${targetId}`,
-    { chipId: sourceId, portIndex: 0, side: 'output' },
-    { chipId: targetId, portIndex: 0, side: 'input' },
+    { chipId: sourceId, portIndex: 0, side: 'plug' },
+    { chipId: targetId, portIndex: 0, side: 'socket' },
   );
 }
 
 /** Check that `a` appears before `b` in the sorted order */
-function assertBefore(sorted: NodeId[], a: NodeId, b: NodeId) {
+function assertBefore(sorted: ChipId[], a: ChipId, b: ChipId) {
   const ia = sorted.indexOf(a);
   const ib = sorted.indexOf(b);
   expect(ia).not.toBe(-1);

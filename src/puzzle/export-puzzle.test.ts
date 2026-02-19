@@ -17,9 +17,9 @@ function makeCustomPuzzle(overrides: Partial<CustomPuzzle> = {}): CustomPuzzle {
       { direction: 'off' },
     ],
     targetSamples: new Map([[3, [0, 50, 100, 50, 0, -50, -100, -50]]]),
-    initialNodes: [],
-    initialWires: [],
-    allowedNodes: null,
+    initialChips: [],
+    initialPaths: [],
+    allowedChips: null,
     ...overrides,
   };
 }
@@ -59,28 +59,28 @@ describe('exportCustomPuzzleAsSource', () => {
     expect(result).toContain('samples: [0, 50, 100, 50, 0, -50, -100, -50]');
   });
 
-  it('exports allowedNodes as null when not set', () => {
+  it('exports allowedChips as null when not set', () => {
     const result = exportCustomPuzzleAsSource(makeCustomPuzzle());
-    expect(result).toContain('allowedNodes: null');
+    expect(result).toContain('allowedChips: null');
   });
 
-  it('exports allowedNodes record when set', () => {
+  it('exports allowedChips record when set', () => {
     const puzzle = makeCustomPuzzle({
-      allowedNodes: { invert: -1, mix: 3 },
+      allowedChips: { invert: -1, mix: 3 },
     });
     const result = exportCustomPuzzleAsSource(puzzle);
-    expect(result).toContain('allowedNodes: { invert: -1, mix: 3 }');
+    expect(result).toContain('allowedChips: { invert: -1, mix: 3 }');
   });
 
-  it('exports initialNodes when present', () => {
+  it('exports initialChips when present', () => {
     const puzzle = makeCustomPuzzle({
-      initialNodes: [
-        { id: 'node-1', type: 'invert', position: { col: 20, row: 10 }, params: {}, inputCount: 1, outputCount: 1 },
-        { id: 'node-2', type: 'mix', position: { col: 30, row: 15 }, params: { mode: 'add' }, inputCount: 2, outputCount: 1, rotation: 90 },
+      initialChips: [
+        { id: 'node-1', type: 'invert', position: { col: 20, row: 10 }, params: {}, socketCount: 1, plugCount: 1 },
+        { id: 'node-2', type: 'mix', position: { col: 30, row: 15 }, params: { mode: 'add' }, socketCount: 2, plugCount: 1, rotation: 90 },
       ],
     });
     const result = exportCustomPuzzleAsSource(puzzle);
-    expect(result).toContain('initialNodes: [');
+    expect(result).toContain('initialChips: [');
     expect(result).toContain("id: 'node-1'");
     expect(result).toContain("type: 'invert'");
     expect(result).toContain('position: { col: 20, row: 10 }');
@@ -89,26 +89,26 @@ describe('exportCustomPuzzleAsSource', () => {
     expect(result).toContain('"mode":"add"');
   });
 
-  it('exports initialWires when present', () => {
+  it('exports initialPaths when present', () => {
     const puzzle = makeCustomPuzzle({
-      initialWires: [
+      initialPaths: [
         { source: { chipId: 'node-1', portIndex: 0 }, target: { chipId: 'node-2', portIndex: 0 } },
       ],
     });
     const result = exportCustomPuzzleAsSource(puzzle);
-    expect(result).toContain('initialWires: [');
+    expect(result).toContain('initialPaths: [');
     expect(result).toContain("chipId: 'node-1'");
     expect(result).toContain("chipId: 'node-2'");
   });
 
-  it('omits initialNodes when empty', () => {
+  it('omits initialChips when empty', () => {
     const result = exportCustomPuzzleAsSource(makeCustomPuzzle());
-    expect(result).not.toContain('initialNodes');
+    expect(result).not.toContain('initialChips');
   });
 
-  it('omits initialWires when empty', () => {
+  it('omits initialPaths when empty', () => {
     const result = exportCustomPuzzleAsSource(makeCustomPuzzle());
-    expect(result).not.toContain('initialWires');
+    expect(result).not.toContain('initialPaths');
   });
 
   it('uses puzzle title as test case name', () => {

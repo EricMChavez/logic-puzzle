@@ -8,7 +8,7 @@
  * - 270°: inputs=bottom, outputs=top
  */
 
-import type { NodeRotation } from '../types/index.ts';
+import type { ChipRotation } from '../types/index.ts';
 
 /** Physical side of a node where ports can appear */
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
@@ -25,7 +25,7 @@ export type WireDirection = 'east' | 'west' | 'north' | 'south';
  */
 export function getRotatedPortSide(
   logicalSide: 'input' | 'output',
-  rotation: NodeRotation,
+  rotation: ChipRotation,
 ): PortSide {
   // Base sides: input=left, output=right
   // Rotation cycles: left -> top -> right -> bottom -> left
@@ -47,7 +47,7 @@ export function getRotatedPortSide(
 export function getRotatedSize(
   cols: number,
   rows: number,
-  rotation: NodeRotation,
+  rotation: ChipRotation,
 ): { cols: number; rows: number } {
   if (rotation === 90 || rotation === 270) {
     return { cols: rows, rows: cols };
@@ -80,7 +80,7 @@ export function getPortApproachDirection(side: PortSide): WireDirection {
  */
 export function rotateExplicitSide(
   side: PortSide,
-  rotation: NodeRotation,
+  rotation: ChipRotation,
 ): PortSide {
   const sides: PortSide[] = ['left', 'top', 'right', 'bottom'];
   const baseIndex = sides.indexOf(side);

@@ -6,10 +6,10 @@ import { cpInputId, cpOutputId, isConnectionPointNode } from './connection-point
 function makeMetadata(overrides: Partial<BakeMetadata> = {}): BakeMetadata {
   return {
     topoOrder: [],
-    nodeConfigs: [],
+    chipConfigs: [],
     edges: [],
-    inputCount: 1,
-    outputCount: 1,
+    socketCount: 1,
+    plugCount: 1,
     ...overrides,
   };
 }
@@ -22,17 +22,17 @@ describe('gameboardFromBakeMetadata', () => {
 
   it('single invert node → 3 nodes (2 CPs + 1 processing), correct wires', () => {
     const meta = makeMetadata({
-      inputCount: 1,
-      outputCount: 1,
+      socketCount: 1,
+      plugCount: 1,
       topoOrder: [cpInputId(0), 'n1', cpOutputId(0)],
-      nodeConfigs: [
-        { id: cpInputId(0), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-        { id: 'n1', type: 'invert', params: {}, inputCount: 1, outputCount: 1 },
-        { id: cpOutputId(0), type: 'connection-output', params: {}, inputCount: 1, outputCount: 0 },
+      chipConfigs: [
+        { id: cpInputId(0), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+        { id: 'n1', type: 'invert', params: {}, socketCount: 1, plugCount: 1 },
+        { id: cpOutputId(0), type: 'connection-output', params: {}, socketCount: 1, plugCount: 0 },
       ],
       edges: [
-        { fromNodeId: cpInputId(0), fromPort: 0, toNodeId: 'n1', toPort: 0 },
-        { fromNodeId: 'n1', fromPort: 0, toNodeId: cpOutputId(0), toPort: 0 },
+        { fromChipId: cpInputId(0), fromPort: 0, toChipId: 'n1', toPort: 0 },
+        { fromChipId: 'n1', fromPort: 0, toChipId: cpOutputId(0), toPort: 0 },
       ],
     });
 
@@ -45,8 +45,8 @@ describe('gameboardFromBakeMetadata', () => {
 
     const n1 = board.chips.get('n1')!;
     expect(n1.type).toBe('invert');
-    expect(n1.inputCount).toBe(1);
-    expect(n1.outputCount).toBe(1);
+    expect(n1.socketCount).toBe(1);
+    expect(n1.plugCount).toBe(1);
 
     expect(board.paths).toHaveLength(2);
     expect(board.paths[0].source.chipId).toBe(cpInputId(0));
@@ -57,23 +57,23 @@ describe('gameboardFromBakeMetadata', () => {
 
   it('multi-node graph → all nodes present, non-overlapping positions', () => {
     const meta = makeMetadata({
-      inputCount: 2,
-      outputCount: 1,
+      socketCount: 2,
+      plugCount: 1,
       topoOrder: [cpInputId(0), cpInputId(1), 'a', 'b', 'c', cpOutputId(0)],
-      nodeConfigs: [
-        { id: cpInputId(0), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-        { id: cpInputId(1), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-        { id: 'a', type: 'invert', params: {}, inputCount: 1, outputCount: 1 },
-        { id: 'b', type: 'invert', params: {}, inputCount: 1, outputCount: 1 },
-        { id: 'c', type: 'mix', params: { mode: 'Add' }, inputCount: 2, outputCount: 1 },
-        { id: cpOutputId(0), type: 'connection-output', params: {}, inputCount: 1, outputCount: 0 },
+      chipConfigs: [
+        { id: cpInputId(0), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+        { id: cpInputId(1), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+        { id: 'a', type: 'invert', params: {}, socketCount: 1, plugCount: 1 },
+        { id: 'b', type: 'invert', params: {}, socketCount: 1, plugCount: 1 },
+        { id: 'c', type: 'mix', params: { mode: 'Add' }, socketCount: 2, plugCount: 1 },
+        { id: cpOutputId(0), type: 'connection-output', params: {}, socketCount: 1, plugCount: 0 },
       ],
       edges: [
-        { fromNodeId: cpInputId(0), fromPort: 0, toNodeId: 'a', toPort: 0 },
-        { fromNodeId: cpInputId(1), fromPort: 0, toNodeId: 'b', toPort: 0 },
-        { fromNodeId: 'a', fromPort: 0, toNodeId: 'c', toPort: 0 },
-        { fromNodeId: 'b', fromPort: 0, toNodeId: 'c', toPort: 1 },
-        { fromNodeId: 'c', fromPort: 0, toNodeId: cpOutputId(0), toPort: 0 },
+        { fromChipId: cpInputId(0), fromPort: 0, toChipId: 'a', toPort: 0 },
+        { fromChipId: cpInputId(1), fromPort: 0, toChipId: 'b', toPort: 0 },
+        { fromChipId: 'a', fromPort: 0, toChipId: 'c', toPort: 0 },
+        { fromChipId: 'b', fromPort: 0, toChipId: 'c', toPort: 1 },
+        { fromChipId: 'c', fromPort: 0, toChipId: cpOutputId(0), toPort: 0 },
       ],
     });
 
@@ -99,15 +99,15 @@ describe('gameboardFromBakeMetadata', () => {
 
   it('direct CP-to-CP → only CP nodes', () => {
     const meta = makeMetadata({
-      inputCount: 1,
-      outputCount: 1,
+      socketCount: 1,
+      plugCount: 1,
       topoOrder: [cpInputId(0), cpOutputId(0)],
-      nodeConfigs: [
-        { id: cpInputId(0), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-        { id: cpOutputId(0), type: 'connection-output', params: {}, inputCount: 1, outputCount: 0 },
+      chipConfigs: [
+        { id: cpInputId(0), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+        { id: cpOutputId(0), type: 'connection-output', params: {}, socketCount: 1, plugCount: 0 },
       ],
       edges: [
-        { fromNodeId: cpInputId(0), fromPort: 0, toNodeId: cpOutputId(0), toPort: 0 },
+        { fromChipId: cpInputId(0), fromPort: 0, toChipId: cpOutputId(0), toPort: 0 },
       ],
     });
 
@@ -122,12 +122,12 @@ describe('gameboardFromBakeMetadata', () => {
 
   it('preserves node params from metadata', () => {
     const meta = makeMetadata({
-      inputCount: 1,
-      outputCount: 1,
-      nodeConfigs: [
-        { id: cpInputId(0), type: 'connection-input', params: {}, inputCount: 0, outputCount: 1 },
-        { id: 'n1', type: 'threshold', params: { threshold: 42 }, inputCount: 1, outputCount: 1 },
-        { id: cpOutputId(0), type: 'connection-output', params: {}, inputCount: 1, outputCount: 0 },
+      socketCount: 1,
+      plugCount: 1,
+      chipConfigs: [
+        { id: cpInputId(0), type: 'connection-input', params: {}, socketCount: 0, plugCount: 1 },
+        { id: 'n1', type: 'threshold', params: { threshold: 42 }, socketCount: 1, plugCount: 1 },
+        { id: cpOutputId(0), type: 'connection-output', params: {}, socketCount: 1, plugCount: 0 },
       ],
       edges: [],
     });

@@ -34,6 +34,7 @@ export function hitTestBackButton(x: number, y: number, cellSize: number): boole
 
 export interface BackButtonRenderState {
   hovered: boolean;
+  pulsing: boolean;
 }
 
 /** Inset padding ratio (fraction of cell size) */
@@ -61,21 +62,42 @@ export function drawBackButton(
   const bh = r.height - pad * 2;
   const cr = Math.round(bh * CORNER_RADIUS_RATIO);
 
-  const borderColor = tokens.meterBorder;
-  const iconColor = state.hovered ? tokens.textPrimary : tokens.meterBorder;
+  // Pulsing green glow when puzzle is solved
+  const pulse = state.pulsing
+    ? 0.5 + 0.5 * Math.sin((performance.now() / 1200) * Math.PI * 2)
+    : 0;
+
+  const borderColor = state.pulsing ? `rgba(80, 200, 120, ${0.6 + 0.4 * pulse})` : tokens.meterBorder;
+  const iconColor = state.pulsing
+    ? `rgba(80, 200, 120, ${0.7 + 0.3 * pulse})`
+    : state.hovered ? tokens.textPrimary : tokens.meterBorder;
 
   ctx.save();
 
+  // Green glow pass when pulsing
+  if (state.pulsing) {
+    ctx.save();
+    ctx.shadowColor = `rgba(80, 200, 120, ${0.5 + 0.5 * pulse})`;
+    ctx.shadowBlur = cellSize * (0.8 + 1.0 * pulse);
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, cr);
+    ctx.fillStyle = `rgba(80, 200, 120, ${0.06 + 0.09 * pulse})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
   // Container background — very subtle fill, just enough to read as a surface
-  ctx.fillStyle = state.hovered ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)';
+  ctx.fillStyle = state.pulsing
+    ? `rgba(80, 200, 120, ${0.06 + 0.08 * pulse})`
+    : state.hovered ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)';
   ctx.beginPath();
   ctx.roundRect(bx, by, bw, bh, cr);
   ctx.fill();
 
   // Container border — thin, matching meter border color
   ctx.strokeStyle = borderColor;
-  ctx.lineWidth = state.hovered ? 1.5 : 1;
-  ctx.globalAlpha = state.hovered ? 0.9 : 0.5;
+  ctx.lineWidth = state.pulsing ? 1.5 : state.hovered ? 1.5 : 1;
+  ctx.globalAlpha = state.pulsing ? 1 : state.hovered ? 0.9 : 0.5;
   ctx.beginPath();
   ctx.roundRect(bx, by, bw, bh, cr);
   ctx.stroke();

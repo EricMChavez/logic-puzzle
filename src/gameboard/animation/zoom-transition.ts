@@ -294,8 +294,7 @@ export function gridRectToViewport(
   const cx = (rect.col + rect.cols / 2) * cellSize + offset.x;
   const cy = (rect.row - 0.5 + rect.rows / 2) * cellSize + offset.y;
 
-  // Start from the node body dimensions
-  const bodyW = rect.cols * cellSize;
+  // Start from the node body height
   const bodyH = rect.rows * cellSize;
 
   // Expand to 16:9, always matching the node's height

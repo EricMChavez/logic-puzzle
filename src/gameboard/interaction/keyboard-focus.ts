@@ -3,7 +3,7 @@
  * Module-level singleton (same pattern as theme-manager.ts).
  */
 
-import type { PortRef, NodeState, Wire } from '../../shared/types/index.ts';
+import type { PortRef, ChipState, Path } from '../../shared/types/index.ts';
 import type { PuzzleDefinition, SlotConfig } from '../../puzzle/types.ts';
 import { buildSlotConfig } from '../../puzzle/types.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
@@ -59,8 +59,8 @@ export function setFocusVisible(visible: boolean): void {
  * - After all nodes: active connection points (inputs then outputs)
  */
 export function computeTabOrder(
-  nodes: ReadonlyMap<string, NodeState>,
-  wires: ReadonlyArray<Wire>,
+  nodes: ReadonlyMap<string, ChipState>,
+  wires: ReadonlyArray<Path>,
   expandedNodeId: string | null,
   activePuzzle: PuzzleDefinition | null,
 ): KeyboardFocusTarget[] {
@@ -77,12 +77,12 @@ export function computeTabOrder(
     // If this is the expanded node, splice its ports and connected wires
     if (expandedNodeId === node.id) {
       // Input ports
-      for (let i = 0; i < node.inputCount; i++) {
-        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'input' } });
+      for (let i = 0; i < node.socketCount; i++) {
+        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'socket' } });
       }
       // Output ports
-      for (let i = 0; i < node.outputCount; i++) {
-        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'output' } });
+      for (let i = 0; i < node.plugCount; i++) {
+        order.push({ type: 'port', portRef: { chipId: node.id, portIndex: i, side: 'plug' } });
       }
       // Wires connected to this node
       for (const wire of wires) {
@@ -119,23 +119,23 @@ export function computeTabOrder(
  */
 export function computeValidWiringTargets(
   fromPort: PortRef,
-  nodes: ReadonlyMap<string, NodeState>,
-  wires: ReadonlyArray<Wire>,
+  nodes: ReadonlyMap<string, ChipState>,
+  wires: ReadonlyArray<Path>,
 ): PortRef[] {
   const targets: PortRef[] = [];
-  const targetSide = fromPort.side === 'output' ? 'input' : 'output';
+  const targetSide: 'socket' | 'plug' = fromPort.side === 'plug' ? 'socket' : 'plug';
 
-  // Build a set of occupied ports (each port can only have one wire)
+  // Build a set of occupied ports (each port can only have one path)
   const occupiedPorts = new Set<string>();
   for (const wire of wires) {
-    occupiedPorts.add(`${wire.source.chipId}:${wire.source.portIndex}:output`);
-    occupiedPorts.add(`${wire.target.chipId}:${wire.target.portIndex}:input`);
+    occupiedPorts.add(`${wire.source.chipId}:${wire.source.portIndex}:plug`);
+    occupiedPorts.add(`${wire.target.chipId}:${wire.target.portIndex}:socket`);
   }
 
   for (const node of nodes.values()) {
     if (node.id === fromPort.chipId) continue;
 
-    const portCount = targetSide === 'input' ? node.inputCount : node.outputCount;
+    const portCount = targetSide === 'socket' ? node.socketCount : node.plugCount;
     for (let i = 0; i < portCount; i++) {
       const candidate: PortRef = { chipId: node.id, portIndex: i, side: targetSide };
 
@@ -159,8 +159,8 @@ export function computeValidWiringTargets(
  */
 export function advanceFocus(
   direction: 1 | -1,
-  nodes: ReadonlyMap<string, NodeState>,
-  wires: ReadonlyArray<Wire>,
+  nodes: ReadonlyMap<string, ChipState>,
+  wires: ReadonlyArray<Path>,
   expandedNodeId: string | null,
   activePuzzle: PuzzleDefinition | null,
 ): void {

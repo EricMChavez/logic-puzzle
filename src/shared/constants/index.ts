@@ -133,16 +133,16 @@ export const PLAYBACK_BAR = {
 export const BACK_BUTTON = {
   COL_START: 0,
   COL_END: 3,     // inclusive — 4 cols wide
-  ROW_START: 0,
-  ROW_END: 1,     // inclusive — 2 rows tall
+  ROW_START: -1,
+  ROW_END: 0,     // inclusive — 2 rows tall, centered on top edge
 } as const;
 
 /** Record button grid region (top-right, creative mode only) */
 export const RECORD_BUTTON = {
   COL_START: 62,
   COL_END: 65,    // inclusive — 4 cols wide
-  ROW_START: 0,
-  ROW_END: 1,     // inclusive — 2 rows tall
+  ROW_START: -1,
+  ROW_END: 0,     // inclusive — 2 rows tall, centered on top edge
 } as const;
 
 /** Chip drawer grid region (bottom of gameboard) */
@@ -167,6 +167,22 @@ export const CHIP_DRAWER = {
   MINI_CELL_RATIO: 0.6,
 } as const;
 
+/** Tutorial overlay text rendering configuration */
+export const TUTORIAL_TEXT = {
+  /** Font size as a ratio of cellSize */
+  FONT_SIZE_RATIO: 0.6,
+  /** Max text width as a fraction of playable area width */
+  MAX_WIDTH_RATIO: 0.7,
+  /** Vertical center position as a fraction of total height */
+  VERTICAL_CENTER: 0.5,
+  /** Text opacity */
+  OPACITY: 0.35,
+  /** Line height multiplier */
+  LINE_HEIGHT: 1.5,
+} as const;
+
+export { RETRO_PANEL, RETRO_SCREW } from './retro-plastic.ts';
+
 /** Display labels for node types (derived from registry for v2 nodes) */
 export const NODE_TYPE_LABELS: Record<string, string> = {
   offset: 'Offset',
@@ -174,7 +190,7 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
   threshold: 'Threshold',
   max: 'Max',
   min: 'Min',
-  split: 'Split',
+  duplicate: 'Duplicate',
   memory: 'Memory',
   // Custom blank (unsaved utility node)
   'custom-blank': 'Custom',

@@ -3,25 +3,27 @@ import type { GameStore } from '../index.ts';
 import type { BakeMetadata } from '../../engine/baking/index.ts';
 import type { GameboardState } from '../../shared/types/index.ts';
 import { generateId } from '../../shared/generate-id.ts';
-import { hotReplaceNodes } from '../hot-replace.ts';
+import { hotReplaceChips } from '../hot-replace.ts';
 
-/** A completed puzzle node available in the palette */
-export interface PuzzleNodeEntry {
+/** A completed puzzle chip available in the palette */
+export interface CraftedPuzzleEntry {
   puzzleId: string;
   title: string;
   description: string;
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
   bakeMetadata: BakeMetadata;
   versionHash: string;
+  /** Saved gameboard state from the player's solution (restored on re-entry) */
+  savedBoard?: GameboardState;
 }
 
-/** A user-created utility node available in the palette */
-export interface UtilityNodeEntry {
+/** A user-created utility chip available in the palette */
+export interface CraftedUtilityEntry {
   utilityId: string;
   title: string;
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
   bakeMetadata: BakeMetadata;
   board: GameboardState;
   versionHash: string;
@@ -30,120 +32,125 @@ export interface UtilityNodeEntry {
 }
 
 export interface PaletteSlice {
-  /** Completed puzzle nodes available for placement */
-  puzzleNodes: Map<string, PuzzleNodeEntry>;
-  /** User-created utility nodes */
-  utilityNodes: Map<string, UtilityNodeEntry>;
+  /** Completed puzzle chips available for placement */
+  craftedPuzzles: Map<string, CraftedPuzzleEntry>;
+  /** User-created utility chips */
+  craftedUtilities: Map<string, CraftedUtilityEntry>;
 
-  /** Add a completed puzzle node to the palette */
-  addPuzzleNode: (entry: PuzzleNodeEntry) => void;
-  /** Update bake metadata for an existing puzzle node (re-solve) */
-  updatePuzzleNode: (puzzleId: string, metadata: BakeMetadata) => void;
+  /** Add a completed puzzle chip to the palette */
+  addCraftedPuzzle: (entry: CraftedPuzzleEntry) => void;
+  /** Update bake metadata for an existing puzzle chip (re-solve) */
+  updateCraftedPuzzle: (puzzleId: string, metadata: BakeMetadata, savedBoard?: GameboardState) => void;
 
-  /** Add a utility node to the palette */
-  addUtilityNode: (entry: UtilityNodeEntry) => void;
-  /** Update metadata and board for an existing utility node */
-  updateUtilityNode: (utilityId: string, metadata: BakeMetadata, board: GameboardState) => void;
-  /** Delete a utility node from the palette */
-  deleteUtilityNode: (utilityId: string) => void;
+  /** Add a utility chip to the palette */
+  addCraftedUtility: (entry: CraftedUtilityEntry) => void;
+  /** Update metadata and board for an existing utility chip */
+  updateCraftedUtility: (utilityId: string, metadata: BakeMetadata, board: GameboardState) => void;
+  /** Delete a utility chip from the palette */
+  deleteCraftedUtility: (utilityId: string) => void;
 }
 
 export const createPaletteSlice: StateCreator<GameStore, [], [], PaletteSlice> = (set, get) => ({
-  puzzleNodes: new Map(),
-  utilityNodes: new Map(),
+  craftedPuzzles: new Map(),
+  craftedUtilities: new Map(),
 
-  addPuzzleNode: (entry) =>
+  addCraftedPuzzle: (entry) =>
     set((state) => {
-      const next = new Map(state.puzzleNodes);
+      const next = new Map(state.craftedPuzzles);
       next.set(entry.puzzleId, { ...entry, versionHash: generateId() });
-      return { puzzleNodes: next };
+      return { craftedPuzzles: next };
     }),
 
-  updatePuzzleNode: (puzzleId, metadata) =>
+  updateCraftedPuzzle: (puzzleId, metadata, savedBoard) =>
     set(() => {
       const state = get();
-      const existing = state.puzzleNodes.get(puzzleId);
+      const existing = state.craftedPuzzles.get(puzzleId);
       if (!existing) return {};
       const newHash = generateId();
-      const next = new Map(state.puzzleNodes);
-      next.set(puzzleId, { ...existing, bakeMetadata: metadata, versionHash: newHash });
+      const next = new Map(state.craftedPuzzles);
+      next.set(puzzleId, {
+        ...existing,
+        bakeMetadata: metadata,
+        versionHash: newHash,
+        ...(savedBoard !== undefined ? { savedBoard } : {}),
+      });
 
-      const replacements = hotReplaceNodes(
+      const replacements = hotReplaceChips(
         'puzzle:' + puzzleId,
-        { inputCount: existing.inputCount, outputCount: existing.outputCount, libraryVersionHash: newHash },
+        { socketCount: existing.socketCount, plugCount: existing.plugCount, libraryVersionHash: newHash },
         state.activeBoard,
         state.boardStack,
-        state.utilityNodes,
+        state.craftedUtilities,
       );
 
-      return { puzzleNodes: next, ...replacements };
+      return { craftedPuzzles: next, ...replacements };
     }),
 
-  addUtilityNode: (entry) =>
+  addCraftedUtility: (entry) =>
     set((state) => {
-      const next = new Map(state.utilityNodes);
+      const next = new Map(state.craftedUtilities);
       next.set(entry.utilityId, { ...entry, versionHash: generateId() });
-      return { utilityNodes: next };
+      return { craftedUtilities: next };
     }),
 
-  updateUtilityNode: (utilityId, metadata, board) =>
+  updateCraftedUtility: (utilityId, metadata, board) =>
     set(() => {
       const state = get();
-      const existing = state.utilityNodes.get(utilityId);
+      const existing = state.craftedUtilities.get(utilityId);
       if (!existing) return {};
       const newHash = generateId();
-      const next = new Map(state.utilityNodes);
+      const next = new Map(state.craftedUtilities);
       next.set(utilityId, {
         ...existing,
         bakeMetadata: metadata,
         board,
         versionHash: newHash,
-        inputCount: metadata.inputCount,
-        outputCount: metadata.outputCount,
+        socketCount: metadata.socketCount,
+        plugCount: metadata.plugCount,
         cpLayout: metadata.cpLayout,
       });
 
-      const replacements = hotReplaceNodes(
+      const replacements = hotReplaceChips(
         'utility:' + utilityId,
         {
-          inputCount: metadata.inputCount,
-          outputCount: metadata.outputCount,
+          socketCount: metadata.socketCount,
+          plugCount: metadata.plugCount,
           libraryVersionHash: newHash,
           cpLayout: metadata.cpLayout,
         },
         state.activeBoard,
         state.boardStack,
-        // Pass the updated utilityNodes map so hot-replace sees the updated board
+        // Pass the updated craftedUtilities map so hot-replace sees the updated board
         next,
       );
 
       return {
-        utilityNodes: replacements.utilityNodes ?? next,
+        craftedUtilities: replacements.craftedUtilities ?? next,
         ...(replacements.activeBoard ? { activeBoard: replacements.activeBoard } : {}),
         ...(replacements.boardStack ? { boardStack: replacements.boardStack } : {}),
       };
     }),
 
-  deleteUtilityNode: (utilityId) =>
+  deleteCraftedUtility: (utilityId) =>
     set(() => {
       const state = get();
-      if (!state.utilityNodes.has(utilityId)) return {};
-      const nodeType = 'utility:' + utilityId;
-      const next = new Map(state.utilityNodes);
+      if (!state.craftedUtilities.has(utilityId)) return {};
+      const chipType = 'utility:' + utilityId;
+      const next = new Map(state.craftedUtilities);
       next.delete(utilityId);
 
-      const result: Record<string, unknown> = { utilityNodes: next };
+      const result: Record<string, unknown> = { craftedUtilities: next };
 
       // Cascade: remove instances from activeBoard
       if (state.activeBoard) {
-        const patched = removeNodesFromBoard(state.activeBoard, nodeType);
+        const patched = removeChipsFromBoard(state.activeBoard, chipType);
         if (patched) result.activeBoard = patched;
       }
 
       // Cascade: remove instances from boardStack
       let stackChanged = false;
       const newStack = state.boardStack.map((entry) => {
-        const patched = removeNodesFromBoard(entry.board, nodeType);
+        const patched = removeChipsFromBoard(entry.board, chipType);
         if (patched) {
           stackChanged = true;
           return { ...entry, board: patched };
@@ -152,36 +159,36 @@ export const createPaletteSlice: StateCreator<GameStore, [], [], PaletteSlice> =
       });
       if (stackChanged) result.boardStack = newStack;
 
-      // Cascade: remove instances from other utility nodes' internal boards
+      // Cascade: remove instances from other utility chips' internal boards
       let utilityChanged = false;
       const newUtility = new Map(next);
       for (const [id, entry] of newUtility) {
-        const patched = removeNodesFromBoard(entry.board, nodeType);
+        const patched = removeChipsFromBoard(entry.board, chipType);
         if (patched) {
           newUtility.set(id, { ...entry, board: patched });
           utilityChanged = true;
         }
       }
-      if (utilityChanged) result.utilityNodes = newUtility;
+      if (utilityChanged) result.craftedUtilities = newUtility;
 
       return result;
     }),
 });
 
-/** Remove all nodes of the given type from a board, plus any wires connected to them. */
-function removeNodesFromBoard(board: GameboardState, nodeType: string): GameboardState | null {
+/** Remove all chips of the given type from a board, plus any paths connected to them. */
+function removeChipsFromBoard(board: GameboardState, chipType: string): GameboardState | null {
   const removedIds = new Set<string>();
-  for (const [id, node] of board.chips) {
-    if (node.type === nodeType) removedIds.add(id);
+  for (const [id, chip] of board.chips) {
+    if (chip.type === chipType) removedIds.add(id);
   }
   if (removedIds.size === 0) return null;
 
-  const nodes = new Map(board.chips);
-  for (const id of removedIds) nodes.delete(id);
+  const chips = new Map(board.chips);
+  for (const id of removedIds) chips.delete(id);
 
   const paths = board.paths.filter(
     (w) => !removedIds.has(w.source.chipId) && !removedIds.has(w.target.chipId),
   );
 
-  return { ...board, chips: nodes, paths };
+  return { ...board, chips, paths };
 }

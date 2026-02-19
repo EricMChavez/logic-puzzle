@@ -200,13 +200,13 @@ describe('drawPlaybackBar', () => {
     };
   }
 
-  const tokens = {} as any;
+  const tokens = { meterBorder: '#666666', meterBorderMatch: '#00cc00', meterBorderMismatch: '#cc0000' } as any;
 
   it('calls canvas drawing operations without throwing', () => {
     const { ctx, calls } = createMockCtx();
 
     expect(() => {
-      drawPlaybackBar(ctx, tokens, { playMode: 'paused', hoveredButton: null, pressedButton: null }, 20);
+      drawPlaybackBar(ctx, tokens, { playMode: 'paused', hoveredButton: null, pressedButton: null, indicatorState: 'neutral', viewportTopY: -40 }, 20);
     }).not.toThrow();
 
     expect(calls).toContain('save');
@@ -219,7 +219,7 @@ describe('drawPlaybackBar', () => {
     const { ctx } = createMockCtx();
     (ctx as any).fill = () => { fillCalls++; };
 
-    drawPlaybackBar(ctx, tokens, { playMode: 'paused', hoveredButton: null, pressedButton: null }, 20);
+    drawPlaybackBar(ctx, tokens, { playMode: 'paused', hoveredButton: null, pressedButton: null, indicatorState: 'neutral', viewportTopY: -40 }, 20);
     // fill calls: panels (2 fills + 2 sheen fills) + screws (2 fills) + icons (4 fills)
     expect(fillCalls).toBeGreaterThan(1);
   });
@@ -229,7 +229,7 @@ describe('drawPlaybackBar', () => {
     const { ctx } = createMockCtx();
     (ctx as any).fillRect = (...args: unknown[]) => { fillRectCalls.push(args); };
 
-    drawPlaybackBar(ctx, tokens, { playMode: 'playing', hoveredButton: null, pressedButton: null }, 20);
+    drawPlaybackBar(ctx, tokens, { playMode: 'playing', hoveredButton: null, pressedButton: null, indicatorState: 'neutral', viewportTopY: -40 }, 20);
     // fillRect for: tray bg, tray shadow, panel details, button fills, depressed overlay, icon rects
     expect(fillRectCalls.length).toBeGreaterThan(0);
   });

@@ -1,62 +1,62 @@
-import type { NodeId, Wire } from '../../shared/types/index.ts';
+import type { ChipId, Path } from '../../shared/types/index.ts';
 import type { Result } from '../../shared/result/index.ts';
 import { ok, err } from '../../shared/result/index.ts';
 
 export interface CycleError {
   message: string;
-  /** Node IDs forming the cycle */
-  cyclePath: NodeId[];
+  /** Chip IDs forming the cycle */
+  cyclePath: ChipId[];
 }
 
 export interface TopologicalResult {
-  order: NodeId[];
-  /** Longest path from any root (zero in-degree node) to each node */
-  depths: Map<NodeId, number>;
-  /** Maximum depth across all nodes */
+  order: ChipId[];
+  /** Longest path from any root (zero in-degree chip) to each chip */
+  depths: Map<ChipId, number>;
+  /** Maximum depth across all chips */
   maxDepth: number;
 }
 
 /**
  * Topological sort using Kahn's algorithm.
- * Returns nodes ordered so every node evaluates after its dependencies,
+ * Returns chips ordered so every chip evaluates after its dependencies,
  * or an error with the cycle path if a cycle exists.
- * Disconnected nodes (no edges) are included in the output.
+ * Disconnected chips (no edges) are included in the output.
  */
 export function topologicalSort(
-  chipIds: NodeId[],
-  wires: Wire[],
-): Result<NodeId[], CycleError> {
+  chipIds: ChipId[],
+  paths: Path[],
+): Result<ChipId[], CycleError> {
   // Build adjacency list and in-degree map
-  const inDegree = new Map<NodeId, number>();
-  const adjacency = new Map<NodeId, NodeId[]>();
+  const inDegree = new Map<ChipId, number>();
+  const adjacency = new Map<ChipId, ChipId[]>();
 
   for (const id of chipIds) {
     inDegree.set(id, 0);
     adjacency.set(id, []);
   }
 
-  for (const wire of wires) {
-    const from = wire.source.chipId;
-    const to = wire.target.chipId;
+  for (const path of paths) {
+    const from = path.source.chipId;
+    const to = path.target.chipId;
     adjacency.get(from)!.push(to);
     inDegree.set(to, (inDegree.get(to) ?? 0) + 1);
   }
 
-  // Seed queue with nodes that have zero in-degree
-  const queue: NodeId[] = [];
+  // Seed queue with chips that have zero in-degree
+  const queue: ChipId[] = [];
   for (const id of chipIds) {
     if (inDegree.get(id) === 0) {
       queue.push(id);
     }
   }
 
-  const sorted: NodeId[] = [];
+  const sorted: ChipId[] = [];
 
   while (queue.length > 0) {
-    const node = queue.shift()!;
-    sorted.push(node);
+    const chip = queue.shift()!;
+    sorted.push(chip);
 
-    for (const neighbor of adjacency.get(node)!) {
+    for (const neighbor of adjacency.get(chip)!) {
       const deg = inDegree.get(neighbor)! - 1;
       inDegree.set(neighbor, deg);
       if (deg === 0) {
@@ -65,9 +65,9 @@ export function topologicalSort(
     }
   }
 
-  // If not all nodes were processed, a cycle exists
+  // If not all chips were processed, a cycle exists
   if (sorted.length !== chipIds.length) {
-    const cyclePath = findCycle(chipIds, wires, sorted);
+    const cyclePath = findCycle(chipIds, paths, sorted);
     return err({
       message: `Cycle detected: ${cyclePath.join(' → ')}`,
       cyclePath,
@@ -81,29 +81,29 @@ export function topologicalSort(
  * Topological sort with depth tracking.
  *
  * Returns the same topological order as `topologicalSort`, plus a depth map
- * where depth = longest path from any root (zero in-degree node) to each node.
- * Nodes with no predecessors have depth 0.
+ * where depth = longest path from any root (zero in-degree chip) to each chip.
+ * Chips with no predecessors have depth 0.
  */
 export function topologicalSortWithDepths(
-  chipIds: NodeId[],
-  wires: Wire[],
+  chipIds: ChipId[],
+  paths: Path[],
 ): Result<TopologicalResult, CycleError> {
-  const sortResult = topologicalSort(chipIds, wires);
+  const sortResult = topologicalSort(chipIds, paths);
   if (!sortResult.ok) return sortResult;
 
   const order = sortResult.value;
 
-  // Build reverse adjacency: for each node, which nodes feed into it
-  const predecessors = new Map<NodeId, NodeId[]>();
+  // Build reverse adjacency: for each chip, which chips feed into it
+  const predecessors = new Map<ChipId, ChipId[]>();
   for (const id of chipIds) {
     predecessors.set(id, []);
   }
-  for (const wire of wires) {
-    predecessors.get(wire.target.chipId)!.push(wire.source.chipId);
+  for (const path of paths) {
+    predecessors.get(path.target.chipId)!.push(path.source.chipId);
   }
 
   // Compute depths in topological order (predecessors already processed)
-  const depths = new Map<NodeId, number>();
+  const depths = new Map<ChipId, number>();
   let maxDepth = 0;
 
   for (const chipId of order) {
@@ -123,32 +123,32 @@ export function topologicalSortWithDepths(
 }
 
 /**
- * Find one cycle among the unprocessed nodes using DFS.
+ * Find one cycle among the unprocessed chips using DFS.
  */
 function findCycle(
-  chipIds: NodeId[],
-  wires: Wire[],
-  processed: NodeId[],
-): NodeId[] {
+  chipIds: ChipId[],
+  paths: Path[],
+  processed: ChipId[],
+): ChipId[] {
   const processedSet = new Set(processed);
   const remaining = chipIds.filter((id) => !processedSet.has(id));
 
-  // Build adjacency restricted to remaining nodes
-  const adjacency = new Map<NodeId, NodeId[]>();
+  // Build adjacency restricted to remaining chips
+  const adjacency = new Map<ChipId, ChipId[]>();
   const remainingSet = new Set(remaining);
   for (const id of remaining) {
     adjacency.set(id, []);
   }
-  for (const wire of wires) {
-    if (remainingSet.has(wire.source.chipId) && remainingSet.has(wire.target.chipId)) {
-      adjacency.get(wire.source.chipId)!.push(wire.target.chipId);
+  for (const path of paths) {
+    if (remainingSet.has(path.source.chipId) && remainingSet.has(path.target.chipId)) {
+      adjacency.get(path.source.chipId)!.push(path.target.chipId);
     }
   }
 
   // DFS to find cycle
-  const visited = new Set<NodeId>();
-  const onStack = new Set<NodeId>();
-  const parent = new Map<NodeId, NodeId>();
+  const visited = new Set<ChipId>();
+  const onStack = new Set<ChipId>();
+  const parent = new Map<ChipId, ChipId>();
 
   for (const start of remaining) {
     if (visited.has(start)) continue;
@@ -156,39 +156,39 @@ function findCycle(
     if (cycle) return cycle;
   }
 
-  // Fallback: return remaining nodes (should not happen if called correctly)
+  // Fallback: return remaining chips (should not happen if called correctly)
   return remaining;
 }
 
 function dfs(
-  node: NodeId,
-  adjacency: Map<NodeId, NodeId[]>,
-  visited: Set<NodeId>,
-  onStack: Set<NodeId>,
-  parent: Map<NodeId, NodeId>,
-): NodeId[] | null {
-  visited.add(node);
-  onStack.add(node);
+  chip: ChipId,
+  adjacency: Map<ChipId, ChipId[]>,
+  visited: Set<ChipId>,
+  onStack: Set<ChipId>,
+  parent: Map<ChipId, ChipId>,
+): ChipId[] | null {
+  visited.add(chip);
+  onStack.add(chip);
 
-  for (const neighbor of adjacency.get(node) ?? []) {
+  for (const neighbor of adjacency.get(chip) ?? []) {
     if (!visited.has(neighbor)) {
-      parent.set(neighbor, node);
+      parent.set(neighbor, chip);
       const cycle = dfs(neighbor, adjacency, visited, onStack, parent);
       if (cycle) return cycle;
     } else if (onStack.has(neighbor)) {
       // Found cycle — reconstruct path
-      const path: NodeId[] = [neighbor];
-      let current = node;
+      const cyclePath: ChipId[] = [neighbor];
+      let current = chip;
       while (current !== neighbor) {
-        path.push(current);
+        cyclePath.push(current);
         current = parent.get(current)!;
       }
-      path.push(neighbor);
-      path.reverse();
-      return path;
+      cyclePath.push(neighbor);
+      cyclePath.reverse();
+      return cyclePath;
     }
   }
 
-  onStack.delete(node);
+  onStack.delete(chip);
   return null;
 }

@@ -34,8 +34,7 @@ const CONNECTION_POINTS: ConnectionPointConfig = {
 /**
  * Tutorial puzzle — used by the interactive tutorial system.
  *
- * Phase 1 (test case 0): Passthrough — direct wire solves it.
- * Phase 2 (test case 1): Offset +50 — requires an Offset chip set to +50.
+ * Single test case: Offset +50 — requires an Offset chip set to +50.
  */
 export const TUTORIAL_PUZZLE: PuzzleDefinition = {
   id: 'tutorial-interactive',
@@ -43,13 +42,8 @@ export const TUTORIAL_PUZZLE: PuzzleDefinition = {
   description: 'Learn the basics of signal wiring and chip placement.',
   activeInputs: 1,
   activeOutputs: 1,
-  allowedNodes: { offset: 1 },
+  allowedChips: { offset: 1 },
   testCases: [
-    {
-      name: 'Passthrough',
-      inputs: [TUTORIAL_INPUT],
-      expectedOutputs: [TUTORIAL_INPUT],
-    },
     {
       name: 'Offset +50',
       inputs: [TUTORIAL_INPUT],

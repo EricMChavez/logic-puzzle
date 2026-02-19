@@ -1,18 +1,18 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 import { clamp } from '../../../shared/math';
 
 export type OffsetParams = { amount: number };
 
-export const offsetNode = defineNode<OffsetParams>({
+export const offsetChip = defineChip<OffsetParams>({
   type: 'offset',
   category: 'math',
   description: 'Shifts signal up or down by a fixed amount',
 
-  inputs: [
+  sockets: [
     { name: 'A' },
     { name: 'X', description: 'Offset amount', side: 'bottom', knob: 'amount' },
   ],
-  outputs: [{ name: 'Out' }],
+  plugs: [{ name: 'Out' }],
 
   params: [
     { key: 'amount', type: 'number', default: 0, label: 'Amount', min: -100, max: 100, step: 25 },

@@ -5,13 +5,13 @@ import type { CycleResults } from '../engine/evaluation/index';
 function makeCycleResults(outputValues: number[][]): CycleResults {
   return {
     outputValues,
-    wireValues: new Map(),
-    nodeOutputs: new Map(),
+    pathValues: new Map(),
+    chipOutputs: new Map(),
     crossCycleState: new Map(),
     processingOrder: [],
-    nodeDepths: new Map(),
+    chipDepths: new Map(),
     maxDepth: 0,
-    liveNodeIds: new Set(),
+    liveChipIds: new Set(),
   };
 }
 

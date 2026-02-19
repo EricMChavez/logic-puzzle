@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { NodeState, Wire, PortRef } from '../../shared/types/index.ts';
-import type { PuzzleDefinition } from '../../puzzle/types.ts';
+import type { ChipState, PortRef } from '../../shared/types/index.ts';
 import type { InteractionMode } from '../../store/slices/interaction-slice.ts';
 import {
   getKeyboardAction,
@@ -11,17 +10,8 @@ import {
 import { setFocusTarget, _resetForTesting } from './keyboard-focus.ts';
 import { PLAYABLE_START, PLAYABLE_END, GRID_ROWS } from '../../shared/grid/index.ts';
 
-function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): NodeState {
-  return { id, type, position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
-}
-
-function makeWire(id: string, sourceNodeId: string, sourcePort: number, targetNodeId: string, targetPort: number): Wire {
-  return {
-    id,
-    source: { chipId: sourceNodeId, portIndex: sourcePort, side: 'output' },
-    target: { chipId: targetNodeId, portIndex: targetPort, side: 'input' },
-    route: [],
-  };
+function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1): ChipState {
+  return { id, type, position: { col, row }, params: {}, socketCount: inputs, plugCount: outputs };
 }
 
 function makeState(overrides: Partial<KeyboardHandlerState> = {}): KeyboardHandlerState {
@@ -29,7 +19,7 @@ function makeState(overrides: Partial<KeyboardHandlerState> = {}): KeyboardHandl
     hasActiveOverlay: () => false,
     activeBoardReadOnly: false,
     interactionMode: { type: 'idle' },
-    selectedNodeId: null,
+    selectedChipId: null,
     activeBoard: { chips: new Map(), paths: [] },
     activePuzzle: null,
     keyboardGhostPosition: null,
@@ -47,9 +37,9 @@ function makeExecutor(overrides: Partial<KeyboardActionExecutor> = {}): Keyboard
     undo: vi.fn(),
     redo: vi.fn(),
     openOverlay: vi.fn(),
-    removeNode: vi.fn(),
-    removeWire: vi.fn(),
-    selectNode: vi.fn(),
+    removeChip: vi.fn(),
+    removePath: vi.fn(),
+    selectChip: vi.fn(),
     clearSelection: vi.fn(),
     startKeyboardWiring: vi.fn(),
     cycleWiringTarget: vi.fn(),
@@ -102,7 +92,7 @@ describe('getKeyboardAction', () => {
   });
 
   it('Tab in keyboard-wiring mode cycles targets forward', () => {
-    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
+    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'plug' };
     const mode: InteractionMode = { type: 'keyboard-wiring', fromPort, validTargets: [], targetIndex: 0 };
     const action = getKeyboardAction('Tab', makeKeyEvent(), makeState({ interactionMode: mode }));
     expect(action).toEqual({ type: 'cycle-wiring-target', direction: 1 });
@@ -114,22 +104,22 @@ describe('getKeyboardAction', () => {
   });
 
   it('ArrowUp returns move-ghost in placing-node mode', () => {
-    const action = getKeyboardAction('ArrowUp', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('ArrowUp', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action).toEqual({ type: 'move-ghost', delta: { col: 0, row: -1 } });
   });
 
   it('ArrowDown returns move-ghost in placing-node mode', () => {
-    const action = getKeyboardAction('ArrowDown', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('ArrowDown', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action).toEqual({ type: 'move-ghost', delta: { col: 0, row: 1 } });
   });
 
   it('ArrowLeft returns move-ghost in placing-node mode', () => {
-    const action = getKeyboardAction('ArrowLeft', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('ArrowLeft', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action).toEqual({ type: 'move-ghost', delta: { col: -1, row: 0 } });
   });
 
   it('ArrowRight returns move-ghost in placing-node mode', () => {
-    const action = getKeyboardAction('ArrowRight', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('ArrowRight', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action).toEqual({ type: 'move-ghost', delta: { col: 1, row: 0 } });
   });
 
@@ -164,19 +154,19 @@ describe('getKeyboardAction', () => {
   });
 
   it('Enter in keyboard-wiring mode completes wiring', () => {
-    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
+    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'plug' };
     const mode: InteractionMode = { type: 'keyboard-wiring', fromPort, validTargets: [], targetIndex: 0 };
     const action = getKeyboardAction('Enter', makeKeyEvent(), makeState({ interactionMode: mode }));
     expect(action).toEqual({ type: 'complete-wiring' });
   });
 
   it('Enter in placing-node mode places node', () => {
-    const action = getKeyboardAction('Enter', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('Enter', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action).toEqual({ type: 'place-node' });
   });
 
   it('Enter on focused utility node returns enter-node', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('u1', makeNode('u1', 'utility:tool', 3, 2));
     setFocusTarget({ type: 'node', chipId: 'u1' });
 
@@ -185,7 +175,7 @@ describe('getKeyboardAction', () => {
   });
 
   it('Enter on focused param node returns open-params', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'scale', 3, 2, 2, 1));
     setFocusTarget({ type: 'node', chipId: 'n1' });
 
@@ -194,7 +184,7 @@ describe('getKeyboardAction', () => {
   });
 
   it('Enter on focused port returns start-wiring', () => {
-    const portRef: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
+    const portRef: PortRef = { chipId: 'n1', portIndex: 0, side: 'plug' };
     setFocusTarget({ type: 'port', portRef });
 
     const action = getKeyboardAction('Enter', makeKeyEvent(), makeState());
@@ -202,7 +192,7 @@ describe('getKeyboardAction', () => {
   });
 
   it('Enter on focused connection-point returns start-wiring-cp', () => {
-    setFocusTarget({ type: 'connection-point', side: 'input', index: 0 });
+    setFocusTarget({ type: 'connection-point', slotIndex: 0 });
 
     const action = getKeyboardAction('Enter', makeKeyEvent(), makeState());
     expect(action).toEqual({ type: 'start-wiring-cp', side: 'input', index: 0 });
@@ -243,12 +233,12 @@ describe('getKeyboardAction', () => {
   });
 
   it('N returns noop when not idle', () => {
-    const action = getKeyboardAction('n', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-node', nodeType: 'memory', rotation: 0 } }));
+    const action = getKeyboardAction('n', makeKeyEvent(), makeState({ interactionMode: { type: 'placing-chip', chipType: 'memory', rotation: 0 } }));
     expect(action.type).toBe('noop');
   });
 
   it('Delete on locked focused node returns noop', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', { ...makeNode('n1', 'memory', 10, 5), locked: true });
     setFocusTarget({ type: 'node', chipId: 'n1' });
     const action = getKeyboardAction('Delete', makeKeyEvent(), makeState({ activeBoard: { chips: nodes, paths: [] } }));
@@ -256,7 +246,7 @@ describe('getKeyboardAction', () => {
   });
 
   it('Backspace on locked focused node returns noop', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', { ...makeNode('n1', 'memory', 10, 5), locked: true });
     setFocusTarget({ type: 'node', chipId: 'n1' });
     const action = getKeyboardAction('Backspace', makeKeyEvent(), makeState({ activeBoard: { chips: nodes, paths: [] } }));
@@ -291,14 +281,14 @@ describe('executeKeyboardAction', () => {
     const exec = makeExecutor();
     setFocusTarget({ type: 'node', chipId: 'n1' });
     executeKeyboardAction({ type: 'delete-node', chipId: 'n1' }, exec);
-    expect(exec.removeNode).toHaveBeenCalledWith('n1');
+    expect(exec.removeChip).toHaveBeenCalledWith('n1');
   });
 
   it('delete-wire calls removeWire and clears focus', () => {
     const exec = makeExecutor();
     setFocusTarget({ type: 'wire', wireId: 'w1' });
     executeKeyboardAction({ type: 'delete-wire', wireId: 'w1' }, exec);
-    expect(exec.removeWire).toHaveBeenCalledWith('w1');
+    expect(exec.removePath).toHaveBeenCalledWith('w1');
   });
 
   it('move-ghost initializes to center when no current position', () => {
@@ -330,8 +320,8 @@ describe('executeKeyboardAction', () => {
 
   it('complete-wiring calls onCompleteWire with current target', () => {
     const onCompleteWire = vi.fn();
-    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
-    const targetPort: PortRef = { chipId: 'n2', portIndex: 0, side: 'input' };
+    const fromPort: PortRef = { chipId: 'n1', portIndex: 0, side: 'plug' };
+    const targetPort: PortRef = { chipId: 'n2', portIndex: 0, side: 'socket' };
     const exec = makeExecutor({
       interactionMode: { type: 'keyboard-wiring', fromPort, validTargets: [targetPort], targetIndex: 0 },
       onCompleteWire,
@@ -342,12 +332,12 @@ describe('executeKeyboardAction', () => {
   });
 
   it('start-wiring calls startKeyboardWiring with valid targets', () => {
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 'memory', 3, 2));
     nodes.set('n2', makeNode('n2', 'max', 10, 5, 2, 1));
 
     const exec = makeExecutor({ activeBoard: { chips: nodes, paths: [] } });
-    const portRef: PortRef = { chipId: 'n1', portIndex: 0, side: 'output' };
+    const portRef: PortRef = { chipId: 'n1', portIndex: 0, side: 'plug' };
     executeKeyboardAction({ type: 'start-wiring', portRef }, exec);
     expect(exec.startKeyboardWiring).toHaveBeenCalled();
     const targets = (exec.startKeyboardWiring as ReturnType<typeof vi.fn>).mock.calls[0][1];
@@ -393,6 +383,6 @@ describe('executeKeyboardAction', () => {
     expect(exec.undo).not.toHaveBeenCalled();
     expect(exec.redo).not.toHaveBeenCalled();
     expect(exec.openOverlay).not.toHaveBeenCalled();
-    expect(exec.removeNode).not.toHaveBeenCalled();
+    expect(exec.removeChip).not.toHaveBeenCalled();
   });
 });

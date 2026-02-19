@@ -1,7 +1,7 @@
-import type { NodeId, NodeState, PortRef, Vec2, Wire } from '../../shared/types/index.ts';
+import type { ChipId, ChipState, PortRef, Vec2, Path } from '../../shared/types/index.ts';
 import { CONNECTION_POINT_CONFIG, NODE_STYLE } from '../../shared/constants/index.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { getNodePortPosition, getConnectionPointPosition, getNodeHitRect, getNodeBodyPixelRect } from './port-positions.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { buildWirePixelPath } from './render-wires.ts';
@@ -16,9 +16,9 @@ import { deriveDirectionsFromMeterSlots } from '../meters/meter-types.ts';
 export type HitResult =
   | { type: 'port'; portRef: PortRef; position: Vec2 }
   | { type: 'connection-point'; slotIndex: number; direction: 'input' | 'output'; position: Vec2 }
-  | { type: 'knob'; chipId: NodeId; center: Vec2 }
-  | { type: 'node'; chipId: NodeId }
-  | { type: 'wire'; wireId: string }
+  | { type: 'knob'; chipId: ChipId; center: Vec2 }
+  | { type: 'node'; chipId: ChipId }
+  | { type: 'path'; pathId: string }
   | { type: 'meter'; slotIndex: number }
   | { type: 'playback-button'; button: 'prev' | 'play-pause' | 'next' }
   | { type: 'empty' };
@@ -80,11 +80,11 @@ function deriveSlotConfig(
 export function hitTest(
   x: number,
   y: number,
-  nodes: ReadonlyMap<NodeId, NodeState>,
+  nodes: ReadonlyMap<ChipId, ChipState>,
   _canvasWidth: number,
   _canvasHeight: number,
   cellSize: number,
-  wires: ReadonlyArray<Wire> = [],
+  wires: ReadonlyArray<Path> = [],
   activeInputs?: number,
   activeOutputs?: number,
   slotConfig?: SlotConfig,
@@ -94,22 +94,22 @@ export function hitTest(
   // 1. Check node ports (highest priority — skip virtual CP nodes)
   for (const node of nodes.values()) {
     if (isConnectionPointNode(node.id)) continue;
-    for (let i = 0; i < node.outputCount; i++) {
+    for (let i = 0; i < node.plugCount; i++) {
       const pos = getNodePortPosition(node, 'output', i, cellSize);
       if (dist(x, y, pos.x, pos.y) <= PORT_HIT_RADIUS) {
         return {
           type: 'port',
-          portRef: { chipId: node.id, portIndex: i, side: 'output' },
+          portRef: { chipId: node.id, portIndex: i, side: 'plug' },
           position: pos,
         };
       }
     }
-    for (let i = 0; i < node.inputCount; i++) {
+    for (let i = 0; i < node.socketCount; i++) {
       const pos = getNodePortPosition(node, 'input', i, cellSize);
       if (dist(x, y, pos.x, pos.y) <= PORT_HIT_RADIUS) {
         return {
           type: 'port',
-          portRef: { chipId: node.id, portIndex: i, side: 'input' },
+          portRef: { chipId: node.id, portIndex: i, side: 'socket' },
           position: pos,
         };
       }
@@ -132,7 +132,7 @@ export function hitTest(
   // 3. Check knobs (before node bodies for priority)
   for (const node of nodes.values()) {
     if (isConnectionPointNode(node.id)) continue;
-    if (!getKnobConfig(getNodeDefinition(node.type))) continue;
+    if (!getKnobConfig(getChipDefinition(node.type))) continue;
     const bodyRect = getNodeBodyPixelRect(node, cellSize);
     const labelFontSize = Math.round(NODE_STYLE.LABEL_FONT_RATIO * cellSize);
     const centerX = bodyRect.x + bodyRect.width / 2;
@@ -145,7 +145,7 @@ export function hitTest(
 
   // 4. Check node bodies (using full grid footprint for hit detection)
   // Forward iteration, keep last match for correct z-order (last = top)
-  let bodyHitId: NodeId | null = null;
+  let bodyHitId: ChipId | null = null;
   for (const [id, node] of nodes) {
     if (isConnectionPointNode(id)) continue;
     const rect = getNodeHitRect(node, cellSize);
@@ -162,25 +162,25 @@ export function hitTest(
     return { type: 'node', chipId: bodyHitId };
   }
 
-  // 5. Check wires (path segments at gridline intersections)
-  for (const wire of wires) {
-    if (wire.route.length >= 2) {
-      for (let i = 0; i < wire.route.length - 1; i++) {
-        const ax = wire.route[i].col * cellSize;
-        const ay = wire.route[i].row * cellSize;
-        const bx = wire.route[i + 1].col * cellSize;
-        const by = wire.route[i + 1].row * cellSize;
+  // 5. Check paths (path segments at gridline intersections)
+  for (const path of wires) {
+    if (path.route.length >= 2) {
+      for (let i = 0; i < path.route.length - 1; i++) {
+        const ax = path.route[i].col * cellSize;
+        const ay = path.route[i].row * cellSize;
+        const bx = path.route[i + 1].col * cellSize;
+        const by = path.route[i + 1].row * cellSize;
         if (pointToSegmentDist(x, y, ax, ay, bx, by) <= WIRE_HIT_THRESHOLD) {
-          return { type: 'wire', wireId: wire.id };
+          return { type: 'path', pathId: path.id };
         }
       }
     } else {
-      // Fallback: empty-path wire rendered as straight line between endpoints
-      const pts = buildWirePixelPath(wire, cellSize, nodes);
+      // Fallback: empty-path rendered as straight line between endpoints
+      const pts = buildWirePixelPath(path, cellSize, nodes);
       if (pts.length >= 2) {
         for (let i = 0; i < pts.length - 1; i++) {
           if (pointToSegmentDist(x, y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= WIRE_HIT_THRESHOLD) {
-            return { type: 'wire', wireId: wire.id };
+            return { type: 'path', pathId: path.id };
           }
         }
       }
@@ -200,7 +200,7 @@ export function findNearestSnapTarget(
   x: number,
   y: number,
   maxRadiusPx: number,
-  nodes: ReadonlyMap<NodeId, NodeState>,
+  nodes: ReadonlyMap<ChipId, ChipState>,
   cellSize: number,
   slotConfig?: SlotConfig,
   activeInputs?: number,
@@ -214,13 +214,13 @@ export function findNearestSnapTarget(
   // Check all non-CP-node ports
   for (const node of nodes.values()) {
     if (isConnectionPointNode(node.id)) continue;
-    for (let i = 0; i < node.outputCount; i++) {
+    for (let i = 0; i < node.plugCount; i++) {
       const pos = getNodePortPosition(node, 'output', i, cellSize);
       const d = dist(x, y, pos.x, pos.y);
       if (d < bestDist) {
         const hit: HitResult = {
           type: 'port',
-          portRef: { chipId: node.id, portIndex: i, side: 'output' },
+          portRef: { chipId: node.id, portIndex: i, side: 'plug' },
           position: pos,
         };
         if (!isValidTarget || isValidTarget(hit)) {
@@ -229,13 +229,13 @@ export function findNearestSnapTarget(
         }
       }
     }
-    for (let i = 0; i < node.inputCount; i++) {
+    for (let i = 0; i < node.socketCount; i++) {
       const pos = getNodePortPosition(node, 'input', i, cellSize);
       const d = dist(x, y, pos.x, pos.y);
       if (d < bestDist) {
         const hit: HitResult = {
           type: 'port',
-          portRef: { chipId: node.id, portIndex: i, side: 'input' },
+          portRef: { chipId: node.id, portIndex: i, side: 'socket' },
           position: pos,
         };
         if (!isValidTarget || isValidTarget(hit)) {

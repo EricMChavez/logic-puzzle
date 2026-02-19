@@ -1,30 +1,30 @@
-import type { NodeId } from '../../shared/types/index.ts';
+import type { ChipId } from '../../shared/types/index.ts';
 
-/** Serializable config for a single node in the baked graph. */
-export interface BakedNodeConfig {
-  id: NodeId;
+/** Serializable config for a single chip in the baked graph. */
+export interface BakedChipConfig {
+  id: ChipId;
   type: string;
   params: Record<string, number | string | boolean>;
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
 }
 
-/** Serializable edge between two nodes in the baked graph. */
+/** Serializable edge between two chips in the baked graph. */
 export interface BakedEdge {
-  fromNodeId: NodeId;
+  fromChipId: ChipId;
   fromPort: number;
-  toNodeId: NodeId;
+  toChipId: ChipId;
   toPort: number;
 }
 
 /** Serializable metadata describing the baked graph structure. */
 export interface BakeMetadata {
-  topoOrder: NodeId[];
-  nodeConfigs: BakedNodeConfig[];
+  topoOrder: ChipId[];
+  chipConfigs: BakedChipConfig[];
   edges: BakedEdge[];
-  inputCount: number;
-  outputCount: number;
-  /** For utility nodes: per-CP direction. CPs 0-2 = left, 3-5 = right. */
+  socketCount: number;
+  plugCount: number;
+  /** For utility chips: per-CP direction. CPs 0-2 = left, 3-5 = right. */
   cpLayout?: ('input' | 'output' | 'off')[];
 }
 
@@ -37,5 +37,5 @@ export interface BakeResult {
 /** Error type for bake failures. */
 export interface BakeError {
   message: string;
-  cyclePath?: NodeId[];
+  cyclePath?: ChipId[];
 }

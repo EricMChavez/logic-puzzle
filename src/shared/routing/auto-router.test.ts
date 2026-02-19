@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { findPath, getPortGridAnchor, getPortWireDirection, portSideToWireDirection } from './auto-router.ts';
-import { DIR_DELTA, DIR_COUNT, DIR_E, DIR_SE, DIR_S, DIR_W, DIR_N, DIR_NE } from './grid-graph.ts';
+import { DIR_DELTA, DIR_COUNT, DIR_E, DIR_S, DIR_W, DIR_N, DIR_NE } from './grid-graph.ts';
 import { createOccupancyGrid, markNodeOccupied, NODE_GRID_COLS, NODE_GRID_ROWS, getNodeGridSize } from '../grid/occupancy.ts';
 import { PLAYABLE_START, PLAYABLE_END, GRID_ROWS } from '../grid/constants.ts';
 import type { GridPoint } from '../grid/types.ts';
-import type { NodeState, NodeRotation } from '../types/index.ts';
+import type { ChipState, ChipRotation } from '../types/index.ts';
 
-function makeNode(id: string, col: number, row: number, inputCount = 1, outputCount = 1, rotation?: NodeRotation): NodeState {
-  return { id, type: 'invert', position: { col, row }, params: {}, inputCount, outputCount, rotation };
+function makeNode(id: string, col: number, row: number, socketCount = 1, plugCount = 1, rotation?: ChipRotation): ChipState {
+  return { id, type: 'invert', position: { col, row }, params: {}, socketCount, plugCount, rotation };
 }
 
 // ---------------------------------------------------------------------------
@@ -17,22 +17,22 @@ function makeNode(id: string, col: number, row: number, inputCount = 1, outputCo
 describe('getPortGridAnchor', () => {
   it('output port anchor is at the right grid line of node', () => {
     const node = makeNode('n1', 5, 3);
-    const anchor = getPortGridAnchor(node, 'output', 0);
+    const anchor = getPortGridAnchor(node, 'plug', 0);
     // Anchor at port grid line: col = nodeCol + cols (matching port pixel)
     expect(anchor.col).toBe(5 + NODE_GRID_COLS);
   });
 
   it('input port anchor is at the left grid line of node', () => {
     const node = makeNode('n1', 5, 3);
-    const anchor = getPortGridAnchor(node, 'input', 0);
+    const anchor = getPortGridAnchor(node, 'socket', 0);
     // Anchor at port grid line: col = nodeCol (matching port pixel)
     expect(anchor.col).toBe(5);
   });
 
   it('distributes 2 ports across 2 rows', () => {
     const node = makeNode('n1', 5, 3, 2, 1);
-    const p0 = getPortGridAnchor(node, 'input', 0);
-    const p1 = getPortGridAnchor(node, 'input', 1);
+    const p0 = getPortGridAnchor(node, 'socket', 0);
+    const p1 = getPortGridAnchor(node, 'socket', 1);
     // Ports at integer positions: rows 3 and 4
     expect(p0.row).toBe(3); // first row
     expect(p1.row).toBe(4); // second row
@@ -40,53 +40,53 @@ describe('getPortGridAnchor', () => {
 
   it('single port is centered at integer position', () => {
     const node = makeNode('n1', 5, 3);
-    const anchor = getPortGridAnchor(node, 'output', 0);
+    const anchor = getPortGridAnchor(node, 'plug', 0);
     // Single port centered at floor(2/2) = 1, so row = 3 + 1 = 4
     expect(anchor.row).toBe(4);
   });
 
   it('connection input node anchors at PLAYABLE_START', () => {
-    const cpNode: NodeState = {
+    const cpNode: ChipState = {
       id: '__cp_input_0__',
       type: 'connection-input',
       position: { col: 0, row: 0 },
       params: {},
-      inputCount: 0,
-      outputCount: 1,
+      socketCount: 0,
+      plugCount: 1,
     };
-    const anchor = getPortGridAnchor(cpNode, 'output', 0);
+    const anchor = getPortGridAnchor(cpNode, 'plug', 0);
     expect(anchor.col).toBe(PLAYABLE_START);
   });
 
   it('connection output node anchors at PLAYABLE_END + 1 (matching render position)', () => {
-    const cpNode: NodeState = {
+    const cpNode: ChipState = {
       id: '__cp_output_1__',
       type: 'connection-output',
       position: { col: 0, row: 0 },
       params: {},
-      inputCount: 1,
-      outputCount: 0,
+      socketCount: 1,
+      plugCount: 0,
     };
-    const anchor = getPortGridAnchor(cpNode, 'input', 0);
+    const anchor = getPortGridAnchor(cpNode, 'socket', 0);
     expect(anchor.col).toBe(PLAYABLE_END + 1);
   });
 
   it('connection point rows are evenly distributed', () => {
-    const cp0: NodeState = {
+    const cp0: ChipState = {
       id: '__cp_input_0__', type: 'connection-input',
-      position: { col: 0, row: 0 }, params: {}, inputCount: 0, outputCount: 1,
+      position: { col: 0, row: 0 }, params: {}, socketCount: 0, plugCount: 1,
     };
-    const cp1: NodeState = {
+    const cp1: ChipState = {
       id: '__cp_input_1__', type: 'connection-input',
-      position: { col: 0, row: 0 }, params: {}, inputCount: 0, outputCount: 1,
+      position: { col: 0, row: 0 }, params: {}, socketCount: 0, plugCount: 1,
     };
-    const cp2: NodeState = {
+    const cp2: ChipState = {
       id: '__cp_input_2__', type: 'connection-input',
-      position: { col: 0, row: 0 }, params: {}, inputCount: 0, outputCount: 1,
+      position: { col: 0, row: 0 }, params: {}, socketCount: 0, plugCount: 1,
     };
-    const r0 = getPortGridAnchor(cp0, 'output', 0).row;
-    const r1 = getPortGridAnchor(cp1, 'output', 0).row;
-    const r2 = getPortGridAnchor(cp2, 'output', 0).row;
+    const r0 = getPortGridAnchor(cp0, 'plug', 0).row;
+    const r1 = getPortGridAnchor(cp1, 'plug', 0).row;
+    const r2 = getPortGridAnchor(cp2, 'plug', 0).row;
     // Should be ordered and spread across the grid
     expect(r0).toBeLessThan(r1);
     expect(r1).toBeLessThan(r2);
@@ -361,7 +361,6 @@ describe('findPath', () => {
     expect(path).not.toBeNull();
     // Should be mostly vertical
     for (let i = 1; i < path!.length; i++) {
-      const dc = path![i].col - path![i - 1].col;
       const dr = path![i].row - path![i - 1].row;
       // Allow diagonal moves but verify progression is mostly downward
       expect(dr).toBeGreaterThanOrEqual(0);
@@ -398,71 +397,71 @@ describe('portSideToWireDirection', () => {
 describe('getPortWireDirection', () => {
   it('output port at 0° rotation (right side) -> East', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 0);
-    expect(getPortWireDirection(node, 'output')).toBe(DIR_E);
+    expect(getPortWireDirection(node, 'plug')).toBe(DIR_E);
   });
 
   it('input port at 0° rotation (left side) -> wire arrives traveling East', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 0);
     // Wire enters left-side port traveling East (from left to right)
-    expect(getPortWireDirection(node, 'input')).toBe(DIR_E);
+    expect(getPortWireDirection(node, 'socket')).toBe(DIR_E);
   });
 
   it('output port at 90° rotation (bottom side) -> South', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 90);
-    expect(getPortWireDirection(node, 'output')).toBe(DIR_S);
+    expect(getPortWireDirection(node, 'plug')).toBe(DIR_S);
   });
 
   it('input port at 90° rotation (top side) -> wire arrives traveling South', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 90);
     // Wire enters top-side port traveling South (from top to bottom)
-    expect(getPortWireDirection(node, 'input')).toBe(DIR_S);
+    expect(getPortWireDirection(node, 'socket')).toBe(DIR_S);
   });
 
   it('output port at 180° rotation (left side) -> West', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 180);
-    expect(getPortWireDirection(node, 'output')).toBe(DIR_W);
+    expect(getPortWireDirection(node, 'plug')).toBe(DIR_W);
   });
 
   it('input port at 180° rotation (right side) -> wire arrives traveling West', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 180);
     // Wire enters right-side port traveling West (from right to left)
-    expect(getPortWireDirection(node, 'input')).toBe(DIR_W);
+    expect(getPortWireDirection(node, 'socket')).toBe(DIR_W);
   });
 
   it('output port at 270° rotation (top side) -> North', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 270);
-    expect(getPortWireDirection(node, 'output')).toBe(DIR_N);
+    expect(getPortWireDirection(node, 'plug')).toBe(DIR_N);
   });
 
   it('input port at 270° rotation (bottom side) -> wire arrives traveling North', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 270);
     // Wire enters bottom-side port traveling North (from bottom to top)
-    expect(getPortWireDirection(node, 'input')).toBe(DIR_N);
+    expect(getPortWireDirection(node, 'socket')).toBe(DIR_N);
   });
 
   it('connection input nodes always return East', () => {
-    const cpNode: NodeState = {
+    const cpNode: ChipState = {
       id: '__cp_input_0__',
       type: 'connection-input',
       position: { col: 0, row: 0 },
       params: {},
-      inputCount: 0,
-      outputCount: 1,
+      socketCount: 0,
+      plugCount: 1,
     };
-    expect(getPortWireDirection(cpNode, 'output')).toBe(DIR_E);
+    expect(getPortWireDirection(cpNode, 'plug')).toBe(DIR_E);
   });
 
   it('connection output nodes always return East (wire arrives traveling East)', () => {
-    const cpNode: NodeState = {
+    const cpNode: ChipState = {
       id: '__cp_output_0__',
       type: 'connection-output',
       position: { col: 0, row: 0 },
       params: {},
-      inputCount: 1,
-      outputCount: 0,
+      socketCount: 1,
+      plugCount: 0,
     };
     // Wire arrives at right-side output traveling East (from left to right)
-    expect(getPortWireDirection(cpNode, 'input')).toBe(DIR_E);
+    expect(getPortWireDirection(cpNode, 'socket')).toBe(DIR_E);
   });
 });
 
@@ -474,21 +473,21 @@ describe('getPortGridAnchor with rotation', () => {
   it('output anchor at 90° rotation is at bottom grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 90);
     const { rows } = getNodeGridSize(node);
-    const anchor = getPortGridAnchor(node, 'output', 0);
+    const anchor = getPortGridAnchor(node, 'plug', 0);
     // At 90°, output moves to bottom, anchor at bottom grid line
     expect(anchor.row).toBe(10 + rows);
   });
 
   it('input anchor at 90° rotation is at top grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 90);
-    const anchor = getPortGridAnchor(node, 'input', 0);
+    const anchor = getPortGridAnchor(node, 'socket', 0);
     // At 90°, input moves to top, anchor at top grid line
     expect(anchor.row).toBe(10);
   });
 
   it('output anchor at 180° rotation is at left grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 180);
-    const anchor = getPortGridAnchor(node, 'output', 0);
+    const anchor = getPortGridAnchor(node, 'plug', 0);
     // At 180°, output moves to left, anchor at left grid line
     expect(anchor.col).toBe(10);
   });
@@ -496,14 +495,14 @@ describe('getPortGridAnchor with rotation', () => {
   it('input anchor at 180° rotation is at right grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 180);
     const { cols } = getNodeGridSize(node);
-    const anchor = getPortGridAnchor(node, 'input', 0);
+    const anchor = getPortGridAnchor(node, 'socket', 0);
     // At 180°, input moves to right, anchor at right grid line
     expect(anchor.col).toBe(10 + cols);
   });
 
   it('output anchor at 270° rotation is at top grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 270);
-    const anchor = getPortGridAnchor(node, 'output', 0);
+    const anchor = getPortGridAnchor(node, 'plug', 0);
     // At 270°, output moves to top, anchor at top grid line
     expect(anchor.row).toBe(10);
   });
@@ -511,7 +510,7 @@ describe('getPortGridAnchor with rotation', () => {
   it('input anchor at 270° rotation is at bottom grid line', () => {
     const node = makeNode('n1', 10, 10, 1, 1, 270);
     const { rows } = getNodeGridSize(node);
-    const anchor = getPortGridAnchor(node, 'input', 0);
+    const anchor = getPortGridAnchor(node, 'socket', 0);
     // At 270°, input moves to bottom, anchor at bottom grid line
     expect(anchor.row).toBe(10 + rows);
   });
@@ -646,17 +645,17 @@ describe('getPortGridAnchor with cpLayout utility nodes', () => {
     col: number,
     row: number,
     cpLayout: string[],
-  ): NodeState {
+  ): ChipState {
     // Count inputs and outputs from cpLayout
-    const inputCount = cpLayout.filter(c => c === 'input').length;
-    const outputCount = cpLayout.filter(c => c === 'output').length;
+    const socketCount = cpLayout.filter(c => c === 'input').length;
+    const plugCount = cpLayout.filter(c => c === 'output').length;
     return {
       id,
       type: 'utility:test',
       position: { col, row },
       params: { cpLayout },
-      inputCount,
-      outputCount,
+      socketCount,
+      plugCount,
     };
   }
 
@@ -666,8 +665,8 @@ describe('getPortGridAnchor with cpLayout utility nodes', () => {
     const node = makeUtilityNode('u1', 20, 10, ['off', 'input', 'input', 'output', 'off', 'off']);
     const { rows } = getNodeGridSize(node);
 
-    const anchor0 = getPortGridAnchor(node, 'input', 0);
-    const anchor1 = getPortGridAnchor(node, 'input', 1);
+    const anchor0 = getPortGridAnchor(node, 'socket', 0);
+    const anchor1 = getPortGridAnchor(node, 'socket', 1);
 
     // Slot 1 on left: row = 10 + floor(1 * 3 / 3) = 10 + 1 = 11
     expect(anchor0.col).toBe(20);
@@ -684,8 +683,8 @@ describe('getPortGridAnchor with cpLayout utility nodes', () => {
     const node = makeUtilityNode('u2', 20, 10, ['input', 'off', 'off', 'output', 'output', 'off']);
     const { cols, rows } = getNodeGridSize(node);
 
-    const anchor0 = getPortGridAnchor(node, 'output', 0);
-    const anchor1 = getPortGridAnchor(node, 'output', 1);
+    const anchor0 = getPortGridAnchor(node, 'plug', 0);
+    const anchor1 = getPortGridAnchor(node, 'plug', 1);
 
     // Slot 0 on right: col = 20 + 5 = 25, row = 10 + floor(0 * 3 / 3) = 10
     expect(anchor0.col).toBe(20 + cols);
@@ -703,15 +702,15 @@ describe('getPortGridAnchor with cpLayout utility nodes', () => {
     const { cols, rows } = getNodeGridSize(node);
 
     // Input 0 at slot 0: row offset = floor(0 * rows / 3)
-    const input0 = getPortGridAnchor(node, 'input', 0);
+    const input0 = getPortGridAnchor(node, 'socket', 0);
     expect(input0).toEqual({ col: 20, row: 10 + Math.floor(0 * rows / 3) });
 
     // Input 1 at slot 1: row offset = floor(1 * rows / 3)
-    const input1 = getPortGridAnchor(node, 'input', 1);
+    const input1 = getPortGridAnchor(node, 'socket', 1);
     expect(input1).toEqual({ col: 20, row: 10 + Math.floor(1 * rows / 3) });
 
     // Output 0 at slot 1 (index 4 in cpLayout, 4-3=1): row offset = floor(1 * rows / 3)
-    const output0 = getPortGridAnchor(node, 'output', 0);
+    const output0 = getPortGridAnchor(node, 'plug', 0);
     expect(output0).toEqual({ col: 20 + cols, row: 10 + Math.floor(1 * rows / 3) });
   });
 });

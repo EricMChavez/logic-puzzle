@@ -1,19 +1,19 @@
 import type { StateCreator } from 'zustand';
-import type { NodeId, Vec2 } from '../../shared/types/index.ts';
+import type { ChipId, Vec2 } from '../../shared/types/index.ts';
 
 /** What entity a context menu targets */
 export type ContextTarget =
-  | { type: 'node'; chipId: NodeId }
-  | { type: 'wire'; wireId: string }
+  | { type: 'chip'; chipId: ChipId; locked?: boolean }
+  | { type: 'path'; pathId: string }
   | { type: 'empty' };
 
 /** Discriminated union of all overlay types */
 export type ActiveOverlay =
   | { type: 'none' }
   | { type: 'palette-modal' }
-  | { type: 'parameter-popover'; chipId: NodeId }
+  | { type: 'parameter-popover'; chipId: ChipId }
   | { type: 'context-menu'; position: Vec2; target: ContextTarget }
-  | { type: 'inspect-modal'; chipId: NodeId }
+  | { type: 'inspect-modal'; chipId: ChipId }
   | { type: 'save-dialog' }
   | { type: 'unsaved-changes' }
   | { type: 'waveform-selector'; slotIndex: number }

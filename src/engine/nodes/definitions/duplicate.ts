@@ -1,15 +1,15 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 
 /** Duplicates the input to two outputs */
-export const splitNode = defineNode({
-  type: 'split',
+export const duplicateChip = defineChip({
+  type: 'duplicate',
   category: 'routing',
   description: 'Duplicates one signal into two identical outputs',
 
-  inputs: [
+  sockets: [
     { name: 'A', side: 'left', gridPosition: 1 },
   ],
-  outputs: [
+  plugs: [
     { name: 'X', side: 'right', gridPosition: 0 },
     { name: 'Y', side: 'right', gridPosition: 1 },
   ],

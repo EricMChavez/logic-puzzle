@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { getNodePortPosition, getConnectionPointPosition, getNodeBodyPixelRect } from './port-positions.ts';
-import type { NodeState } from '../../shared/types/index.ts';
+import type { ChipState } from '../../shared/types/index.ts';
 import {
   FUNDAMENTAL_GRID_COLS,
-  FUNDAMENTAL_GRID_ROWS,
   UTILITY_GRID_COLS,
   UTILITY_GRID_ROWS,
   PLAYABLE_START,
@@ -11,8 +10,8 @@ import {
 } from '../../shared/grid/index.ts';
 import { METER_GRID_ROWS, METER_GAP_ROWS, METER_VERTICAL_OFFSETS } from '../meters/meter-types.ts';
 
-function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1, params: Record<string, unknown> = {}): NodeState {
-  return { id, type, position: { col, row }, params, inputCount: inputs, outputCount: outputs };
+function makeNode(id: string, type: string, col: number, row: number, inputs = 1, outputs = 1, params: Record<string, number | string | boolean | string[]> = {}): ChipState {
+  return { id, type, position: { col, row }, params, socketCount: inputs, plugCount: outputs };
 }
 
 describe('getNodePortPosition', () => {

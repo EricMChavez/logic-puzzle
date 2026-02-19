@@ -9,18 +9,18 @@ export interface MeterSlice {
   meterSlots: Map<MeterKey, MeterSlotState>;
 
   /** Initialize meters from a SlotConfig.
-   *  Active slots get 'input' or 'output' mode. Inactive slots get `inactiveMode` (default: 'hidden'). */
+   *  Active slots get 'input' or 'output' mode. Inactive slots get `inactiveMode` (default: 'off'). */
   initializeMeters: (config: SlotConfig, inactiveMode?: MeterMode) => void;
   /** Update the mode of a specific meter by slot index */
   setMeterMode: (slotIndex: number, mode: MeterMode) => void;
-  /** Reset all meters to hidden */
+  /** Reset all meters to off */
   resetMeters: () => void;
 }
 
 export function createDefaultMeterSlots(): Map<MeterKey, MeterSlotState> {
   const slots = new Map<MeterKey, MeterSlotState>();
   for (let i = 0; i < TOTAL_SLOTS; i++) {
-    slots.set(meterKey(i), { mode: 'hidden' });
+    slots.set(meterKey(i), { mode: 'off' });
   }
   return slots;
 }
@@ -28,7 +28,7 @@ export function createDefaultMeterSlots(): Map<MeterKey, MeterSlotState> {
 export const createMeterSlice: StateCreator<MeterSlice> = (set) => ({
   meterSlots: createDefaultMeterSlots(),
 
-  initializeMeters: (config, inactiveMode = 'hidden') =>
+  initializeMeters: (config, inactiveMode = 'off') =>
     set(() => {
       const slots = new Map<MeterKey, MeterSlotState>();
       for (let i = 0; i < TOTAL_SLOTS; i++) {

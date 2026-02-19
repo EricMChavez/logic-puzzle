@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { memoryNode, createMemoryState } from './memory';
+import { memoryChip, createMemoryState } from './memory';
 import type { MemoryState } from './memory';
 
 describe('Memory node', () => {
   const evaluate = (input: number, state: MemoryState) => {
-    return memoryNode.evaluate({
+    return memoryChip.evaluate({
       inputs: [input],
       params: {},
       state,
@@ -38,12 +38,12 @@ describe('Memory node', () => {
   });
 
   it('has correct metadata', () => {
-    expect(memoryNode.type).toBe('memory');
-    expect(memoryNode.category).toBe('timing');
-    expect(memoryNode.inputs).toHaveLength(1);
-    expect(memoryNode.outputs).toHaveLength(1);
-    expect(memoryNode.size).toEqual({ width: 3, height: 1 });
-    expect(memoryNode.createState).toBeDefined();
-    expect(memoryNode.params).toBeUndefined();
+    expect(memoryChip.type).toBe('memory');
+    expect(memoryChip.category).toBe('timing');
+    expect(memoryChip.sockets).toHaveLength(1);
+    expect(memoryChip.plugs).toHaveLength(1);
+    expect(memoryChip.size).toEqual({ width: 3, height: 1 });
+    expect(memoryChip.createState).toBeDefined();
+    expect(memoryChip.params).toBeUndefined();
   });
 });

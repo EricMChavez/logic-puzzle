@@ -58,7 +58,7 @@ export function deriveDirectionsFromMeterSlots(
   const directions: ('input' | 'output' | 'off')[] = [];
   for (let i = 0; i < TOTAL_SLOTS; i++) {
     const slot = meterSlots.get(meterKey(i));
-    const mode = slot?.mode ?? 'hidden';
+    const mode = slot?.mode ?? 'off';
     directions.push(mode === 'hidden' ? 'off' : mode === 'off' ? 'off' : mode);
   }
   return directions;

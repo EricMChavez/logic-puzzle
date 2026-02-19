@@ -9,7 +9,6 @@ export function GameboardButtons() {
   const navigationDepth = useGameStore((s) => s.navigationDepth);
   const editingUtilityId = useGameStore((s) => s.editingUtilityId);
   const activeBoardReadOnly = useGameStore((s) => s.activeBoardReadOnly);
-  const ceremonyType = useGameStore((s) => s.ceremonyState.type);
   const overlayType = useGameStore((s) => s.activeOverlay.type);
   const zoomTransitionType = useGameStore((s) => s.zoomTransitionState.type);
 
@@ -27,11 +26,10 @@ export function GameboardButtons() {
     return false;
   });
 
-  // Both buttons hidden during overlays, zoom transition, victory-screen
+  // Both buttons hidden during overlays, zoom transition
   const hidden =
     overlayType !== 'none' ||
-    zoomTransitionType !== 'idle' ||
-    ceremonyType === 'victory-screen';
+    zoomTransitionType !== 'idle';
 
   if (hidden) return null;
 
@@ -41,7 +39,6 @@ export function GameboardButtons() {
         navigationDepth={navigationDepth}
         editingUtilityId={editingUtilityId}
         activeBoardReadOnly={activeBoardReadOnly}
-        ceremonyType={ceremonyType}
       />
       <ProgressButton
         isCreativeMode={isCreativeMode}
@@ -49,7 +46,6 @@ export function GameboardButtons() {
         editingUtilityId={editingUtilityId}
         navigationDepth={navigationDepth}
         activeBoardReadOnly={activeBoardReadOnly}
-        ceremonyType={ceremonyType}
         canRecord={canRecord}
       />
     </div>
@@ -60,19 +56,15 @@ function BackButton({
   navigationDepth,
   editingUtilityId,
   activeBoardReadOnly,
-  ceremonyType,
 }: {
   navigationDepth: number;
   editingUtilityId: string | null;
   activeBoardReadOnly: boolean;
-  ceremonyType: string;
 }) {
   function handleClick() {
     const store = useGameStore.getState();
 
-    if (ceremonyType === 'it-works') {
-      store.dismissCeremony();
-    } else if (editingUtilityId !== null) {
+    if (editingUtilityId !== null) {
       // Two-part zoom-out: start reveal curtain, then show dialog after it completes
       if (store.zoomTransitionState.type !== 'idle') return;
       const entry = store.boardStack[store.boardStack.length - 1];
@@ -112,23 +104,14 @@ function BackButton({
   }
 
   // Only show back button when inside a puzzle/utility (not at motherboard level)
-  if (ceremonyType !== 'it-works' && editingUtilityId === null && !(navigationDepth > 0)) {
+  if (editingUtilityId === null && !(navigationDepth > 0)) {
     return null;
-  }
-
-  let label: string;
-  if (ceremonyType === 'it-works') {
-    label = 'Dismiss';
-  } else if (editingUtilityId !== null) {
-    label = 'Back';
-  } else {
-    label = 'Back';
   }
 
   return (
     <button className={styles.btn} onClick={handleClick}>
       <span className={styles.icon}>&larr;</span>
-      {label}
+      Back
     </button>
   );
 }
@@ -139,7 +122,6 @@ function ProgressButton({
   editingUtilityId,
   navigationDepth,
   activeBoardReadOnly,
-  ceremonyType,
   canRecord,
 }: {
   isCreativeMode: boolean;
@@ -147,7 +129,6 @@ function ProgressButton({
   editingUtilityId: string | null;
   navigationDepth: number;
   activeBoardReadOnly: boolean;
-  ceremonyType: string;
   canRecord: boolean;
 }) {
   // Hidden when editing, inspecting, or creative authoring (not idle)
@@ -171,27 +152,6 @@ function ProgressButton({
     );
   }
 
-  // Puzzle mode: it-works = unlocked amber, otherwise locked
-  if (ceremonyType === 'it-works') {
-    function handleComplete() {
-      const store = useGameStore.getState();
-      if (store.ceremonyPuzzle) {
-        store.completeLevel(store.ceremonyPuzzle.id);
-      }
-      store.showVictoryScreen();
-    }
-    return (
-      <button className={`${styles.btn} ${styles.btnAmber}`} onClick={handleComplete}>
-        Complete
-      </button>
-    );
-  }
-
-  // Puzzle mode, not won: locked
-  return (
-    <button className={`${styles.btn} ${styles.btnDisabled}`} title="Solve the puzzle to unlock">
-      <span className={styles.icon}>&#x1F512;</span>
-      Locked
-    </button>
-  );
+  // Puzzle mode: no progress button needed (passive victory flow)
+  return null;
 }

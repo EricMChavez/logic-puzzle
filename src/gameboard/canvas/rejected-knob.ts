@@ -4,22 +4,22 @@
  * Not in Zustand because it's purely visual feedback with an auto-clear timeout.
  */
 
-let rejectedNodeId: string | null = null;
+let rejectedChipId: string | null = null;
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
 const FLASH_DURATION_MS = 400;
 
 /** Mark a knob as rejected (wired knob was clicked). Auto-clears after FLASH_DURATION_MS. */
 export function rejectKnob(chipId: string): void {
-  rejectedNodeId = chipId;
+  rejectedChipId = chipId;
   if (clearTimer !== null) clearTimeout(clearTimer);
   clearTimer = setTimeout(() => {
-    rejectedNodeId = null;
+    rejectedChipId = null;
     clearTimer = null;
   }, FLASH_DURATION_MS);
 }
 
-/** Get the currently rejected knob node ID (null if none). */
-export function getRejectedKnobNodeId(): string | null {
-  return rejectedNodeId;
+/** Get the currently rejected knob chip ID (null if none). */
+export function getRejectedKnobChipId(): string | null {
+  return rejectedChipId;
 }

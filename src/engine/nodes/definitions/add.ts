@@ -1,16 +1,16 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 import { clamp } from '../../../shared/math';
 
 /** Adds two input signals together */
-export const addNode = defineNode({
+export const addChip = defineChip({
   type: 'add',
   category: 'math',
 
-  inputs: [
+  sockets: [
     { name: 'A', gridPosition: 0 },
     { name: 'B', gridPosition: 1 },
   ],
-  outputs: [{ name: 'Out', gridPosition: 0 }],
+  plugs: [{ name: 'Out', gridPosition: 0 }],
 
   evaluate: ({ inputs }) => {
     const [a, b] = inputs;

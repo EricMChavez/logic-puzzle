@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { scaleNode } from './scale';
+import { scaleChip } from './scale';
 
 describe('Scale node', () => {
   const evaluate = (a: number, x: number) =>
-    scaleNode.evaluate({
+    scaleChip.evaluate({
       inputs: [a, x],
       params: { factor: 100 },
       state: undefined,
@@ -11,16 +11,16 @@ describe('Scale node', () => {
     });
 
   it('has correct metadata', () => {
-    expect(scaleNode.type).toBe('scale');
-    expect(scaleNode.category).toBe('math');
-    expect(scaleNode.inputs).toHaveLength(2);
-    expect(scaleNode.outputs).toHaveLength(1);
-    expect(scaleNode.size).toEqual({ width: 4, height: 3 });
+    expect(scaleChip.type).toBe('scale');
+    expect(scaleChip.category).toBe('math');
+    expect(scaleChip.sockets).toHaveLength(2);
+    expect(scaleChip.plugs).toHaveLength(1);
+    expect(scaleChip.size).toEqual({ width: 4, height: 3 });
   });
 
   it('has X input with bottom side override', () => {
-    expect(scaleNode.inputs[1].name).toBe('X');
-    expect(scaleNode.inputs[1].side).toBe('bottom');
+    expect(scaleChip.sockets[1].name).toBe('X');
+    expect(scaleChip.sockets[1].side).toBe('bottom');
   });
 
   it('X=100 passes through (unity)', () => {
@@ -90,8 +90,8 @@ describe('Scale node', () => {
   });
 
   it('has factor parameter with correct config', () => {
-    expect(scaleNode.params).toHaveLength(1);
-    const param = scaleNode.params![0];
+    expect(scaleChip.params).toHaveLength(1);
+    const param = scaleChip.params![0];
     expect(param.key).toBe('factor');
     expect(param.default).toBe(100);
     expect(param.min).toBe(-100);
@@ -101,7 +101,7 @@ describe('Scale node', () => {
 
   describe('factor parameter ignored in evaluate (knob sets port constant only)', () => {
     const evaluateWithFactor = (a: number, x: number, factor: number) =>
-      scaleNode.evaluate({
+      scaleChip.evaluate({
         inputs: [a, x],
         params: { factor },
         state: undefined,

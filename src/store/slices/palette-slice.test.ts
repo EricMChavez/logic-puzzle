@@ -5,7 +5,6 @@ import { createInteractionSlice } from './interaction-slice.ts';
 import { createPlaypointSlice } from './playpoint-slice.ts';
 import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
-import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
 import { createHistorySlice } from './history-slice.ts';
@@ -14,9 +13,9 @@ import { createRoutingSlice } from './routing-slice.ts';
 import { createOverlaySlice } from './overlay-slice.ts';
 import { createAnimationSlice } from './animation-slice.ts';
 import type { GameStore } from '../index.ts';
-import type { PuzzleNodeEntry } from './palette-slice.ts';
+import type { CraftedPuzzleEntry } from './palette-slice.ts';
 import type { BakeMetadata } from '../../engine/baking/index.ts';
-import { nodeRegistry } from '../../engine/nodes/registry.ts';
+import { chipRegistry } from '../../engine/nodes/registry.ts';
 
 function createTestStore() {
   return create<GameStore>()((...a) => ({
@@ -25,7 +24,6 @@ function createTestStore() {
     ...createPlaypointSlice(...a),
     ...createPuzzleSlice(...a),
     ...createPaletteSlice(...a),
-    ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
     ...createHistorySlice(...a),
@@ -38,18 +36,18 @@ function createTestStore() {
 
 const fakeMeta: BakeMetadata = {
   topoOrder: ['n1'],
-  nodeConfigs: [{ id: 'n1', type: 'offset', params: {}, inputCount: 2, outputCount: 1 }],
+  chipConfigs: [{ id: 'n1', type: 'offset', params: {}, socketCount: 2, plugCount: 1 }],
   edges: [],
-  inputCount: 1,
-  outputCount: 1,
+  socketCount: 1,
+  plugCount: 1,
 };
 
-const fakeEntry: PuzzleNodeEntry = {
+const fakeEntry: CraftedPuzzleEntry = {
   puzzleId: 'pass-through',
   title: 'Pass-Through',
   description: 'Wire input to output',
-  inputCount: 1,
-  outputCount: 1,
+  socketCount: 1,
+  plugCount: 1,
   bakeMetadata: fakeMeta,
   versionHash: 'caller-hash',
 };
@@ -57,13 +55,13 @@ const fakeEntry: PuzzleNodeEntry = {
 describe('palette-slice', () => {
   it('starts with an empty puzzleNodes map', () => {
     const store = createTestStore();
-    expect(store.getState().puzzleNodes.size).toBe(0);
+    expect(store.getState().craftedPuzzles.size).toBe(0);
   });
 
   it('addPuzzleNode inserts an entry', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
-    const nodes = store.getState().puzzleNodes;
+    store.getState().addCraftedPuzzle(fakeEntry);
+    const nodes = store.getState().craftedPuzzles;
     expect(nodes.size).toBe(1);
     const stored = nodes.get('pass-through')!;
     expect(stored.title).toBe('Pass-Through');
@@ -72,35 +70,35 @@ describe('palette-slice', () => {
 
   it('addPuzzleNode does not clobber existing entries', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
-    const second: PuzzleNodeEntry = { ...fakeEntry, puzzleId: 'invert', title: 'Invert' };
-    store.getState().addPuzzleNode(second);
-    expect(store.getState().puzzleNodes.size).toBe(2);
-    expect(store.getState().puzzleNodes.get('pass-through')!.title).toBe('Pass-Through');
-    expect(store.getState().puzzleNodes.get('invert')!.title).toBe('Invert');
+    store.getState().addCraftedPuzzle(fakeEntry);
+    const second: CraftedPuzzleEntry = { ...fakeEntry, puzzleId: 'invert', title: 'Invert' };
+    store.getState().addCraftedPuzzle(second);
+    expect(store.getState().craftedPuzzles.size).toBe(2);
+    expect(store.getState().craftedPuzzles.get('pass-through')!.title).toBe('Pass-Through');
+    expect(store.getState().craftedPuzzles.get('invert')!.title).toBe('Invert');
   });
 
   it('updatePuzzleNode updates bakeMetadata for existing entry', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
+    store.getState().addCraftedPuzzle(fakeEntry);
     const newMeta: BakeMetadata = { ...fakeMeta, topoOrder: ['n2'] };
-    store.getState().updatePuzzleNode('pass-through', newMeta);
-    const updated = store.getState().puzzleNodes.get('pass-through')!;
+    store.getState().updateCraftedPuzzle('pass-through', newMeta);
+    const updated = store.getState().craftedPuzzles.get('pass-through')!;
     expect(updated.bakeMetadata.topoOrder).toEqual(['n2']);
     expect(updated.title).toBe('Pass-Through');
   });
 
   it('updatePuzzleNode is a no-op for unknown puzzleId', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
-    store.getState().updatePuzzleNode('nonexistent', fakeMeta);
-    expect(store.getState().puzzleNodes.size).toBe(1);
+    store.getState().addCraftedPuzzle(fakeEntry);
+    store.getState().updateCraftedPuzzle('nonexistent', fakeMeta);
+    expect(store.getState().craftedPuzzles.size).toBe(1);
   });
 
   it('addPuzzleNode generates a fresh versionHash', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
-    const stored = store.getState().puzzleNodes.get('pass-through')!;
+    store.getState().addCraftedPuzzle(fakeEntry);
+    const stored = store.getState().craftedPuzzles.get('pass-through')!;
     // Should be a valid UUID, not the caller's value
     expect(stored.versionHash).toBeDefined();
     expect(stored.versionHash).not.toBe('caller-hash');
@@ -108,95 +106,95 @@ describe('palette-slice', () => {
 
   it('updatePuzzleNode regenerates versionHash', () => {
     const store = createTestStore();
-    store.getState().addPuzzleNode(fakeEntry);
-    const hashAfterAdd = store.getState().puzzleNodes.get('pass-through')!.versionHash;
+    store.getState().addCraftedPuzzle(fakeEntry);
+    const hashAfterAdd = store.getState().craftedPuzzles.get('pass-through')!.versionHash;
 
-    store.getState().updatePuzzleNode('pass-through', { ...fakeMeta, topoOrder: ['n2'] });
-    const hashAfterUpdate = store.getState().puzzleNodes.get('pass-through')!.versionHash;
+    store.getState().updateCraftedPuzzle('pass-through', { ...fakeMeta, topoOrder: ['n2'] });
+    const hashAfterUpdate = store.getState().craftedPuzzles.get('pass-through')!.versionHash;
 
     expect(hashAfterUpdate).not.toBe(hashAfterAdd);
   });
 });
 
 describe('palette filtering logic', () => {
-  const entryA: PuzzleNodeEntry = {
+  const entryA: CraftedPuzzleEntry = {
     ...fakeEntry,
     puzzleId: 'puzzle-a',
     title: 'Puzzle A',
   };
-  const entryB: PuzzleNodeEntry = {
+  const entryB: CraftedPuzzleEntry = {
     ...fakeEntry,
     puzzleId: 'puzzle-b',
     title: 'Puzzle B',
   };
 
-  describe('fundamental nodes filtered by allowedNodes', () => {
-    it('null allowedNodes shows all fundamentals', () => {
-      const allowedNodes: string[] | null = null as string[] | null;
-      const visible = allowedNodes
-        ? nodeRegistry.all.filter((def) => allowedNodes.includes(def.type))
-        : nodeRegistry.all;
-      expect(visible).toEqual(nodeRegistry.all);
-      expect(visible.length).toBe(10); // 10 fundamental nodes
+  describe('fundamental nodes filtered by allowedChips', () => {
+    it('null allowedChips shows all fundamentals', () => {
+      const allowedChips: string[] | null = null as string[] | null;
+      const visible = allowedChips
+        ? chipRegistry.all.filter((def) => allowedChips.includes(def.type))
+        : chipRegistry.all;
+      expect(visible).toEqual(chipRegistry.all);
+      expect(visible.length).toBe(chipRegistry.all.length);
     });
 
-    it('allowedNodes filters to matching types only', () => {
-      const allowedNodes = ['scale', 'offset'];
-      const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
+    it('allowedChips filters to matching types only', () => {
+      const allowedChips = ['scale', 'offset'];
+      const visible = chipRegistry.all.filter((def) => allowedChips.includes(def.type));
       expect(visible.length).toBe(2);
       expect(visible.map((d) => d.type).sort()).toEqual(['offset', 'scale']);
     });
 
-    it('allowedNodes with no matches returns empty', () => {
-      const allowedNodes = ['nonexistent'];
-      const visible = nodeRegistry.all.filter((def) => allowedNodes.includes(def.type));
+    it('allowedChips with no matches returns empty', () => {
+      const allowedChips = ['nonexistent'];
+      const visible = chipRegistry.all.filter((def) => allowedChips.includes(def.type));
       expect(visible.length).toBe(0);
     });
   });
 
-  describe('puzzle nodes filtered by completedLevels and allowedNodes', () => {
+  describe('puzzle nodes filtered by completedLevels and allowedChips', () => {
     it('uncompleted puzzle nodes are hidden', () => {
       const store = createTestStore();
-      store.getState().addPuzzleNode(entryA);
-      store.getState().addPuzzleNode(entryB);
+      store.getState().addCraftedPuzzle(entryA);
+      store.getState().addCraftedPuzzle(entryB);
 
       const completedLevels = store.getState().completedLevels;
-      const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
+      const visible = Array.from(store.getState().craftedPuzzles.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
         return true;
       });
       expect(visible.length).toBe(0);
     });
 
-    it('completed puzzle nodes are visible when allowedNodes is null', () => {
+    it('completed puzzle nodes are visible when allowedChips is null', () => {
       const store = createTestStore();
-      store.getState().addPuzzleNode(entryA);
-      store.getState().addPuzzleNode(entryB);
+      store.getState().addCraftedPuzzle(entryA);
+      store.getState().addCraftedPuzzle(entryB);
       store.getState().completeLevel('puzzle-a');
 
       const completedLevels = store.getState().completedLevels;
-      const allowedNodes: string[] | null = null as string[] | null;
-      const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
+      const allowedChips: string[] | null = null as string[] | null;
+      const visible = Array.from(store.getState().craftedPuzzles.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
-        if (allowedNodes && !allowedNodes.includes(entry.puzzleId)) return false;
+        if (allowedChips && !allowedChips.includes(entry.puzzleId)) return false;
         return true;
       });
       expect(visible.length).toBe(1);
       expect(visible[0].puzzleId).toBe('puzzle-a');
     });
 
-    it('allowedNodes further filters completed puzzle nodes', () => {
+    it('allowedChips further filters completed puzzle nodes', () => {
       const store = createTestStore();
-      store.getState().addPuzzleNode(entryA);
-      store.getState().addPuzzleNode(entryB);
+      store.getState().addCraftedPuzzle(entryA);
+      store.getState().addCraftedPuzzle(entryB);
       store.getState().completeLevel('puzzle-a');
       store.getState().completeLevel('puzzle-b');
 
       const completedLevels = store.getState().completedLevels;
-      const allowedNodes = ['puzzle-b'];
-      const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
+      const allowedChips = ['puzzle-b'];
+      const visible = Array.from(store.getState().craftedPuzzles.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
-        if (allowedNodes && !allowedNodes.includes(entry.puzzleId)) return false;
+        if (allowedChips && !allowedChips.includes(entry.puzzleId)) return false;
         return true;
       });
       expect(visible.length).toBe(1);
@@ -205,16 +203,16 @@ describe('palette filtering logic', () => {
 
     it('both completed and allowed shows all matching', () => {
       const store = createTestStore();
-      store.getState().addPuzzleNode(entryA);
-      store.getState().addPuzzleNode(entryB);
+      store.getState().addCraftedPuzzle(entryA);
+      store.getState().addCraftedPuzzle(entryB);
       store.getState().completeLevel('puzzle-a');
       store.getState().completeLevel('puzzle-b');
 
       const completedLevels = store.getState().completedLevels;
-      const allowedNodes: string[] | null = null as string[] | null;
-      const visible = Array.from(store.getState().puzzleNodes.values()).filter((entry) => {
+      const allowedChips: string[] | null = null as string[] | null;
+      const visible = Array.from(store.getState().craftedPuzzles.values()).filter((entry) => {
         if (!completedLevels.has(entry.puzzleId)) return false;
-        if (allowedNodes && !allowedNodes.includes(entry.puzzleId)) return false;
+        if (allowedChips && !allowedChips.includes(entry.puzzleId)) return false;
         return true;
       });
       expect(visible.length).toBe(2);

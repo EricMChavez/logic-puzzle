@@ -5,14 +5,14 @@
  * keeping render-loop.ts as the sole getState() bridge.
  */
 
-import type { GameboardState, NodeState, Vec2 } from '../../shared/types/index.ts';
+import type { GameboardState, ChipState, Vec2 } from '../../shared/types/index.ts';
 import type { InteractionMode } from '../../store/slices/interaction-slice.ts';
-import type { PuzzleNodeEntry } from '../../store/slices/palette-slice.ts';
-import type { UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
+import type { CraftedPuzzleEntry } from '../../store/slices/palette-slice.ts';
+import type { CraftedUtilityEntry } from '../../store/slices/palette-slice.ts';
 import type { PuzzleDefinition } from '../../puzzle/types.ts';
 import type { MeterKey, MeterSlotState } from '../meters/meter-types.ts';
 
-/** Knob display state for a knob-equipped node (mixer, amp, etc.) */
+/** Knob display state for a knob-equipped chip (mixer, amp, etc.) */
 export interface KnobInfo {
   value: number;
   isWired: boolean;
@@ -20,20 +20,22 @@ export interface KnobInfo {
 
 /** State needed by drawNodes */
 export interface RenderNodesState {
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>;
-  chips: ReadonlyMap<string, NodeState>;
-  selectedNodeId: string | null;
-  hoveredNodeId: string | null;
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>;
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>;
+  chips: ReadonlyMap<string, ChipState>;
+  selectedChipId: string | null;
+  hoveredChipId: string | null;
   knobValues: ReadonlyMap<string, KnobInfo>;
-  /** Signal value per port, keyed by `${chipId}:input:${portIndex}` or `${chipId}:output:${portIndex}`. */
+  /** Signal value per port, keyed by `${chipId}:socket:${portIndex}` or `${chipId}:plug:${portIndex}`. */
   portSignals: ReadonlyMap<string, number>;
-  /** Node ID whose knob is showing a rejected-click flash (wired knob was clicked) */
-  rejectedKnobNodeId: string | null;
-  /** Set of connected input port keys: `${chipId}:${portIndex}` */
-  connectedInputPorts: ReadonlySet<string>;
-  /** Set of node IDs reachable from input sources (live nodes) */
-  liveNodeIds: ReadonlySet<string>;
+  /** Chip ID whose knob is showing a rejected-click flash (wired knob was clicked) */
+  rejectedKnobChipId: string | null;
+  /** Set of connected socket port keys: `${chipId}:${portIndex}` */
+  connectedSocketPorts: ReadonlySet<string>;
+  /** Set of connected plug port keys: `${chipId}:${portIndex}` */
+  connectedPlugPorts: ReadonlySet<string>;
+  /** Set of chip IDs reachable from input sources (live chips) */
+  liveChipIds: ReadonlySet<string>;
 }
 
 /** State needed by renderConnectionPoints */
@@ -48,6 +50,8 @@ export interface RenderConnectionPointsState {
   cpSignals: ReadonlyMap<string, number>;
   /** Set of connected output CP keys: `output:${cpIndex}` */
   connectedOutputCPs: ReadonlySet<string>;
+  /** Set of connected input CP keys: `input:${cpIndex}` */
+  connectedInputCPs: ReadonlySet<string>;
 }
 
 /** State needed by drawGrid */
@@ -77,12 +81,12 @@ export interface RenderCeremonyState {
 /** State needed by the render loop to orchestrate all draw calls */
 export interface RenderLoopState {
   activeBoard: GameboardState | null;
-  selectedNodeId: string | null;
-  hoveredNodeId: string | null;
+  selectedChipId: string | null;
+  hoveredChipId: string | null;
   interactionMode: InteractionMode;
   mousePosition: Vec2 | null;
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>;
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>;
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>;
   activePuzzle: PuzzleDefinition | null;
   perPortMatch: readonly boolean[];
 }

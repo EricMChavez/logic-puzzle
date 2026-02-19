@@ -1,12 +1,12 @@
-import { defineNode } from '../framework';
+import { defineChip } from '../framework';
 
 /** Flips the polarity of the input signal: output = -input */
-export const negateNode = defineNode({
+export const negateChip = defineChip({
   type: 'negate',
   category: 'math',
 
-  inputs: [{ name: 'A', gridPosition: 0 }],
-  outputs: [{ name: 'Out', gridPosition: 0 }],
+  sockets: [{ name: 'A', gridPosition: 0 }],
+  plugs: [{ name: 'Out', gridPosition: 0 }],
 
   evaluate: ({ inputs }) => {
     const [a] = inputs;

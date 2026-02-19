@@ -3,7 +3,7 @@ import { bakeGraph } from '../../engine/baking/index.ts';
 import { generateId } from '../../shared/generate-id.ts';
 import { captureViewportSnapshot } from '../../gameboard/canvas/snapshot.ts';
 import { getNodeGridSize } from '../../shared/grid/index.ts';
-import type { NodeSwap } from '../../store/slices/navigation-slice.ts';
+import type { ChipSwap } from '../../store/slices/navigation-slice.ts';
 import styles from './SaveCancelDialog.module.css';
 
 /**
@@ -55,35 +55,35 @@ export function SaveCancelDialog() {
 
     const { metadata } = bakeResult.value;
     const cpLayout = metadata.cpLayout;
-    const existingEntry = state.utilityNodes.get(editingUtilityId);
-    const chipIdInParent = state.editingNodeIdInParent;
+    const existingEntry = state.craftedUtilities.get(editingUtilityId);
+    const chipIdInParent = state.editingChipIdInParent;
 
     if (existingEntry) {
       const overwrite = window.confirm(`Overwrite "${existingEntry.title}"?`);
       if (overwrite) {
-        state.updateUtilityNode(editingUtilityId, metadata, state.activeBoard);
+        state.updateCraftedUtility(editingUtilityId, metadata, state.activeBoard);
         startZoomOut(state);
         state.finishEditingUtility();
       } else {
         const newName = window.prompt('Name for new custom chip:');
         if (!newName) return;
         const newUtilityId = generateId();
-        state.addUtilityNode({
+        state.addCraftedUtility({
           utilityId: newUtilityId,
           title: newName,
-          inputCount: metadata.inputCount,
-          outputCount: metadata.outputCount,
+          socketCount: metadata.socketCount,
+          plugCount: metadata.plugCount,
           bakeMetadata: metadata,
           board: state.activeBoard,
           versionHash: generateId(),
           cpLayout,
         });
         startZoomOut(state);
-        const swap: NodeSwap | undefined = chipIdInParent ? {
+        const swap: ChipSwap | undefined = chipIdInParent ? {
           chipId: chipIdInParent,
           newType: `utility:${newUtilityId}`,
-          inputCount: metadata.inputCount,
-          outputCount: metadata.outputCount,
+          socketCount: metadata.socketCount,
+          plugCount: metadata.plugCount,
           cpLayout,
         } : undefined;
         state.finishEditingUtility(swap);
@@ -91,22 +91,22 @@ export function SaveCancelDialog() {
     } else {
       const name = window.prompt('Name for this custom chip:');
       if (!name) return;
-      state.addUtilityNode({
+      state.addCraftedUtility({
         utilityId: editingUtilityId,
         title: name,
-        inputCount: metadata.inputCount,
-        outputCount: metadata.outputCount,
+        socketCount: metadata.socketCount,
+        plugCount: metadata.plugCount,
         bakeMetadata: metadata,
         board: state.activeBoard,
         versionHash: generateId(),
         cpLayout,
       });
       startZoomOut(state);
-      const swap: NodeSwap | undefined = chipIdInParent ? {
+      const swap: ChipSwap | undefined = chipIdInParent ? {
         chipId: chipIdInParent,
         newType: `utility:${editingUtilityId}`,
-        inputCount: metadata.inputCount,
-        outputCount: metadata.outputCount,
+        socketCount: metadata.socketCount,
+        plugCount: metadata.plugCount,
         cpLayout,
       } : undefined;
       state.finishEditingUtility(swap);

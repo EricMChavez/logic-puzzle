@@ -34,7 +34,7 @@ export function PowerMeter({ vertical }: PowerMeterProps) {
           fontWeight: 600,
           letterSpacing: 3,
           textTransform: 'uppercase' as const,
-          color: '#6b6252',
+          color: '#6b624d',
           fontFamily: "'IBM Plex Mono', monospace",
           whiteSpace: 'nowrap',
         }}>Signal Level</div>
@@ -44,7 +44,7 @@ export function PowerMeter({ vertical }: PowerMeterProps) {
           flex: 1,
           width: 18,
           borderRadius: 4,
-          background: '#3a3428',
+          background: '#3a3426',
           boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
           overflow: 'hidden',
           position: 'relative' as const,
@@ -66,7 +66,7 @@ export function PowerMeter({ vertical }: PowerMeterProps) {
         <span style={{
           fontSize: 11,
           fontWeight: 600,
-          color: '#6b6252',
+          color: '#6b624d',
           fontFamily: "'IBM Plex Mono', monospace",
         }}>{completed}/{total}</span>
       </div>
@@ -81,20 +81,20 @@ export function PowerMeter({ vertical }: PowerMeterProps) {
           fontWeight: 600,
           letterSpacing: 3,
           textTransform: 'uppercase' as const,
-          color: '#6b6252',
+          color: '#6b624d',
           fontFamily: "'IBM Plex Mono', monospace",
         }}>Signal Level</span>
         <span style={{
           fontSize: 13,
           fontWeight: 600,
-          color: '#6b6252',
+          color: '#6b624d',
           fontFamily: "'IBM Plex Mono', monospace",
         }}>{completed}/{total}</span>
       </div>
       <div style={{
         height: 18,
         borderRadius: 4,
-        background: '#3a3428',
+        background: '#3a3426',
         boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
         overflow: 'hidden',
         position: 'relative' as const,

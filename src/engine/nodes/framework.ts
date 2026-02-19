@@ -1,7 +1,7 @@
 /**
- * Node Framework
+ * Chip Framework
  *
- * Single source of truth for node definitions. Define a node once here,
+ * Single source of truth for chip definitions. Define a chip once here,
  * and everything else (palette, evaluation, rendering, params) derives from it.
  */
 
@@ -15,8 +15,8 @@ export type Signal = number;
 /** Parameter value types */
 export type ParamValue = number | string | boolean;
 
-/** Node categories for palette organization */
-export type NodeCategory =
+/** Chip categories for palette organization */
+export type ChipCategory =
   | 'math'
   | 'routing'
   | 'timing'
@@ -32,20 +32,20 @@ export interface GridSize {
 // Port Definitions
 // =============================================================================
 
-/** Physical side of a node where a port can be placed */
+/** Physical side of a chip where a port can be placed */
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
 
-/** Defines a single input or output port */
+/** Defines a single socket or plug port */
 export interface PortDefinition {
   /** Display name shown in UI: 'A', 'B', 'Control', 'Out' */
   name: string;
   /** Optional tooltip/description */
   description?: string;
-  /** Override the default side for this port (inputs default to 'left', outputs to 'right') */
+  /** Override the default side for this port (sockets default to 'left', plugs to 'right') */
   side?: PortSide;
   /** Override the distributed position along the port's side (row for left/right, col for top/bottom) */
   gridPosition?: number;
-  /** Links this input port to a node param key, making it a knob-controlled port */
+  /** Links this socket port to a chip param key, making it a knob-controlled port */
   knob?: string;
 }
 
@@ -55,7 +55,7 @@ export interface PortDefinition {
 
 /** Defines a player-adjustable parameter */
 export interface ParamDefinition<TKey extends string = string> {
-  /** Parameter key in node.params */
+  /** Parameter key in chip.params */
   key: TKey;
   /** Value type */
   type: 'number' | 'string' | 'boolean';
@@ -77,33 +77,33 @@ export interface ParamDefinition<TKey extends string = string> {
 // Evaluation Context
 // =============================================================================
 
-/** Runtime state for stateful nodes (Shaper, Delay) */
-export interface NodeRuntimeState {
+/** Runtime state for stateful chips (Memory) */
+export interface ChipRuntimeState {
   [key: string]: unknown;
 }
 
-/** Context passed to node evaluation function */
+/** Context passed to chip evaluation function */
 export interface EvalContext<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> {
   /** Current input values (indexed by port order) */
   inputs: readonly Signal[];
   /** Current parameter values */
   params: Readonly<TParams>;
-  /** Mutable runtime state (only for stateful nodes) */
-  state?: NodeRuntimeState;
+  /** Mutable runtime state (only for stateful chips) */
+  state?: ChipRuntimeState;
   /** Current simulation tick index */
   tickIndex: number;
 }
 
-/** Node evaluation function signature */
-export type NodeEvaluator<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> =
+/** Chip evaluation function signature */
+export type ChipEvaluator<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> =
   (ctx: EvalContext<TParams>) => Signal[];
 
 // =============================================================================
-// Node Definition
+// Chip Definition
 // =============================================================================
 
 /**
- * Complete definition of a node type.
+ * Complete definition of a chip type.
  *
  * Define this once, and the framework auto-generates:
  * - Palette entry
@@ -112,20 +112,20 @@ export type NodeEvaluator<TParams extends Record<string, ParamValue> = Record<st
  * - Parameter UI
  * - Rendering
  */
-export interface NodeDefinition<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> {
+export interface ChipDefinition<TParams extends Record<string, ParamValue> = Record<string, ParamValue>> {
   // ─── Identity ───────────────────────────────────────────────────────────────
   /** Unique type identifier: 'offset', 'scale', etc. */
   type: string;
   /** Category for palette grouping */
-  category: NodeCategory;
+  category: ChipCategory;
   /** Short description shown in chip drawer tooltip */
   description?: string;
 
   // ─── Interface ──────────────────────────────────────────────────────────────
-  /** Input port definitions (order matters) */
-  inputs: PortDefinition[];
-  /** Output port definitions (order matters) */
-  outputs: PortDefinition[];
+  /** Socket (input) port definitions (order matters) */
+  sockets: PortDefinition[];
+  /** Plug (output) port definitions (order matters) */
+  plugs: PortDefinition[];
 
   // ─── Parameters ─────────────────────────────────────────────────────────────
   /** Optional player-adjustable parameters */
@@ -133,11 +133,11 @@ export interface NodeDefinition<TParams extends Record<string, ParamValue> = Rec
 
   // ─── Evaluation ─────────────────────────────────────────────────────────────
   /** Pure evaluation function: inputs → outputs */
-  evaluate: NodeEvaluator<TParams>;
+  evaluate: ChipEvaluator<TParams>;
 
   // ─── State ──────────────────────────────────────────────────────────────────
-  /** Factory for runtime state (only for stateful nodes) */
-  createState?: () => NodeRuntimeState;
+  /** Factory for runtime state (only for stateful chips) */
+  createState?: () => ChipRuntimeState;
 
   // ─── Rendering ──────────────────────────────────────────────────────────────
   /** Size in grid cells */
@@ -148,31 +148,31 @@ export interface NodeDefinition<TParams extends Record<string, ParamValue> = Rec
 // Utility Types
 // =============================================================================
 
-/** Extract the type string from a node definition */
-export type NodeType<T extends NodeDefinition> = T['type'];
+/** Extract the type string from a chip definition */
+export type ChipType<T extends ChipDefinition> = T['type'];
 
-/** Extract params type from a node definition */
-export type NodeParams<T extends NodeDefinition> = T extends NodeDefinition<infer P> ? P : never;
+/** Extract params type from a chip definition */
+export type ChipParams<T extends ChipDefinition> = T extends ChipDefinition<infer P> ? P : never;
 
 // =============================================================================
 // Factory Helpers
 // =============================================================================
 
 /**
- * Create a node definition with full type inference.
- * Use this to ensure type safety when defining nodes.
+ * Create a chip definition with full type inference.
+ * Use this to ensure type safety when defining chips.
  */
-export function defineNode<TParams extends Record<string, ParamValue> = Record<string, ParamValue>>(
-  definition: NodeDefinition<TParams>,
-): NodeDefinition<TParams> {
+export function defineChip<TParams extends Record<string, ParamValue> = Record<string, ParamValue>>(
+  definition: ChipDefinition<TParams>,
+): ChipDefinition<TParams> {
   return definition;
 }
 
 /**
- * Create default params object from a node definition.
+ * Create default params object from a chip definition.
  */
 export function createDefaultParams<TParams extends Record<string, ParamValue>>(
-  definition: NodeDefinition<TParams>,
+  definition: ChipDefinition<TParams>,
 ): TParams {
   const params = {} as Record<string, ParamValue>;
   for (const p of definition.params ?? []) {
@@ -181,23 +181,23 @@ export function createDefaultParams<TParams extends Record<string, ParamValue>>(
   return params as TParams;
 }
 
-/** Knob configuration derived from a node definition's input ports. */
+/** Knob configuration derived from a chip definition's socket ports. */
 export interface KnobConfig {
   portIndex: number;
   paramKey: string;
 }
 
 /**
- * Get the knob configuration from a node definition.
- * Scans input ports for one with a `knob` field set, returning the port index and param key.
+ * Get the knob configuration from a chip definition.
+ * Scans socket ports for one with a `knob` field set, returning the port index and param key.
  * Returns null if the definition has no knob port.
  */
 export function getKnobConfig(
-  def: NodeDefinition<Record<string, ParamValue>> | undefined,
+  def: ChipDefinition<Record<string, ParamValue>> | undefined,
 ): KnobConfig | null {
   if (!def) return null;
-  for (let i = 0; i < def.inputs.length; i++) {
-    const port = def.inputs[i];
+  for (let i = 0; i < def.sockets.length; i++) {
+    const port = def.sockets[i];
     if (port.knob) {
       return { portIndex: i, paramKey: port.knob };
     }

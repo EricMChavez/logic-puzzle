@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { GameStore } from '../index.ts';
-import type { GameboardState, NodeId, NodeState } from '../../shared/types/index.ts';
+import type { GameboardState, ChipId, ChipState } from '../../shared/types/index.ts';
 import { gameboardFromBakeMetadata } from '../../puzzle/gameboard-from-metadata.ts';
 import { recomputeOccupancy } from '../../shared/grid/index.ts';
 import { createDefaultMeterSlots } from './meter-slice.ts';
@@ -9,39 +9,37 @@ import type { MeterKey, MeterMode, MeterSlotState } from '../../gameboard/meters
 import { meterKey } from '../../gameboard/meters/meter-types.ts';
 import { TOTAL_SLOTS } from '../../shared/grid/slot-helpers.ts';
 import {
-  isUtilitySlotNode,
-  getUtilitySlotIndex,
   isBidirectionalCpNode,
   getBidirectionalCpIndex,
   utilitySlotId,
   createUtilitySlotNode,
 } from '../../puzzle/connection-point-nodes.ts';
-import type { PuzzleNodeEntry, UtilityNodeEntry } from './palette-slice.ts';
+import type { CraftedPuzzleEntry, CraftedUtilityEntry } from './palette-slice.ts';
 import type { PuzzleDefinition } from '../../puzzle/types.ts';
 
 export function computeBreadcrumbs(
   boardStack: BoardStackEntry[],
-  puzzleNodes: Map<string, PuzzleNodeEntry>,
+  craftedPuzzles: Map<string, CraftedPuzzleEntry>,
   activePuzzle: PuzzleDefinition | null,
-  utilityNodes?: Map<string, UtilityNodeEntry>,
+  craftedUtilities?: Map<string, CraftedUtilityEntry>,
 ): string[] {
   const root = activePuzzle?.title ?? 'Sandbox';
   const segments = [root];
 
   for (const entry of boardStack) {
-    const node = entry.board.chips.get(entry.chipIdInParent);
-    if (node && node.type === 'custom-blank') {
+    const chip = entry.board.chips.get(entry.chipIdInParent);
+    if (chip && chip.type === 'custom-blank') {
       segments.push('New Custom Node');
-    } else if (node && node.type.startsWith('puzzle:')) {
-      const puzzleId = node.type.slice('puzzle:'.length);
-      const title = puzzleNodes.get(puzzleId)?.title ?? puzzleId;
+    } else if (chip && chip.type.startsWith('puzzle:')) {
+      const puzzleId = chip.type.slice('puzzle:'.length);
+      const title = craftedPuzzles.get(puzzleId)?.title ?? puzzleId;
       segments.push(title);
-    } else if (node && node.type.startsWith('utility:') && utilityNodes) {
-      const utilityId = node.type.slice('utility:'.length);
-      const title = utilityNodes.get(utilityId)?.title ?? utilityId;
+    } else if (chip && chip.type.startsWith('utility:') && craftedUtilities) {
+      const utilityId = chip.type.slice('utility:'.length);
+      const title = craftedUtilities.get(utilityId)?.title ?? utilityId;
       segments.push(title);
-    } else if (node && node.type.startsWith('menu:')) {
-      const menuLabel = (node.params.label as string) ?? node.type.slice('menu:'.length);
+    } else if (chip && chip.type.startsWith('menu:')) {
+      const menuLabel = (chip.params.label as string) ?? chip.type.slice('menu:'.length);
       segments.push(menuLabel);
     } else if (entry.chipIdInParent) {
       segments.push(entry.chipIdInParent);
@@ -54,17 +52,17 @@ export function computeBreadcrumbs(
 export interface BoardStackEntry {
   board: GameboardState;
   portConstants: Map<string, number>;
-  chipIdInParent: NodeId;
+  chipIdInParent: ChipId;
   readOnly: boolean;
   meterSlots: Map<MeterKey, MeterSlotState>;
   zoomedCrop?: OffscreenCanvas;
 }
 
-export interface NodeSwap {
-  chipId: NodeId;
+export interface ChipSwap {
+  chipId: ChipId;
   newType: string;
-  inputCount: number;
-  outputCount: number;
+  socketCount: number;
+  plugCount: number;
   cpLayout?: ('input' | 'output' | 'off')[];
 }
 
@@ -73,13 +71,13 @@ export interface NavigationSlice {
   activeBoardReadOnly: boolean;
   navigationDepth: number;
   editingUtilityId: string | null;
-  editingNodeIdInParent: NodeId | null;
+  editingChipIdInParent: ChipId | null;
 
-  zoomIntoNode: (chipId: NodeId) => void;
-  zoomIntoMenuNode: (chipId: NodeId) => void;
+  zoomIntoNode: (chipId: ChipId) => void;
+  zoomIntoMenuNode: (chipId: ChipId) => void;
   zoomOut: () => void;
-  startEditingUtility: (utilityId: string, board: GameboardState, chipIdInParent?: NodeId) => void;
-  finishEditingUtility: (nodeSwap?: NodeSwap) => void;
+  startEditingUtility: (utilityId: string, board: GameboardState, chipIdInParent?: ChipId) => void;
+  finishEditingUtility: (chipSwap?: ChipSwap) => void;
 }
 
 /**
@@ -93,8 +91,8 @@ function deriveUtilityMeterSlots(board: GameboardState): Map<MeterKey, MeterSlot
     const chipId = utilitySlotId(i);
     let mode: MeterMode = 'off';
     if (board.chips.has(chipId)) {
-      const node = board.chips.get(chipId)!;
-      mode = node.type === 'connection-input' ? 'input' : 'output';
+      const chip = board.chips.get(chipId)!;
+      mode = chip.type === 'connection-input' ? 'input' : 'output';
     }
     slots.set(meterKey(i), { mode });
   }
@@ -117,17 +115,17 @@ function migrateOldBidirCps(board: GameboardState): GameboardState {
   }
   if (!hasBidir) return board;
 
-  const nodes = new Map<string, NodeState>();
+  const chips = new Map<string, ChipState>();
 
-  // Build ID mapping for wire remapping
+  // Build ID mapping for path remapping
   const idMap = new Map<string, string>();
 
-  for (const [id, node] of board.chips) {
+  for (const [id, chip] of board.chips) {
     if (isBidirectionalCpNode(id)) {
       const cpIndex = getBidirectionalCpIndex(id);
       // Bidir CPs: infer direction from wiring.
-      // Output port used (wires source from it) → 'input' (feeds signal into board)
-      // Input port used (wires target it) → 'output' (receives signal from board)
+      // Output port used (paths source from it) → 'input' (feeds signal into board)
+      // Input port used (paths target it) → 'output' (receives signal from board)
       const hasOutgoing = board.paths.some(w => w.source.chipId === id);
       const hasIncoming = board.paths.some(w => w.target.chipId === id);
 
@@ -141,16 +139,16 @@ function migrateOldBidirCps(board: GameboardState): GameboardState {
         dir = cpIndex < 3 ? 'input' : 'output';
       }
 
-      const newNode = createUtilitySlotNode(cpIndex, dir);
-      const newNodeId = utilitySlotId(cpIndex);
-      idMap.set(id, newNodeId);
-      nodes.set(newNodeId, newNode);
+      const newChip = createUtilitySlotNode(cpIndex, dir);
+      const newChipId = utilitySlotId(cpIndex);
+      idMap.set(id, newChipId);
+      chips.set(newChipId, newChip);
     } else {
-      nodes.set(id, node);
+      chips.set(id, chip);
     }
   }
 
-  // Remap wire references
+  // Remap path references
   const paths = board.paths.map(w => {
     let source = w.source;
     let target = w.target;
@@ -165,7 +163,7 @@ function migrateOldBidirCps(board: GameboardState): GameboardState {
     return { ...w, source, target };
   });
 
-  return { ...board, chips: nodes, paths };
+  return { ...board, chips, paths };
 }
 
 export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSlice> = (
@@ -176,25 +174,25 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
   activeBoardReadOnly: false,
   navigationDepth: 0,
   editingUtilityId: null,
-  editingNodeIdInParent: null,
+  editingChipIdInParent: null,
 
   zoomIntoNode: (chipId) => {
     const state = get();
     if (!state.activeBoard) return;
 
-    const node = state.activeBoard.chips.get(chipId);
-    if (!node) return;
+    const chip = state.activeBoard.chips.get(chipId);
+    if (!chip) return;
 
     let childBoard: GameboardState | null = null;
 
-    if (node.type.startsWith('puzzle:')) {
-      const puzzleId = node.type.slice('puzzle:'.length);
-      const entry = state.puzzleNodes.get(puzzleId);
+    if (chip.type.startsWith('puzzle:')) {
+      const puzzleId = chip.type.slice('puzzle:'.length);
+      const entry = state.craftedPuzzles.get(puzzleId);
       if (!entry) return;
       childBoard = gameboardFromBakeMetadata(puzzleId, entry.bakeMetadata);
-    } else if (node.type.startsWith('utility:')) {
-      const utilityId = node.type.slice('utility:'.length);
-      const entry = state.utilityNodes.get(utilityId);
+    } else if (chip.type.startsWith('utility:')) {
+      const utilityId = chip.type.slice('utility:'.length);
+      const entry = state.craftedUtilities.get(utilityId);
       if (!entry) return;
       childBoard = gameboardFromBakeMetadata(utilityId, entry.bakeMetadata);
     } else {
@@ -223,7 +221,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       portConstants: new Map(),
       activeBoardReadOnly: true,
       navigationDepth: newStack.length,
-      selectedNodeId: null,
+      selectedChipId: null,
       occupancy: recomputeOccupancy(childBoard.chips),
       meterSlots: createDefaultMeterSlots(),
     });
@@ -253,7 +251,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       boardStack: newStack,
       activeBoardReadOnly: false,
       navigationDepth: newStack.length,
-      selectedNodeId: null,
+      selectedChipId: null,
     });
   },
 
@@ -278,7 +276,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
         portConstants: entry.portConstants,
         activeBoardReadOnly: false,
         navigationDepth: newStack.length,
-        selectedNodeId: null,
+        selectedChipId: null,
         occupancy: recomputeOccupancy(freshBoard.chips),
         meterSlots: entry.meterSlots,
         motherboardLayout: layout,
@@ -293,7 +291,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       portConstants: entry.portConstants,
       activeBoardReadOnly: entry.readOnly,
       navigationDepth: newStack.length,
-      selectedNodeId: null,
+      selectedChipId: null,
       occupancy: recomputeOccupancy(entry.board.chips),
       meterSlots: entry.meterSlots,
     });
@@ -310,7 +308,7 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
     const stackEntry: BoardStackEntry = {
       board: state.activeBoard,
       portConstants: state.portConstants,
-      chipIdInParent: (chipIdInParent ?? '') as NodeId,
+      chipIdInParent: (chipIdInParent ?? '') as ChipId,
       readOnly: state.activeBoardReadOnly,
       meterSlots: state.meterSlots,
       zoomedCrop,
@@ -331,15 +329,15 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       portConstants: new Map(),
       activeBoardReadOnly: false,
       navigationDepth: newStack.length,
-      selectedNodeId: null,
+      selectedChipId: null,
       editingUtilityId: utilityId,
-      editingNodeIdInParent: (chipIdInParent ?? null) as NodeId | null,
+      editingChipIdInParent: (chipIdInParent ?? null) as ChipId | null,
       occupancy: recomputeOccupancy(migratedBoard.chips),
       meterSlots: utilityMeterSlots,
     });
   },
 
-  finishEditingUtility: (nodeSwap?) => {
+  finishEditingUtility: (chipSwap?) => {
     const state = get();
     if (state.boardStack.length === 0) return;
 
@@ -348,19 +346,19 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
 
     let parentBoard = entry.board;
 
-    // Apply node swap if provided (e.g., custom-blank → utility:id)
-    if (nodeSwap) {
-      const nodes = new Map(parentBoard.chips);
-      const existing = nodes.get(nodeSwap.chipId);
+    // Apply chip swap if provided (e.g., custom-blank → utility:id)
+    if (chipSwap) {
+      const chips = new Map(parentBoard.chips);
+      const existing = chips.get(chipSwap.chipId);
       if (existing) {
-        nodes.set(nodeSwap.chipId, {
+        chips.set(chipSwap.chipId, {
           ...existing,
-          type: nodeSwap.newType,
-          inputCount: nodeSwap.inputCount,
-          outputCount: nodeSwap.outputCount,
-          params: { ...existing.params, ...(nodeSwap.cpLayout ? { cpLayout: nodeSwap.cpLayout } : {}) },
+          type: chipSwap.newType,
+          socketCount: chipSwap.socketCount,
+          plugCount: chipSwap.plugCount,
+          params: { ...existing.params, ...(chipSwap.cpLayout ? { cpLayout: chipSwap.cpLayout } : {}) },
         });
-        parentBoard = { ...parentBoard, chips: nodes };
+        parentBoard = { ...parentBoard, chips };
       }
     }
 
@@ -371,9 +369,9 @@ export const createNavigationSlice: StateCreator<GameStore, [], [], NavigationSl
       portConstants: entry.portConstants,
       activeBoardReadOnly: entry.readOnly,
       navigationDepth: newStack.length,
-      selectedNodeId: null,
+      selectedChipId: null,
       editingUtilityId: null,
-      editingNodeIdInParent: null,
+      editingChipIdInParent: null,
       occupancy: recomputeOccupancy(parentBoard.chips),
       meterSlots: entry.meterSlots,
     });

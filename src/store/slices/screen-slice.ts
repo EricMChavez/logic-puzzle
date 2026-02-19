@@ -1,9 +1,10 @@
 import type { StateCreator } from 'zustand';
 
-export type GizmoTab = 'home' | 'settings' | 'about';
+export type GizmoTab = 'home' | 'settings' | 'about' | 'thankyou';
 
 export type ScreenTransition =
   | { type: 'idle' }
+  | { type: 'powering-off' }
   | { type: 'sliding-down' }
   | { type: 'sliding-up' };
 
@@ -39,9 +40,10 @@ export const createScreenSlice: StateCreator<ScreenSlice> = (set, get) => ({
   }),
 
   dismissScreen: () => {
-    const { activeScreen } = get();
+    const { activeScreen, screenTransition } = get();
     if (!activeScreen) return;
-    set({ screenTransition: { type: 'sliding-down' } });
+    if (screenTransition.type !== 'idle') return;
+    set({ screenTransition: { type: 'powering-off' } });
   },
 
   revealScreen: () => {
@@ -55,10 +57,16 @@ export const createScreenSlice: StateCreator<ScreenSlice> = (set, get) => ({
 
   completeScreenTransition: () => {
     const { screenTransition } = get();
-    if (screenTransition.type === 'sliding-down') {
-      set({ activeScreen: null, screenTransition: { type: 'idle' } });
-    } else if (screenTransition.type === 'sliding-up') {
-      set({ screenTransition: { type: 'idle' } });
+    switch (screenTransition.type) {
+      case 'powering-off':
+        set({ screenTransition: { type: 'sliding-down' } });
+        break;
+      case 'sliding-down':
+        set({ activeScreen: null, screenTransition: { type: 'idle' } });
+        break;
+      case 'sliding-up':
+        set({ screenTransition: { type: 'idle' } });
+        break;
     }
   },
 });

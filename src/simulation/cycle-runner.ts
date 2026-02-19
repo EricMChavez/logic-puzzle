@@ -2,9 +2,9 @@ import { useGameStore } from '../store/index.ts';
 import type { GameStore } from '../store/index.ts';
 import { evaluateAllCycles } from '../engine/evaluation/index.ts';
 import type { CycleResults } from '../engine/evaluation/index.ts';
+import type { BakeMetadata } from '../engine/baking/index.ts';
 import { generateWaveformValue } from '../puzzle/waveform-generators.ts';
 import { CONNECTION_POINT_CONFIG, VALIDATION_CONFIG } from '../shared/constants/index.ts';
-import { bakeGraph } from '../engine/baking/index.ts';
 import { utilitySlotId } from '../puzzle/connection-point-nodes.ts';
 import { buildSlotConfig, directionIndexToSlot } from '../puzzle/types.ts';
 import type { SlotConfig } from '../puzzle/types.ts';
@@ -24,9 +24,12 @@ export function getPerSampleMatch(): ReadonlyMap<string, boolean[]> {
 
 /** Initialize meter slot state based on current mode. */
 function initializeMeters(store: GameStore): void {
-  const { activePuzzle, isCreativeMode, editingUtilityId } = store;
+  const { activePuzzle, isCreativeMode, editingUtilityId, activeBoardReadOnly } = store;
 
   perSampleMatchArrays.clear();
+
+  // Read-only boards (viewing completed chip internals): keep default off meters
+  if (activeBoardReadOnly) return;
 
   if (editingUtilityId) {
     // Utility editing: meter slots already set by startEditingUtility / toggleMeterMode.
@@ -51,7 +54,7 @@ function runCycleEvaluation(): void {
     return;
   }
 
-  const { chips: nodes, paths: wires } = store.activeBoard;
+  const { chips, paths } = store.activeBoard;
   const { activePuzzle, activeTestCaseIndex, isCreativeMode, creativeSlots, editingUtilityId, portConstants } = store;
 
   // Build port constants map for the evaluator
@@ -101,7 +104,16 @@ function runCycleEvaluation(): void {
     inputGenerator = () => [];
   }
 
-  const result = evaluateAllCycles(nodes, wires, constants, inputGenerator, CYCLE_COUNT);
+  // Build custom chip metadata map for baked chips (puzzle:*, utility:*)
+  const customChipMetadata = new Map<string, BakeMetadata>();
+  for (const [puzzleId, entry] of store.craftedPuzzles) {
+    customChipMetadata.set('puzzle:' + puzzleId, entry.bakeMetadata);
+  }
+  for (const [utilityId, entry] of store.craftedUtilities) {
+    customChipMetadata.set('utility:' + utilityId, entry.bakeMetadata);
+  }
+
+  const result = evaluateAllCycles(chips, paths, constants, inputGenerator, CYCLE_COUNT, customChipMetadata);
 
   if (!result.ok) {
     log.warn('Cycle evaluation failed', { error: result.error.message });
@@ -124,8 +136,8 @@ function runCycleEvaluation(): void {
 
 /** Validate cycle results against puzzle targets. */
 function validateCycleResults(results: CycleResults, store: GameStore): void {
-  const { activePuzzle, activeTestCaseIndex, puzzleStatus } = store;
-  if (!activePuzzle || puzzleStatus === 'victory') return;
+  const { activePuzzle, activeTestCaseIndex } = store;
+  if (!activePuzzle) return;
 
   const testCase = activePuzzle.testCases[activeTestCaseIndex];
   if (!testCase) return;
@@ -170,36 +182,13 @@ function validateCycleResults(results: CycleResults, store: GameStore): void {
 
     const finalStore = useGameStore.getState();
     if (finalStore.puzzleStatus === 'victory') {
-      triggerCeremony();
+      finalStore.setPlayMode('playing');
     } else if (finalStore.puzzleStatus === 'playing') {
       // More test cases: re-initialize and re-evaluate
       initializeMeters(useGameStore.getState());
       runCycleEvaluation();
     }
   }
-}
-
-/** Trigger the completion ceremony after puzzle victory. */
-function triggerCeremony(): void {
-  const store = useGameStore.getState();
-  const { activePuzzle, activeBoard } = store;
-  if (!activePuzzle || !activeBoard) return;
-
-  const bakeResult = bakeGraph(activeBoard.chips, activeBoard.paths);
-  if (!bakeResult.ok) return;
-
-  const { metadata } = bakeResult.value;
-  const puzzleId = activePuzzle.id;
-  const isResolve = store.completedLevels.has(puzzleId);
-
-  // Auto-play so the solved puzzle animates behind the celebration
-  store.setPlayMode('playing');
-
-  store.enterItWorks({
-    id: puzzleId,
-    title: activePuzzle.title,
-    description: activePuzzle.description,
-  }, isResolve, metadata);
 }
 
 /**

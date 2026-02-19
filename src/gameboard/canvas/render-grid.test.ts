@@ -48,6 +48,7 @@ function makeTokens(overrides: Partial<ThemeTokens> = {}): ThemeTokens {
     colorError: '',
     meterBorder: '',
     meterBorderMatch: '',
+    meterBorderMismatch: '',
     boardBorder: '',
     ...overrides,
   };

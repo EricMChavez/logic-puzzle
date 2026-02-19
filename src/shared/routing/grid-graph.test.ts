@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DIR_E, DIR_SE, DIR_S, DIR_SW, DIR_W, DIR_NW, DIR_N, DIR_NE,
+  DIR_E, DIR_SE, DIR_S, DIR_W, DIR_N, DIR_NE,
   DIR_COUNT, DIR_DELTA,
   getAllowedDirections,
   isRoutable,

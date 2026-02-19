@@ -3,7 +3,7 @@ import { useGameStore } from '../../store/index.ts';
 import { getNodePixelRect } from '../../gameboard/canvas/render-nodes.ts';
 import { computePopoverPosition } from './popover-position.ts';
 import { getCellSize } from '../../shared/grid/index.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
 import type { ParamDefinition, ParamValue } from '../../engine/nodes/framework.ts';
 import { playKnobTic } from '../../shared/audio/index.ts';
@@ -19,7 +19,7 @@ export function ParameterPopover() {
 
 function ParameterPopoverInner({ chipId }: { chipId: string }) {
   const closeOverlay = useGameStore((s) => s.closeOverlay);
-  const updateNodeParams = useGameStore((s) => s.updateNodeParams);
+  const updateChipParams = useGameStore((s) => s.updateChipParams);
   const setPortConstant = useGameStore((s) => s.setPortConstant);
   const node = useGameStore((s) => s.activeBoard?.chips.get(chipId));
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -63,7 +63,7 @@ function ParameterPopoverInner({ chipId }: { chipId: string }) {
     canvasOffset,
   );
 
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   const knobConfig = def ? getKnobConfig(def) : null;
   const paramDefs = def?.params ?? [];
 
@@ -84,10 +84,10 @@ function ParameterPopoverInner({ chipId }: { chipId: string }) {
       >
         <div className={styles.title}>Parameters</div>
         {isLegacyMix && (
-          <LegacyMixControls node={node} updateNodeParams={updateNodeParams} />
+          <LegacyMixControls node={node} updateChipParams={updateChipParams} />
         )}
         {isLegacyThreshold && (
-          <LegacyThresholdControls node={node} updateNodeParams={updateNodeParams} />
+          <LegacyThresholdControls node={node} updateChipParams={updateChipParams} />
         )}
         {paramDefs.map((paramDef) => {
           const isKnobParam = knobConfig?.paramKey === paramDef.key;
@@ -98,7 +98,7 @@ function ParameterPopoverInner({ chipId }: { chipId: string }) {
                 node={node}
                 paramDef={paramDef}
                 knobPortIndex={knobConfig!.portIndex}
-                updateNodeParams={updateNodeParams}
+                updateChipParams={updateChipParams}
                 setPortConstant={setPortConstant}
               />
             );
@@ -108,7 +108,7 @@ function ParameterPopoverInner({ chipId }: { chipId: string }) {
               key={paramDef.key}
               node={node}
               paramDef={paramDef}
-              updateNodeParams={updateNodeParams}
+              updateChipParams={updateChipParams}
             />
           );
         })}
@@ -122,14 +122,14 @@ function ParameterPopoverInner({ chipId }: { chipId: string }) {
 // =============================================================================
 
 interface KnobParamControlProps {
-  node: { id: string; params: Record<string, ParamValue> };
+  node: { id: string; params: Record<string, ParamValue | string[]> };
   paramDef: ParamDefinition;
   knobPortIndex: number;
-  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
+  updateChipParams: (chipId: string, params: Record<string, ParamValue>) => void;
   setPortConstant: (chipId: string, portIndex: number, value: number) => void;
 }
 
-function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, setPortConstant }: KnobParamControlProps) {
+function KnobParamControl({ node, paramDef, knobPortIndex, updateChipParams, setPortConstant }: KnobParamControlProps) {
   const current = Number(node.params[paramDef.key] ?? 0);
   return (
     <div className={styles.field}>
@@ -146,7 +146,7 @@ function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, set
               opacity: v === current ? 1 : 0.7,
             }}
             onClick={() => {
-              updateNodeParams(node.id, { [paramDef.key]: v });
+              updateChipParams(node.id, { [paramDef.key]: v });
               setPortConstant(node.id, knobPortIndex, v);
               playKnobTic();
             }}
@@ -160,12 +160,12 @@ function KnobParamControl({ node, paramDef, knobPortIndex, updateNodeParams, set
 }
 
 interface GenericParamControlProps {
-  node: { id: string; params: Record<string, ParamValue> };
+  node: { id: string; params: Record<string, ParamValue | string[]> };
   paramDef: ParamDefinition;
-  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
+  updateChipParams: (chipId: string, params: Record<string, ParamValue>) => void;
 }
 
-function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamControlProps) {
+function GenericParamControl({ node, paramDef, updateChipParams }: GenericParamControlProps) {
   if (paramDef.type === 'string' && paramDef.options) {
     const current = String(node.params[paramDef.key] ?? paramDef.default);
     return (
@@ -174,7 +174,7 @@ function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamC
         <select
           className={styles.select}
           value={current}
-          onChange={(e) => updateNodeParams(node.id, { [paramDef.key]: e.target.value })}
+          onChange={(e) => updateChipParams(node.id, { [paramDef.key]: e.target.value })}
         >
           {paramDef.options.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
@@ -197,7 +197,7 @@ function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamC
             max={paramDef.max ?? 100}
             step={paramDef.step ?? 1}
             value={current}
-            onChange={(e) => updateNodeParams(node.id, { [paramDef.key]: Number(e.target.value) })}
+            onChange={(e) => updateChipParams(node.id, { [paramDef.key]: Number(e.target.value) })}
           />
           <span className={styles.rangeValue}>{current}</span>
         </div>
@@ -213,7 +213,7 @@ function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamC
           <input
             type="checkbox"
             checked={current}
-            onChange={(e) => updateNodeParams(node.id, { [paramDef.key]: e.target.checked })}
+            onChange={(e) => updateChipParams(node.id, { [paramDef.key]: e.target.checked })}
           />
           {' '}{paramDef.label}
         </label>
@@ -231,11 +231,11 @@ function GenericParamControl({ node, paramDef, updateNodeParams }: GenericParamC
 const MIX_MODES = ['Add', 'Subtract', 'Average', 'Min', 'Max'] as const;
 
 interface LegacyControlProps {
-  node: { id: string; params: Record<string, ParamValue> };
-  updateNodeParams: (chipId: string, params: Record<string, ParamValue>) => void;
+  node: { id: string; params: Record<string, ParamValue | string[]> };
+  updateChipParams: (chipId: string, params: Record<string, ParamValue>) => void;
 }
 
-function LegacyMixControls({ node, updateNodeParams }: LegacyControlProps) {
+function LegacyMixControls({ node, updateChipParams }: LegacyControlProps) {
   const current = String(node.params['mode'] ?? 'Add');
   return (
     <div className={styles.field}>
@@ -243,7 +243,7 @@ function LegacyMixControls({ node, updateNodeParams }: LegacyControlProps) {
       <select
         className={styles.select}
         value={current}
-        onChange={(e) => updateNodeParams(node.id, { mode: e.target.value })}
+        onChange={(e) => updateChipParams(node.id, { mode: e.target.value })}
       >
         {MIX_MODES.map((mode) => (
           <option key={mode} value={mode}>{mode}</option>
@@ -253,7 +253,7 @@ function LegacyMixControls({ node, updateNodeParams }: LegacyControlProps) {
   );
 }
 
-function LegacyThresholdControls({ node, updateNodeParams }: LegacyControlProps) {
+function LegacyThresholdControls({ node, updateChipParams }: LegacyControlProps) {
   const current = Number(node.params['threshold'] ?? 0);
   return (
     <div className={styles.field}>
@@ -265,7 +265,7 @@ function LegacyThresholdControls({ node, updateNodeParams }: LegacyControlProps)
           min={-100}
           max={100}
           value={current}
-          onChange={(e) => updateNodeParams(node.id, { threshold: Number(e.target.value) })}
+          onChange={(e) => updateChipParams(node.id, { threshold: Number(e.target.value) })}
         />
         <span className={styles.rangeValue}>{current}</span>
       </div>

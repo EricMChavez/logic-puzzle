@@ -1,13 +1,13 @@
 import type { StateCreator } from 'zustand';
-import type { NodeState, Wire } from '../../shared/types/index.ts';
+import type { ChipState, Path } from '../../shared/types/index.ts';
 
 /** Authoring workflow phase */
 export type AuthoringPhase = 'idle' | 'configuring-start' | 'saving';
 
 /** Snapshot of board state at recording time */
 export interface BoardSnapshot {
-  chips: Map<string, NodeState>;
-  paths: Wire[];
+  chips: Map<string, ChipState>;
+  paths: Path[];
 }
 
 export interface AuthoringSlice {
@@ -48,7 +48,7 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
     const store = get() as unknown as {
       cycleResults: { outputValues: number[][] } | null;
       creativeSlots: Array<{ direction: 'input' | 'output' | 'off' }>;
-      activeBoard: { chips: Map<string, NodeState>; paths: Wire[] } | null;
+      activeBoard: { chips: Map<string, ChipState>; paths: Path[] } | null;
     };
 
     const { cycleResults, creativeSlots, activeBoard } = store;
@@ -79,7 +79,7 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
     }
 
     // Deep-copy board state for snapshot
-    const snapshotNodes = new Map<string, NodeState>();
+    const snapshotNodes = new Map<string, ChipState>();
     for (const [id, node] of activeBoard.chips) {
       snapshotNodes.set(id, { ...node, position: { ...node.position }, params: { ...node.params } });
     }
@@ -103,14 +103,14 @@ export const createAuthoringSlice: StateCreator<AuthoringSlice> = (set, get) => 
 
     // Restore board from snapshot
     const store = get() as unknown as {
-      setActiveBoard: (board: { id: string; chips: Map<string, NodeState>; paths: Wire[] }) => void;
+      setActiveBoard: (board: { id: string; chips: Map<string, ChipState>; paths: Path[] }) => void;
       activeBoard: { id: string } | null;
     };
 
     if (!store.activeBoard) return;
 
     // Deep-copy snapshot to avoid mutating it
-    const chips = new Map<string, NodeState>();
+    const chips = new Map<string, ChipState>();
     for (const [id, node] of state.solutionBoardSnapshot.chips) {
       chips.set(id, { ...node, position: { ...node.position }, params: { ...node.params } });
     }

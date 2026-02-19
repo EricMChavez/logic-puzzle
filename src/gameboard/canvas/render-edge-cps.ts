@@ -1,14 +1,13 @@
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { MotherboardEdgeCP } from '../../store/motherboard-types.ts';
+import { NODE_STYLE } from '../../shared/constants/index.ts';
 import { signalToColor, signalToGlow } from './render-wires.ts';
-
-/** Radius of edge CP dots in cells. */
-const EDGE_CP_RADIUS_CELLS = 0.35;
+import { drawPort } from './render-nodes.ts';
 
 /**
  * Draw animated edge connection points at section boundaries.
- * Each visible edge CP is a polarity-colored filled circle whose color
- * tracks the pre-computed waveform at the current playpoint.
+ * Each visible edge CP is rendered as a proper port (plug/socket matching direction)
+ * with a horizontal wire segment connecting it to the puzzle chip's port.
  */
 export function drawEdgeCPs(
   ctx: CanvasRenderingContext2D,
@@ -17,39 +16,50 @@ export function drawEdgeCPs(
   playpoint: number,
   cellSize: number,
 ): void {
-  const radius = EDGE_CP_RADIUS_CELLS * cellSize;
+  const portRadius = NODE_STYLE.PORT_RADIUS_RATIO * cellSize;
+  const wireWidth = Number(tokens.wireWidthBase) || 6;
 
   for (const cp of edgeCPs) {
     if (!cp.visible) continue;
 
-    const value = cp.samples[playpoint] ?? 0;
-    const color = signalToColor(value, tokens);
-    const glow = signalToGlow(value);
+    const edgeX = cp.gridPosition.col * cellSize;
+    const edgeY = cp.gridPosition.row * cellSize;
 
-    const x = cp.gridPosition.col * cellSize;
-    const y = cp.gridPosition.row * cellSize;
+    // Signal value: use samples when connected, neutral (no signal) when not
+    const value = cp.connected ? (cp.samples[playpoint] ?? 0) : 0;
+    const color = cp.connected ? signalToColor(value, tokens) : tokens.colorNeutral;
+    const glow = cp.connected ? signalToGlow(value) : 0;
+    const portColorOverride = cp.connected ? undefined : tokens.colorNeutral;
 
-    // Glow for strong signals
+    const portX = cp.portGridPosition.col * cellSize;
+    const portY = cp.portGridPosition.row * cellSize;
+
+    // --- Draw horizontal wire from edge CP to chip port ---
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = wireWidth;
+    ctx.lineCap = 'round';
     if (glow > 0) {
-      ctx.save();
       ctx.shadowColor = color;
-      ctx.shadowBlur = glow * 0.6; // Slightly subtler than wire glow
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.restore();
+      ctx.shadowBlur = glow;
     }
-
-    // Filled circle
-    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Subtle border
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1;
+    ctx.moveTo(edgeX, edgeY);
+    ctx.lineTo(portX, portY);
     ctx.stroke();
+    ctx.restore();
+
+    // Edge CP direction determines visual: source (output) = socket, destination (input) = seated
+    const edgeOpenDir = cp.side === 'left' ? 'right' : 'left';
+    const chipOpenDir = cp.side === 'left' ? 'left' : 'right';
+    if (cp.direction === 'output') {
+      // Left-side: edge CP is source → empty socket, chip port receives → seated plug
+      drawPort(ctx, tokens, edgeX, edgeY, portRadius, value, { type: 'socket', openingDirection: edgeOpenDir, connected: true }, portColorOverride);
+      drawPort(ctx, tokens, portX, portY, portRadius, value, { type: 'seated', openingDirection: chipOpenDir }, portColorOverride);
+    } else {
+      // Right-side: chip port is source → empty socket, edge CP receives → seated plug
+      drawPort(ctx, tokens, portX, portY, portRadius, value, { type: 'socket', openingDirection: chipOpenDir, connected: true }, portColorOverride);
+      drawPort(ctx, tokens, edgeX, edgeY, portRadius, value, { type: 'seated', openingDirection: edgeOpenDir }, portColorOverride);
+    }
   }
 }

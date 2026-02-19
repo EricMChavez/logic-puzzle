@@ -20,21 +20,28 @@ export const createRoutingSlice: StateCreator<GameStore, [], [], RoutingSlice> =
     // Transient wire occupancy for collision avoidance
     const wireOccupancy = createOccupancyGrid();
 
+    // Map port side ('socket'|'plug') to signal direction ('input'|'output') for routing
+    const portSideToDirection = (side: 'socket' | 'plug'): 'input' | 'output' =>
+      side === 'socket' ? 'input' : 'output';
+
     const updatedWires = wires.map((wire) => {
       const sourceNode = nodes.get(wire.source.chipId);
       const targetNode = nodes.get(wire.target.chipId);
       if (!sourceNode || !targetNode) return wire;
 
+      const sourceSide = portSideToDirection(wire.source.side);
+      const targetSide = portSideToDirection(wire.target.side);
+
       const sourceAnchor = getPortGridAnchor(
-        sourceNode, wire.source.side, wire.source.portIndex,
+        sourceNode, sourceSide, wire.source.portIndex,
       );
       const targetAnchor = getPortGridAnchor(
-        targetNode, wire.target.side, wire.target.portIndex,
+        targetNode, targetSide, wire.target.portIndex,
       );
 
       // Get wire directions based on node rotations
-      const startDir = getPortWireDirection(sourceNode, wire.source.side, wire.source.portIndex);
-      const endDir = getPortWireDirection(targetNode, wire.target.side, wire.target.portIndex);
+      const startDir = getPortWireDirection(sourceNode, sourceSide, wire.source.portIndex);
+      const endDir = getPortWireDirection(targetNode, targetSide, wire.target.portIndex);
 
       // Try routing with combined node + wire occupancy for collision avoidance
       const combined = mergeOccupancy(occupancy, wireOccupancy);
@@ -57,7 +64,7 @@ export const createRoutingSlice: StateCreator<GameStore, [], [], RoutingSlice> =
       return { ...wire, route: path ?? [] };
     });
 
-    state.updateWires(updatedWires);
+    state.updatePaths(updatedWires);
   },
 });
 

@@ -266,7 +266,7 @@ function WaveformSelectorInner({ slotIndex }: { slotIndex: number }) {
   const setCreativeSlotDirection = useGameStore((s) => s.setCreativeSlotDirection);
   const setCreativeSlotWaveform = useGameStore((s) => s.setCreativeSlotWaveform);
   const activeBoard = useGameStore((s) => s.activeBoard);
-  const updateWires = useGameStore((s) => s.updateWires);
+  const updatePaths = useGameStore((s) => s.updatePaths);
   const updateCreativeSlotNode = useGameStore((s) => s.updateCreativeSlotNode);
   const addCreativeSlotNode = useGameStore((s) => s.addCreativeSlotNode);
   const setMeterMode = useGameStore((s) => s.setMeterMode);
@@ -299,9 +299,9 @@ function WaveformSelectorInner({ slotIndex }: { slotIndex: number }) {
       (w) => w.source.chipId !== chipId && w.target.chipId !== chipId,
     );
     if (filteredWires.length !== activeBoard.paths.length) {
-      updateWires(filteredWires);
+      updatePaths(filteredWires);
     }
-  }, [activeBoard, slotIndex, updateWires]);
+  }, [activeBoard, slotIndex, updatePaths]);
 
   // Helper: ensure slot is in 'input' direction (handles transitions from off/output)
   const ensureInputDirection = useCallback(() => {

@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WaveLength — CRT Power Off / Power On Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=VT323&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Turn Off phase durations (percentages of total) */
+    --off-duration: 800ms;
+    /* Turn On phase durations */
+    --on-duration: 900ms;
+    /* Bloom intensity */
+    --bloom-peak: 0.5;
+    /* Dot glow size */
+    --dot-size: 6px;
+  }
+
+  body {
+    background: #0d0f14;
+    color: #e0e0f0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    user-select: none;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #9090b0;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+
+  /* ===== Controls Bar ===== */
+  .controls-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .ctrl-btn {
+    padding: 8px 20px;
+    border: none;
+    background: #1a1c24;
+    color: #e0e0f0;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .ctrl-btn:hover { background: #252730; }
+  .ctrl-btn.off { background: #8b2020; color: #fdd; }
+  .ctrl-btn.off:hover { background: #a52a2a; }
+  .ctrl-btn.on { background: #1a6b3a; color: #dfd; }
+  .ctrl-btn.on:hover { background: #228b44; }
+  .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .state-label {
+    padding: 6px 14px;
+    background: #1a1c24;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #9090b0;
+    letter-spacing: 0.5px;
+  }
+  .state-label .val { color: #f0a202; font-weight: 700; }
+
+  /* ===== Gizmo Housing ===== */
+  .gizmo {
+    width: 100%;
+    max-width: 900px;
+    aspect-ratio: 16 / 10;
+    background: #e8e0cc;
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 40%, rgba(0, 0, 0, 0.04) 100%);
+    border-radius: 18px;
+    padding: 24px;
+    position: relative;
+    box-shadow:
+      0 2px 0 0 #f0eade,
+      0 -2px 0 0 #b8ad96,
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+      0 12px 40px rgba(0, 0, 0, 0.35),
+      0 4px 8px rgba(0, 0, 0, 0.2);
+    font-family: 'IBM Plex Mono', monospace;
+    display: grid;
+    grid-template-columns: 1fr 120px;
+    grid-template-rows: 1fr auto;
+    gap: 20px;
+    overflow: hidden;
+  }
+
+  .gizmo::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 40%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  /* ===== Screws ===== */
+  .screw {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #b8ad96, #a89e88);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.3), inset 0 -1px 1px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .screw::after {
+    content: '+'; font-size: 10px; color: rgba(0,0,0,0.25); font-weight: bold; line-height: 1;
+  }
+  .screw-tl { top: 16px; left: 16px; }
+  .screw-tr { top: 16px; right: 16px; }
+  .screw-bl { bottom: 16px; left: 16px; }
+  .screw-br { bottom: 16px; right: 16px; }
+
+  /* ===== Monitor Area ===== */
+  .monitor-area {
+    grid-row: 1; grid-column: 1;
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+
+  .screen-housing {
+    background: #3a3428;
+    border-radius: 20px;
+    padding: 16px;
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    box-shadow:
+      inset 0 2px 6px rgba(0,0,0,0.5),
+      inset 0 0 20px rgba(0,0,0,0.3),
+      0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .screen {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #080a08;
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+    clip-path: url(#crt-screen);
+  }
+
+  /* ===== CRT Content Wrapper — the CSS animation target ===== */
+  .crt-content {
+    position: absolute;
+    inset: 0;
+    padding: 28px 36px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+    transform-origin: center center;
+    /* GPU layer for smooth animation */
+    will-change: transform, opacity;
+  }
+
+  .screen-text {
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    overflow: hidden;
+    color: #33e8a0;
+    text-shadow:
+      0 0 4px rgba(51, 232, 160, 0.7),
+      0 0 20px rgba(40, 200, 140, 0.25),
+      0 0 40px rgba(30, 180, 120, 0.08);
+    letter-spacing: 0.5px;
+  }
+
+  .screen-text .line { min-height: 1.6em; }
+
+  .cursor {
+    display: inline-block;
+    width: 10px; height: 18px;
+    vertical-align: text-bottom;
+    background: #33e8a0;
+    box-shadow:
+      0 0 4px rgba(51, 232, 160, 0.8),
+      0 0 16px rgba(51, 232, 160, 0.3);
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ===== Glass Overlays (always visible — physical glass artifacts) ===== */
+  .screen .scanlines {
+    position: absolute; inset: 0;
+    pointer-events: none; z-index: 8;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px, transparent 2px,
+      rgba(0, 0, 0, 0.1) 2px, rgba(0, 0, 0, 0.1) 4px
+    );
+  }
+
+  .screen .noise-grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 128px 128px;
+  }
+
+  .screen .inset-depth {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow:
+      inset 3px 3px 8px rgba(0, 0, 0, 0.35),
+      inset -1px -1px 4px rgba(255, 248, 240, 0.03);
+  }
+
+  .screen .highlight-streak {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 11;
+    overflow: hidden;
+  }
+  .screen .highlight-streak::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(
+      50deg,
+      transparent 25%,
+      rgba(200, 255, 220, 0.025) 30%,
+      rgba(200, 255, 220, 0.06) 34%,
+      rgba(200, 255, 220, 0.025) 38%,
+      transparent 43%
+    );
+    mix-blend-mode: screen;
+  }
+  .screen .highlight-streak::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(
+      50deg,
+      transparent 15%,
+      rgba(200, 255, 220, 0.04) 25%,
+      rgba(200, 255, 220, 0.08) 35%,
+      rgba(200, 255, 220, 0.04) 45%,
+      transparent 55%
+    );
+    mix-blend-mode: soft-light;
+  }
+
+  .screen .vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 12;
+    background: radial-gradient(ellipse 75% 70% at center, transparent 25%, rgba(0,0,0,0.25) 55%, rgba(0,0,0,0.6) 100%);
+  }
+
+  .screen .glass-bulge {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 13;
+    background: radial-gradient(
+      ellipse 80% 70% at 45% 40%,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 50%,
+      transparent 75%
+    );
+  }
+  .screen .glass-bulge::before {
+    content: '';
+    position: absolute;
+    top: 2%; left: 8%; right: 35%;
+    height: 30%;
+    border-radius: 0 0 50% 50% / 0 0 100% 100%;
+    background: radial-gradient(
+      ellipse at 50% 90%,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0.03) 40%,
+      transparent 70%
+    );
+  }
+  .screen .glass-bulge::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.06),
+      inset 2px 0 0 rgba(255, 255, 255, 0.03),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+      inset -2px 0 0 rgba(0, 0, 0, 0.08);
+  }
+
+  /* ===== White Bloom Overlay ===== */
+  .bloom-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 7;
+    background: white;
+    opacity: 0;
+  }
+
+  /* ===== Center Dot (lingering phosphor) ===== */
+  .center-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--dot-size);
+    height: var(--dot-size);
+    margin-left: calc(var(--dot-size) / -2);
+    margin-top: calc(var(--dot-size) / -2);
+    border-radius: 50%;
+    background: #ffffff;
+    opacity: 0;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* ===== TV Static Overlay (noise during shutdown) ===== */
+  .static-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    /* Repeating radial gradient creates random-looking static dots */
+    background-image: repeating-radial-gradient(
+      circle at 17% 32%, white, black 0.00085px
+    );
+    background-size: 200% 200%;
+    mix-blend-mode: overlay;
+  }
+
+  /* ======================================================== */
+  /* ===== SHUTDOWN ANIMATION (CSS @keyframes approach) ===== */
+  /* ======================================================== */
+
+  /*
+   * Technique from codepen.io/hodd/pen/pLJPMm:
+   * Single @keyframes using percentage-based phases with
+   * transform: scale() and animation-fill-mode: forwards.
+   *
+   * Phase 1 (0%-30%): Vertical collapse — scaleY(1 → 0.005)
+   * Phase 2 (30%-55%): Horizontal collapse — scaleX(1 → 0)
+   * Phase 3 (55%-100%): Hold collapsed (content gone, dot takes over)
+   */
+
+  @keyframes shutdown {
+    0% {
+      transform: scale(1, 1);
+      opacity: 1;
+      filter: brightness(1);
+    }
+    /* Vertical squeeze: bright white line */
+    8% {
+      transform: scale(1, 1);
+      opacity: 1;
+      filter: brightness(1);
+    }
+    30% {
+      transform: scale(1, 0.005);
+      opacity: 1;
+      filter: brightness(4);
+    }
+    /* Horizontal collapse to dot */
+    55% {
+      transform: scale(0, 0);
+      opacity: 0.8;
+      filter: brightness(6);
+    }
+    /* Done — fully collapsed */
+    56%, 100% {
+      transform: scale(0, 0);
+      opacity: 0;
+      filter: brightness(1);
+    }
+  }
+
+  @keyframes shutdown-bloom {
+    0%, 5% { opacity: 0; }
+    25% { opacity: 0.25; }
+    50% { opacity: 0.4; }
+    60% { opacity: 0.15; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes shutdown-dot {
+    0%, 25% { opacity: 0; transform: scale(0); }
+    35% {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow:
+        0 0 8px 4px rgba(255, 255, 255, 0.9),
+        0 0 20px 8px rgba(200, 255, 220, 0.6),
+        0 0 40px 16px rgba(51, 232, 160, 0.3);
+    }
+    65% {
+      opacity: 1;
+      transform: scale(1.5);
+      box-shadow:
+        0 0 15px 8px rgba(255, 255, 255, 0.8),
+        0 0 35px 15px rgba(200, 255, 220, 0.5),
+        0 0 60px 25px rgba(51, 232, 160, 0.2);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(3);
+      box-shadow:
+        0 0 25px 15px rgba(255, 255, 255, 0),
+        0 0 50px 25px rgba(200, 255, 220, 0),
+        0 0 80px 40px rgba(51, 232, 160, 0);
+    }
+  }
+
+  @keyframes shutdown-static {
+    0% { opacity: 0; background-size: 200% 200%; }
+    5% { opacity: 0.3; }
+    25% { opacity: 0.15; background-size: 250% 250%; }
+    50% { opacity: 0.05; background-size: 300% 300%; }
+    56% { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* Apply shutdown animations when .turning-off class is set */
+  .turning-off .crt-content {
+    animation: shutdown var(--off-duration) linear forwards;
+  }
+  .turning-off .bloom-overlay {
+    animation: shutdown-bloom var(--off-duration) linear forwards;
+  }
+  .turning-off .center-dot {
+    animation: shutdown-dot var(--off-duration) linear forwards;
+  }
+  .turning-off .static-overlay {
+    animation: shutdown-static var(--off-duration) linear forwards;
+  }
+
+  /* ======================================================== */
+  /* ===== POWER ON ANIMATION (CSS @keyframes approach) ===== */
+  /* ======================================================== */
+
+  /*
+   * Reverse of shutdown: dot → line → full screen.
+   *
+   * Phase 1 (0%-17%): Dot appears with glow
+   * Phase 2 (17%-45%): Horizontal expand — scaleX(0 → 1), scaleY stays thin
+   * Phase 3 (45%-100%): Vertical expand — scaleY(0.005 → 1)
+   */
+
+  @keyframes poweron {
+    0% {
+      transform: scale(0, 0);
+      opacity: 0;
+      filter: brightness(6);
+    }
+    /* Snap to thin horizontal line */
+    17% {
+      transform: scale(0, 0.005);
+      opacity: 1;
+      filter: brightness(5);
+    }
+    /* Horizontal stretch */
+    45% {
+      transform: scale(1, 0.005);
+      opacity: 1;
+      filter: brightness(3);
+    }
+    /* Vertical expand with brightness settling */
+    85% {
+      transform: scale(1, 0.85);
+      opacity: 1;
+      filter: brightness(1.2);
+    }
+    100% {
+      transform: scale(1, 1);
+      opacity: 1;
+      filter: brightness(1);
+    }
+  }
+
+  @keyframes poweron-bloom {
+    0% { opacity: 0; }
+    10% { opacity: 0.3; }
+    30% { opacity: 0.25; }
+    60% { opacity: 0.08; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes poweron-dot {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+      box-shadow:
+        0 0 4px 2px rgba(255, 255, 255, 0.5),
+        0 0 10px 4px rgba(200, 255, 220, 0.3),
+        0 0 20px 8px rgba(51, 232, 160, 0.1);
+    }
+    12% {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow:
+        0 0 8px 4px rgba(255, 255, 255, 0.9),
+        0 0 20px 8px rgba(200, 255, 220, 0.6),
+        0 0 40px 16px rgba(51, 232, 160, 0.3);
+    }
+    25% {
+      opacity: 0;
+      transform: scale(0.5);
+      box-shadow:
+        0 0 4px 2px rgba(255, 255, 255, 0),
+        0 0 10px 4px rgba(200, 255, 220, 0),
+        0 0 20px 8px rgba(51, 232, 160, 0);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0);
+    }
+  }
+
+  @keyframes poweron-static {
+    0% { opacity: 0; background-size: 200% 200%; }
+    8% { opacity: 0.2; }
+    20% { opacity: 0.1; background-size: 300% 300%; }
+    40% { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* Apply power-on animations when .turning-on class is set */
+  .turning-on .crt-content {
+    animation: poweron var(--on-duration) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .turning-on .bloom-overlay {
+    animation: poweron-bloom var(--on-duration) linear forwards;
+  }
+  .turning-on .center-dot {
+    animation: poweron-dot var(--on-duration) linear forwards;
+  }
+  .turning-on .static-overlay {
+    animation: poweron-static var(--on-duration) linear forwards;
+  }
+
+  /* ===== Powered-off resting state ===== */
+  .power-off .crt-content {
+    transform: scale(0, 0);
+    opacity: 0;
+  }
+  .power-off .center-dot { opacity: 0; }
+  .power-off .bloom-overlay { opacity: 0; }
+
+  /* ===== Right Panel ===== */
+  .right-panel {
+    grid-row: 1; grid-column: 2;
+    display: flex; flex-direction: column;
+    gap: 10px;
+    position: relative; z-index: 1;
+  }
+
+  .keycap {
+    position: relative;
+    display: flex;
+    cursor: pointer;
+    border: none; background: none; padding: 0; font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .keycap-base {
+    width: 100%; height: 44px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #ccc4ae 0%, #c0b8a0 50%, #b4ac96 100%);
+    box-shadow:
+      0 5px 0 -1px #a49c88,
+      0 6px 0 -1px #928a78,
+      0 7px 0 -1px #847c6c,
+      0 9px 8px -2px rgba(0,0,0,0.18),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+  .keycap-top {
+    position: absolute;
+    top: 3px; bottom: 8px; left: 7px; right: 7px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #ece4d2 0%, #e2dac8 50%, #dcd4c0 100%);
+    color: #4a4236;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-bottom-color: rgba(0,0,0,0.04);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 1px rgba(0,0,0,0.03);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600; font-size: 11px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .keycap:hover .keycap-top {
+    background: linear-gradient(180deg, #f0e8d6 0%, #e8e0cc 50%, #e2dac6 100%);
+  }
+  .keycap:active .keycap-base {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 -1px #a49c88, 0 2px 0 -1px #928a78, inset 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  .play-btn {
+    flex: 1; min-height: 80px; margin-top: 10px;
+    position: relative; display: flex;
+    cursor: pointer; border: none; background: none; padding: 0; font: inherit;
+  }
+  .play-btn-base {
+    width: 100%; height: 100%;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #b88a10 0%, #a07808 50%, #8a6804 100%);
+    box-shadow:
+      0 5px 0 -1px #745804,
+      0 6px 0 -1px #644a02,
+      0 7px 0 -1px #544000,
+      0 9px 8px -2px rgba(0,0,0,0.22),
+      inset 0 1px 0 rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+  .play-btn-top {
+    position: absolute;
+    inset: 4px 8px 10px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #f5b830 0%, #f0a202 50%, #e09000 100%);
+    color: #fff;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-bottom-color: rgba(0,0,0,0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      inset 0 -1px 1px rgba(0,0,0,0.05);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700; font-size: 14px;
+    letter-spacing: 3px; text-transform: uppercase;
+  }
+  .play-btn:hover .play-btn-top {
+    background: linear-gradient(180deg, #f8c240 0%, #f5b020 50%, #f0a202 100%);
+  }
+  .play-btn:active .play-btn-base {
+    transform: translateY(4px);
+    box-shadow:
+      0 1px 0 -1px #745804,
+      0 2px 0 -1px #644a02,
+      inset 0 1px 3px rgba(0,0,0,0.18),
+      0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  /* ===== Signal Level Bar ===== */
+  .signal-bar {
+    grid-row: 2; grid-column: 1;
+    position: relative; z-index: 1;
+  }
+  .groove-panel {
+    background: #d8d0bc;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: inset 0 2px 3px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.4);
+  }
+  .bar-label {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 9px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
+    color: #6b6252;
+  }
+  .bar-track {
+    height: 18px; border-radius: 4px;
+    background: #0a1a10;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.3);
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-track::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px, transparent 2px,
+      rgba(0, 0, 0, 0.06) 2px, rgba(0, 0, 0, 0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 4px;
+  }
+  .bar-fill {
+    height: 100%; width: 35%; border-radius: 4px;
+    background: linear-gradient(90deg, #28c888 0%, #33e8a0 100%);
+    box-shadow: 0 0 8px rgba(51, 232, 160, 0.3), 0 0 2px rgba(51, 232, 160, 0.5);
+  }
+
+  /* ===== Sliders Panel ===== */
+  .sliders-panel {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: #1a1c24;
+    border-radius: 8px;
+  }
+  .sliders-panel h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0f0;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .slider-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 24px;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .slider-row label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #9090b0;
+    min-width: 130px;
+    white-space: nowrap;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: #f0a202;
+    height: 4px;
+  }
+  .slider-row .val {
+    font-size: 11px;
+    font-weight: 600;
+    color: #f0a202;
+    min-width: 48px;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6060a0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    grid-column: 1 / -1;
+    border-top: 1px solid #252730;
+    padding-top: 8px;
+  }
+  .section-label:first-child {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+  }
+
+  /* ===== Phase Timeline ===== */
+  .timeline {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 12px;
+    padding: 12px 20px;
+    background: #1a1c24;
+    border-radius: 8px;
+  }
+  .timeline h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0f0;
+    margin-bottom: 8px;
+  }
+  .timeline-bar {
+    display: flex;
+    height: 28px;
+    border-radius: 4px;
+    overflow: hidden;
+    gap: 2px;
+  }
+  .timeline-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(0,0,0,0.7);
+    letter-spacing: 0.5px;
+    transition: flex-basis 0.2s ease;
+    position: relative;
+  }
+  .timeline-segment.phase-1 { background: #f0a202; }
+  .timeline-segment.phase-2 { background: #e07020; }
+  .timeline-segment.phase-3 { background: #c04040; }
+  .timeline-total {
+    font-size: 11px;
+    color: #9090b0;
+    margin-top: 4px;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ===== Info Panel ===== */
+  .info-panel {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 12px;
+    padding: 14px 20px;
+    background: #1a1c24;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #8080a0;
+  }
+  .info-panel code {
+    background: #252730;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #c0c0e0;
+  }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 767px) {
+    .gizmo {
+      grid-template-columns: 1fr 90px;
+      padding: 16px;
+      gap: 12px;
+      aspect-ratio: auto;
+      min-height: 400px;
+    }
+    .slider-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SVG clip-path: barrel/pillow shape for CRT screen -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <clipPath id="crt-screen" clipPathUnits="objectBoundingBox">
+      <path d="M 0.03 0.04
+               Q 0.5 -0.02   0.97 0.04
+               C 0.978 0.04   0.985 0.057  0.985 0.07
+               Q 0.99 0.5    0.985 0.93
+               C 0.985 0.947  0.978 0.96   0.97 0.96
+               Q 0.5 1.02    0.03 0.96
+               C 0.022 0.96   0.015 0.947  0.015 0.93
+               Q 0.01 0.5    0.015 0.07
+               C 0.015 0.053  0.022 0.04   0.03 0.04
+               Z"/>
+    </clipPath>
+  </defs>
+</svg>
+
+<!-- SVG filter for animated static noise -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="static-noise">
+      <feTurbulence id="turbulence" type="fractalNoise" baseFrequency="0.8 0.8" numOctaves="3" stitchTiles="stitch">
+        <animate attributeName="baseFrequency" dur="0.5s" values="0.8 0.8;0.9 0.9;0.7 0.7;0.8 0.8" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="30" />
+    </filter>
+  </defs>
+</svg>
+
+<h1>CRT Power Off / Power On Animation</h1>
+
+<div class="controls-bar">
+  <button class="ctrl-btn off" id="btnOff">Turn Off</button>
+  <button class="ctrl-btn on" id="btnOn" disabled>Turn On</button>
+  <div class="state-label">State: <span class="val" id="stateDisplay">ON</span></div>
+</div>
+
+<div class="gizmo">
+  <div class="screw screw-tl"></div>
+  <div class="screw screw-tr"></div>
+  <div class="screw screw-bl"></div>
+  <div class="screw screw-br"></div>
+
+  <div class="monitor-area">
+    <div class="screen-housing">
+      <div class="screen" id="screen">
+        <!-- Glass overlays (always visible) -->
+        <div class="scanlines"></div>
+        <div class="noise-grain"></div>
+        <div class="inset-depth"></div>
+        <div class="highlight-streak"></div>
+        <div class="vignette"></div>
+        <div class="glass-bulge"></div>
+
+        <!-- Bloom overlay (animated) -->
+        <div class="bloom-overlay" id="bloomOverlay"></div>
+
+        <!-- Center dot (animated) -->
+        <div class="center-dot" id="centerDot"></div>
+
+        <!-- TV static noise (animated) -->
+        <div class="static-overlay" id="staticOverlay"></div>
+
+        <!-- CRT content (animated target) -->
+        <div class="crt-content" id="crtContent">
+          <div class="screen-text" id="screenText"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <button class="keycap">
+      <div class="keycap-base"><div class="keycap-top">Home</div></div>
+    </button>
+    <button class="keycap">
+      <div class="keycap-base"><div class="keycap-top">About</div></div>
+    </button>
+    <button class="keycap">
+      <div class="keycap-base"><div class="keycap-top">Settings</div></div>
+    </button>
+    <button class="play-btn">
+      <div class="play-btn-base"><div class="play-btn-top">Play</div></div>
+    </button>
+  </div>
+
+  <div class="signal-bar">
+    <div class="groove-panel">
+      <div class="bar-label">
+        <span>Signal Level</span>
+        <span style="letter-spacing: 0; font-size: 10px;">3/12</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phase Timeline -->
+<div class="timeline" id="timelinePanel">
+  <h2>Phase Timeline</h2>
+  <div class="timeline-bar" id="timelineBar"></div>
+  <div class="timeline-total" id="timelineTotal"></div>
+</div>
+
+<!-- Slider Controls -->
+<div class="sliders-panel">
+  <h2>Animation Parameters</h2>
+  <div class="slider-grid">
+
+    <div class="section-label">Durations</div>
+
+    <div class="slider-row">
+      <label>Turn Off Duration</label>
+      <input type="range" min="300" max="2000" value="800" step="50" id="offDuration">
+      <span class="val" id="offDurationVal">800ms</span>
+    </div>
+    <div class="slider-row">
+      <label>Turn On Duration</label>
+      <input type="range" min="300" max="2000" value="900" step="50" id="onDuration">
+      <span class="val" id="onDurationVal">900ms</span>
+    </div>
+
+    <div class="section-label">Effects</div>
+
+    <div class="slider-row">
+      <label>Bloom Intensity</label>
+      <input type="range" min="0" max="100" value="50" id="bloomIntensity">
+      <span class="val" id="bloomIntensityVal">50%</span>
+    </div>
+    <div class="slider-row">
+      <label>Dot Size</label>
+      <input type="range" min="2" max="16" value="6" id="dotSize">
+      <span class="val" id="dotSizeVal">6px</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Info -->
+<div class="info-panel">
+  Technique: CSS <code>@keyframes</code> with <code>transform: scale()</code> and <code>animation-fill-mode: forwards</code>.
+  JS just toggles classes (<code>.turning-off</code>, <code>.turning-on</code>, <code>.power-off</code>).
+  Static noise via <code>repeating-radial-gradient</code> + SVG <code>feTurbulence</code> filter.
+</div>
+
+<script>
+// ===== Terminal text content =====
+const TERMINAL_LINES = [
+  'WAVELENGTH SIGNAL PROCESSOR v1.0',
+  '',
+  'Wire together nodes to transform signals.',
+  'Every solved puzzle becomes a reusable node.',
+  '',
+  '7 fundamental nodes. Infinite possibilities.',
+  '',
+  'READY.',
+];
+
+// ===== DOM references =====
+const screen = document.getElementById('screen');
+const crtContent = document.getElementById('crtContent');
+const screenText = document.getElementById('screenText');
+const stateDisplay = document.getElementById('stateDisplay');
+const btnOff = document.getElementById('btnOff');
+const btnOn = document.getElementById('btnOn');
+const timelineBar = document.getElementById('timelineBar');
+const timelineTotal = document.getElementById('timelineTotal');
+
+// ===== State =====
+let powerState = 'on'; // 'on' | 'off' | 'animating'
+
+// ===== Apply CSS custom properties from sliders =====
+function applyParams() {
+  const offDur = document.getElementById('offDuration').value;
+  const onDur = document.getElementById('onDuration').value;
+  const bloom = document.getElementById('bloomIntensity').value;
+  const dot = document.getElementById('dotSize').value;
+
+  document.documentElement.style.setProperty('--off-duration', offDur + 'ms');
+  document.documentElement.style.setProperty('--on-duration', onDur + 'ms');
+  document.documentElement.style.setProperty('--bloom-peak', bloom / 100);
+  document.documentElement.style.setProperty('--dot-size', dot + 'px');
+}
+
+// ===== Timeline display =====
+function updateTimeline(mode) {
+  const totalMs = mode === 'off'
+    ? +document.getElementById('offDuration').value
+    : +document.getElementById('onDuration').value;
+
+  const phases = mode === 'off'
+    ? [
+        { label: 'V-Collapse', pct: 30, cls: 'phase-1' },
+        { label: 'H-Collapse', pct: 25, cls: 'phase-2' },
+        { label: 'Dot Fade', pct: 45, cls: 'phase-3' },
+      ]
+    : [
+        { label: 'Dot Appear', pct: 17, cls: 'phase-1' },
+        { label: 'H-Expand', pct: 28, cls: 'phase-2' },
+        { label: 'V-Expand', pct: 55, cls: 'phase-3' },
+      ];
+
+  timelineBar.innerHTML = phases.map(ph => {
+    const ms = Math.round(totalMs * ph.pct / 100);
+    return `<div class="timeline-segment ${ph.cls}" style="flex-basis:${ph.pct}%">${ph.label} ${ms}ms</div>`;
+  }).join('');
+  timelineTotal.textContent = `Total: ${totalMs}ms`;
+}
+
+// ===== TURN OFF =====
+function turnOff() {
+  if (powerState !== 'on') return;
+  powerState = 'animating';
+  btnOff.disabled = true;
+  btnOn.disabled = true;
+  stateDisplay.textContent = 'TURNING OFF...';
+  applyParams();
+  updateTimeline('off');
+
+  // Remove any previous animation classes, force reflow, then add
+  screen.classList.remove('turning-on', 'power-off');
+  void screen.offsetWidth; // force reflow
+  screen.classList.add('turning-off');
+
+  // Listen for animation end on the content element
+  crtContent.addEventListener('animationend', function onEnd() {
+    crtContent.removeEventListener('animationend', onEnd);
+    screen.classList.remove('turning-off');
+    screen.classList.add('power-off');
+
+    powerState = 'off';
+    stateDisplay.textContent = 'OFF';
+    btnOff.disabled = true;
+    btnOn.disabled = false;
+  });
+}
+
+// ===== TURN ON =====
+function turnOn() {
+  if (powerState !== 'off') return;
+  powerState = 'animating';
+  btnOff.disabled = true;
+  btnOn.disabled = true;
+  stateDisplay.textContent = 'TURNING ON...';
+  applyParams();
+  updateTimeline('on');
+
+  screen.classList.remove('turning-off', 'power-off');
+  void screen.offsetWidth; // force reflow
+  screen.classList.add('turning-on');
+
+  crtContent.addEventListener('animationend', function onEnd() {
+    crtContent.removeEventListener('animationend', onEnd);
+    screen.classList.remove('turning-on');
+
+    // Clear inline animation styles so content returns to normal
+    crtContent.style.transform = '';
+    crtContent.style.opacity = '';
+    crtContent.style.filter = '';
+
+    powerState = 'on';
+    stateDisplay.textContent = 'ON';
+    btnOff.disabled = false;
+    btnOn.disabled = true;
+  });
+}
+
+// ===== Typewriter animation =====
+const CHAR_DELAY = 25;
+const LINE_DELAY = 80;
+const FLASH_DELAY = 150;
+let typewriterRAF = 0;
+
+function startTypewriter() {
+  cancelAnimationFrame(typewriterRAF);
+  screenText.innerHTML = '';
+
+  let lineIdx = 0;
+  let charIdx = 0;
+  let lastTime = 0;
+  let accumulated = 0;
+  let phase = 'flash';
+  let flashStart = 0;
+
+  const lineElements = [];
+  for (let i = 0; i < TERMINAL_LINES.length; i++) {
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.innerHTML = '\u00A0';
+    screenText.appendChild(div);
+    lineElements.push(div);
+  }
+
+  const cursorSpan = document.createElement('span');
+  cursorSpan.className = 'cursor';
+
+  function tick(time) {
+    if (phase === 'flash') {
+      if (flashStart === 0) flashStart = time;
+      if (time - flashStart < FLASH_DELAY) {
+        typewriterRAF = requestAnimationFrame(tick);
+        return;
+      }
+      phase = 'typing';
+      lastTime = time;
+    }
+
+    const delta = time - lastTime;
+    lastTime = time;
+    accumulated += delta;
+
+    let changed = false;
+    while (accumulated > 0 && lineIdx < TERMINAL_LINES.length) {
+      const currentLine = TERMINAL_LINES[lineIdx];
+      if (charIdx === 0 && lineIdx > 0) {
+        if (accumulated < LINE_DELAY) break;
+        accumulated -= LINE_DELAY;
+      }
+      if (charIdx < currentLine.length) {
+        if (accumulated < CHAR_DELAY) break;
+        accumulated -= CHAR_DELAY;
+        charIdx++;
+        changed = true;
+      } else {
+        lineIdx++;
+        charIdx = 0;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      for (let i = 0; i < TERMINAL_LINES.length; i++) {
+        if (i < lineIdx) {
+          lineElements[i].innerHTML = TERMINAL_LINES[i] || '\u00A0';
+        } else if (i === lineIdx) {
+          lineElements[i].innerHTML = TERMINAL_LINES[i].slice(0, charIdx) || '\u00A0';
+        } else {
+          lineElements[i].innerHTML = '\u00A0';
+        }
+      }
+    }
+
+    if (lineIdx >= TERMINAL_LINES.length) {
+      const lastLine = lineElements[lineElements.length - 1];
+      lastLine.appendChild(cursorSpan);
+      return;
+    }
+
+    if (lineIdx < lineElements.length) {
+      lineElements[lineIdx].appendChild(cursorSpan);
+    }
+
+    typewriterRAF = requestAnimationFrame(tick);
+  }
+
+  typewriterRAF = requestAnimationFrame(tick);
+}
+
+// ===== Slider value display + live CSS var updates =====
+const sliderConfigs = [
+  ['offDuration', 'ms'],
+  ['onDuration', 'ms'],
+  ['bloomIntensity', '%'],
+  ['dotSize', 'px'],
+];
+
+sliderConfigs.forEach(([id, unit]) => {
+  const slider = document.getElementById(id);
+  const display = document.getElementById(id + 'Val');
+  slider.addEventListener('input', () => {
+    display.textContent = slider.value + unit;
+    applyParams();
+  });
+});
+
+// ===== Button handlers =====
+btnOff.addEventListener('click', turnOff);
+btnOn.addEventListener('click', turnOn);
+
+// ===== Init =====
+applyParams();
+startTypewriter();
+updateTimeline('off');
+</script>
+</body>
+</html>

@@ -1,11 +1,11 @@
-import type { NodeState } from '../../shared/types/index.ts';
+import type { ChipState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { RenderNodesState } from './render-types.ts';
 import type { PixelRect } from '../../shared/grid/types.ts';
 import { NODE_STYLE, NODE_TYPE_LABELS, HIGHLIGHT_STREAK } from '../../shared/constants/index.ts';
 import { CARD_BODY_FONT } from '../../shared/fonts/font-ready.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
-import { getNodeDefinition } from '../../engine/nodes/registry.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { getNodePortPosition, getNodeBodyPixelRect, getPortPhysicalSide } from './port-positions.ts';
 import { isConnectionPointNode } from '../../puzzle/connection-point-nodes.ts';
 import { PUZZLE_MENU_GRID_ROWS } from '../../shared/grid/index.ts';
@@ -55,20 +55,20 @@ const EMPTY_PORT_SIGNALS: ReadonlyMap<string, number> = new Map();
  * Compute the pixel rect for a node's body based on its grid position and size.
  * The body is offset by half a cell so ports sit on grid lines.
  */
-export function getNodePixelRect(node: NodeState, cellSize: number): PixelRect {
+export function getNodePixelRect(node: ChipState, cellSize: number): PixelRect {
   return getNodeBodyPixelRect(node, cellSize);
 }
 
 type NodeVisualState = 'default' | 'hover' | 'selected';
 
 function getNodeVisualState(chipId: string, state: RenderNodesState): NodeVisualState {
-  if (state.selectedNodeId === chipId) return 'selected';
-  if (state.hoveredNodeId === chipId) return 'hover';
+  if (state.selectedChipId === chipId) return 'selected';
+  if (state.hoveredChipId === chipId) return 'hover';
   return 'default';
 }
 
-function getParamDisplay(node: NodeState): string {
-  const def = getNodeDefinition(node.type);
+function getParamDisplay(node: ChipState): string {
+  const def = getChipDefinition(node.type);
   if (!def) return '';
 
   // Knob nodes show nothing — the visual knob suffices
@@ -87,7 +87,10 @@ function getParamDisplay(node: NodeState): string {
 // Socket / plug helpers
 // ---------------------------------------------------------------------------
 
-type PortShape = { type: 'plug' } | { type: 'socket'; openingDirection: 'left' | 'right' | 'top' | 'bottom' };
+export type PortShape =
+  | { type: 'plug' }
+  | { type: 'socket'; openingDirection: 'left' | 'right' | 'top' | 'bottom'; connected?: boolean }
+  | { type: 'seated'; openingDirection: 'left' | 'right' | 'top' | 'bottom' };
 
 /** Map a physical side direction to the angle (in radians) for the C-shape gap center. */
 function directionToAngle(dir: 'left' | 'right' | 'top' | 'bottom'): number {
@@ -119,14 +122,14 @@ export function drawNodes(
     if (node.params?.isPuzzleChip) {
       drawMenuChipPorts(ctx, tokens, node, cellSize);
     } else {
-      const isLive = state.liveNodeIds.has(node.id);
-      drawNodePorts(ctx, tokens, node, cellSize, isLive ? state.portSignals : EMPTY_PORT_SIGNALS, state.connectedInputPorts);
+      const isLive = state.liveChipIds.has(node.id);
+      drawNodePorts(ctx, tokens, node, cellSize, isLive ? state.portSignals : EMPTY_PORT_SIGNALS, state.connectedSocketPorts, state.connectedPlugPorts, isLive);
     }
   }
 
   // Second pass: draw selection highlight on top of all nodes
-  if (state.selectedNodeId) {
-    const selectedNode = state.chips.get(state.selectedNodeId);
+  if (state.selectedChipId) {
+    const selectedNode = state.chips.get(state.selectedChipId);
     if (selectedNode && !isConnectionPointNode(selectedNode.id)) {
       drawSelectionHighlight(ctx, tokens, selectedNode, cellSize);
     }
@@ -137,7 +140,7 @@ function drawNodeBody(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   state: RenderNodesState,
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): void {
   const rect = getNodePixelRect(node, cellSize);
@@ -232,11 +235,11 @@ function drawNodeBody(
     label = 'Custom';
   } else if (node.type.startsWith('puzzle:')) {
     const puzzleId = node.type.slice('puzzle:'.length);
-    const entry = state.puzzleNodes.get(puzzleId);
+    const entry = state.craftedPuzzles.get(puzzleId);
     if (entry) label = entry.title;
   } else if (node.type.startsWith('utility:')) {
     const utilityId = node.type.slice('utility:'.length);
-    const entry = state.utilityNodes.get(utilityId);
+    const entry = state.craftedUtilities.get(utilityId);
     if (entry) label = entry.title;
   } else if (node.type.startsWith('menu:')) {
     const menuKey = node.type.slice('menu:'.length);
@@ -264,7 +267,7 @@ function drawNodeBody(
 
   // If the node has a knob, keep label at top (aligned with top port row).
   // Otherwise, center the label vertically in the node body.
-  const def = getNodeDefinition(node.type);
+  const def = getChipDefinition(node.type);
   const hasKnob = !!getKnobConfig(def);
   const labelOffsetY = hasKnob
     ? node.position.row * cellSize - centerY
@@ -290,7 +293,7 @@ function drawNodeBody(
       const knobRadius = 1 * cellSize;
       // Place knob below the label
       const knobY = centerY + labelFontSize * 0.5;
-      const isRejected = state.rejectedKnobNodeId === node.id;
+      const isRejected = state.rejectedKnobChipId === node.id;
       drawKnob(ctx, tokens, centerX, knobY, knobRadius, knobInfo.value, knobInfo.isWired, isRejected);
     }
   }
@@ -334,26 +337,13 @@ function drawNodeBody(
     ctx.restore();
   }
 
-  // --- Menu node completed accent ---
-  if (isMenuNode && node.params.completed) {
-    const checkSize = Math.round(cellSize * 0.5);
-    const checkX = rect.x + rect.width - checkSize - 4;
-    const checkY = rect.y + 4;
-    ctx.save();
-    ctx.fillStyle = '#4ade80';
-    ctx.font = `bold ${checkSize}px ${CARD_BODY_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('\u2713', checkX + checkSize / 2, checkY);
-    ctx.restore();
-  }
 }
 
 function drawModifiedIndicator(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   state: RenderNodesState,
-  node: NodeState,
+  node: ChipState,
   rect: PixelRect,
 ): void {
   if (!node.libraryVersionHash) return;
@@ -361,10 +351,10 @@ function drawModifiedIndicator(
   let currentHash: string | undefined;
   if (node.type.startsWith('puzzle:')) {
     const puzzleId = node.type.slice('puzzle:'.length);
-    currentHash = state.puzzleNodes.get(puzzleId)?.versionHash;
+    currentHash = state.craftedPuzzles.get(puzzleId)?.versionHash;
   } else if (node.type.startsWith('utility:')) {
     const utilityId = node.type.slice('utility:'.length);
-    currentHash = state.utilityNodes.get(utilityId)?.versionHash;
+    currentHash = state.craftedUtilities.get(utilityId)?.versionHash;
   }
   if (currentHash && currentHash !== node.libraryVersionHash) {
     ctx.fillStyle = tokens.colorNeutral;
@@ -377,37 +367,50 @@ function drawModifiedIndicator(
 function drawNodePorts(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
   portSignals: ReadonlyMap<string, number>,
-  connectedInputPorts: ReadonlySet<string>,
+  connectedSocketPorts: ReadonlySet<string>,
+  connectedPlugPorts: ReadonlySet<string>,
+  isLive: boolean,
 ): void {
   const devOverrides = getDevOverrides();
   const useOverrides = devOverrides.enabled;
   const portRadiusRatio = useOverrides ? devOverrides.nodeStyle.portRadius : NODE_STYLE.PORT_RADIUS_RATIO;
   const portRadius = portRadiusRatio * cellSize;
+  // When the node is not live (no upstream signal), use colorNeutral so ports
+  // match the neutral wire color instead of showing signalZero gray.
+  const colorOverride = isLive ? undefined : tokens.colorNeutral;
 
-  for (let i = 0; i < node.inputCount; i++) {
+  for (let i = 0; i < node.socketCount; i++) {
     const pos = getNodePortPosition(node, 'input', i, cellSize);
-    const signalValue = portSignals.get(`${node.id}:input:${i}`) ?? 0;
+    const signalValue = portSignals.get(`${node.id}:socket:${i}`) ?? 0;
 
-    // Unconnected input ports show as sockets; connected inputs show as plugs
-    const isConnected = connectedInputPorts.has(`${node.id}:${i}`);
+    // Unconnected socket ports show as sockets; connected sockets show as plugs
+    const isConnected = connectedSocketPorts.has(`${node.id}:${i}`);
     let shape: PortShape;
+    const physicalSide = getPortPhysicalSide(node, 'input', i);
     if (!isConnected) {
-      const physicalSide = getPortPhysicalSide(node, 'input', i);
       shape = { type: 'socket', openingDirection: physicalSide };
     } else {
-      shape = { type: 'plug' };
+      shape = { type: 'seated', openingDirection: physicalSide };
     }
 
-    drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue, shape);
+    drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue, shape, colorOverride);
   }
 
-  for (let i = 0; i < node.outputCount; i++) {
+  for (let i = 0; i < node.plugCount; i++) {
     const pos = getNodePortPosition(node, 'output', i, cellSize);
-    const signalValue = portSignals.get(`${node.id}:output:${i}`) ?? 0;
-    drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue, { type: 'plug' });
+    const signalValue = portSignals.get(`${node.id}:plug:${i}`) ?? 0;
+
+    // Connected plug ports show as sockets (plug has been "sent" along path)
+    const isOutputConnected = connectedPlugPorts.has(`${node.id}:${i}`);
+    if (isOutputConnected) {
+      const physicalSide = getPortPhysicalSide(node, 'output', i);
+      drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue, { type: 'socket', openingDirection: physicalSide, connected: true }, colorOverride);
+    } else {
+      drawPort(ctx, tokens, pos.x, pos.y, portRadius, signalValue, { type: 'plug' }, colorOverride);
+    }
   }
 }
 
@@ -420,7 +423,7 @@ function drawNodePorts(
 function drawMenuChipPorts(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): void {
   const portRadius = NODE_STYLE.PORT_RADIUS_RATIO * cellSize;
@@ -445,13 +448,14 @@ function drawMenuChipPorts(
       const openDir = isLeft ? 'left' : 'right';
       drawPort(ctx, tokens, x, y, portRadius, 0, { type: 'socket', openingDirection: openDir });
     } else {
-      // Output ports show as plugs
-      drawPort(ctx, tokens, x, y, portRadius, 0, { type: 'plug' });
+      // Output ports show as sockets (edge CP draws the seated plug on top)
+      const openDir = isLeft ? 'left' : 'right';
+      drawPort(ctx, tokens, x, y, portRadius, 0, { type: 'socket', openingDirection: openDir, connected: true });
     }
   }
 }
 
-function drawPort(
+export function drawPort(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
   x: number,
@@ -459,22 +463,10 @@ function drawPort(
   radius: number,
   signalValue: number,
   shape: PortShape = { type: 'plug' },
+  colorOverride?: string,
 ): void {
-  const color = signalToColor(signalValue, tokens);
-  const glow = signalToGlow(signalValue);
-
-  // Glow for strong signals (mirrors wire glow behavior)
-  if (glow > 0) {
-    ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = glow;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
+  const color = colorOverride ?? signalToColor(signalValue, tokens);
+  const glow = colorOverride ? 0 : signalToGlow(signalValue);
 
   if (shape.type === 'socket') {
     // Half-circle divot cut into the node body — dark recessed socket
@@ -491,8 +483,69 @@ function drawPort(
     ctx.strokeStyle = tokens.depthRaised;
     ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    // Wire stub only when connected — draw signal-colored line through the opening
+    // so the wire appears to exit through the C-shape gap, not behind the body
+    if (shape.connected) {
+      const wireWidth = Number(tokens.wireWidthBase) || 6;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = wireWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(gapCenter) * radius, y + Math.sin(gapCenter) * radius);
+      ctx.stroke();
+    }
+  } else if (shape.type === 'seated') {
+    // Socket with same-size plug seated inside
+    const gapCenter = directionToAngle(shape.openingDirection);
+    const startAngle = gapCenter + Math.PI / 2;
+    const endAngle = gapCenter - Math.PI / 2;
+
+    // Glow ring drawn FIRST — the socket shell then covers it on the closed side,
+    // leaving the glow visible only on the opening side (natural occlusion, no cutoff).
+    if (glow > 0) {
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = glow;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw socket shell (covers glow ring on the closed side)
+    ctx.beginPath();
+    ctx.arc(x, y, radius, startAngle, endAngle, false);
+    ctx.closePath();
+    ctx.fillStyle = tokens.depthSunken;
+    ctx.fill();
+
+    ctx.strokeStyle = tokens.depthRaised;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Draw signal-colored plug filling the socket
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
   } else {
-    // Standard filled circle (plug)
+    // Standard filled circle (plug) — glow as full circle
+    if (glow > 0) {
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = glow;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.fillStyle = color;
     ctx.strokeStyle = tokens.depthRaised;
     ctx.lineWidth = 1.5;
@@ -503,22 +556,22 @@ function drawPort(
   }
 }
 
-/** Draw a single node (body + ports) without selection highlight. Used by ghost preview. */
+/** Draw a single chip (body + ports) without selection highlight. Used by ghost preview. */
 export function drawSingleNode(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  node: NodeState,
+  node: ChipState,
   state: RenderNodesState,
   cellSize: number,
 ): void {
   drawNodeBody(ctx, tokens, state, node, cellSize);
-  drawNodePorts(ctx, tokens, node, cellSize, state.portSignals, state.connectedInputPorts);
+  drawNodePorts(ctx, tokens, node, cellSize, state.portSignals, state.connectedSocketPorts, state.connectedPlugPorts, true);
 }
 
 function drawSelectionHighlight(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  node: NodeState,
+  node: ChipState,
   cellSize: number,
 ): void {
   const rect = getNodePixelRect(node, cellSize);

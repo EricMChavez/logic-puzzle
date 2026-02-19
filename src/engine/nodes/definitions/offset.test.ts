@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { offsetNode } from './offset';
+import { offsetChip } from './offset';
 
 describe('Offset node', () => {
   const evaluate = (a: number, x: number) =>
-    offsetNode.evaluate({
+    offsetChip.evaluate({
       inputs: [a, x],
       params: { amount: 0 },
       state: undefined,
@@ -11,16 +11,16 @@ describe('Offset node', () => {
     });
 
   it('has correct metadata', () => {
-    expect(offsetNode.type).toBe('offset');
-    expect(offsetNode.category).toBe('math');
-    expect(offsetNode.inputs).toHaveLength(2);
-    expect(offsetNode.outputs).toHaveLength(1);
-    expect(offsetNode.size).toEqual({ width: 4, height: 3 });
+    expect(offsetChip.type).toBe('offset');
+    expect(offsetChip.category).toBe('math');
+    expect(offsetChip.sockets).toHaveLength(2);
+    expect(offsetChip.plugs).toHaveLength(1);
+    expect(offsetChip.size).toEqual({ width: 4, height: 3 });
   });
 
   it('has X input with bottom side override', () => {
-    expect(offsetNode.inputs[1].name).toBe('X');
-    expect(offsetNode.inputs[1].side).toBe('bottom');
+    expect(offsetChip.sockets[1].name).toBe('X');
+    expect(offsetChip.sockets[1].side).toBe('bottom');
   });
 
   it('adds A + X', () => {
@@ -67,8 +67,8 @@ describe('Offset node', () => {
   });
 
   it('has amount parameter with correct config', () => {
-    expect(offsetNode.params).toHaveLength(1);
-    const param = offsetNode.params![0];
+    expect(offsetChip.params).toHaveLength(1);
+    const param = offsetChip.params![0];
     expect(param.key).toBe('amount');
     expect(param.default).toBe(0);
     expect(param.min).toBe(-100);

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { buildContextMenuItems } from './context-menu-items.ts';
 import type { ContextMenuItem } from './context-menu-items.ts';
+import { getChipDefinition } from '../../engine/nodes/registry.ts';
 import { generateId } from '../../shared/generate-id.ts';
 import { createUtilityGameboard } from '../../puzzle/utility-gameboard.ts';
 import { exportCustomPuzzleAsSource } from '../../puzzle/export-puzzle.ts';
@@ -9,16 +10,16 @@ import { captureViewportSnapshot, captureCropSnapshot } from '../../gameboard/ca
 import { getNodeGridSize } from '../../shared/grid/index.ts';
 import styles from './ContextMenu.module.css';
 
-/** Capture viewport and start zoom-in transition for a node. */
+/** Capture viewport and start zoom-in transition for a chip. */
 function captureAndStartZoomIn(state: ReturnType<typeof useGameStore.getState>, chipId: string): void {
   if (state.zoomTransitionState.type !== 'idle') return;
-  const node = state.activeBoard?.chips.get(chipId);
-  if (!node) return;
+  const chip = state.activeBoard?.chips.get(chipId);
+  if (!chip) return;
 
   const snapshot = captureViewportSnapshot();
   if (snapshot) {
-    const { cols, rows } = getNodeGridSize(node);
-    const targetRect = { col: node.position.col, row: node.position.row, cols, rows };
+    const { cols, rows } = getNodeGridSize(chip);
+    const targetRect = { col: chip.position.col, row: chip.position.row, cols, rows };
     const crop = captureCropSnapshot(chipId, targetRect) ?? undefined;
     state.startZoomCapture(snapshot, targetRect, 'in', crop);
   }
@@ -45,9 +46,126 @@ export function ContextMenu() {
 
 interface InnerProps {
   position: { x: number; y: number };
-  target: { type: 'node'; chipId: string } | { type: 'wire'; wireId: string } | { type: 'empty' };
+  target: { type: 'chip'; chipId: string } | { type: 'path'; pathId: string } | { type: 'empty' };
   menuRef: React.RefObject<HTMLDivElement | null>;
   focusIndexRef: React.MutableRefObject<number>;
+}
+
+function getChipLabel(type: string): string {
+  const def = getChipDefinition(type);
+  if (def) return def.type.charAt(0).toUpperCase() + def.type.slice(1);
+  if (type.startsWith('puzzle:')) return 'Puzzle Chip';
+  if (type.startsWith('utility:')) return 'Utility Chip';
+  if (type === 'custom-blank') return 'Blank Chip';
+  return type;
+}
+
+function getPortName(chipType: string, portIndex: number, side: 'socket' | 'plug'): string {
+  const def = getChipDefinition(chipType);
+  if (def) {
+    const ports = side === 'socket' ? def.sockets : def.plugs;
+    return ports[portIndex]?.name ?? `${side === 'socket' ? 'In' : 'Out'} ${portIndex + 1}`;
+  }
+  return `${side === 'socket' ? 'In' : 'Out'} ${portIndex + 1}`;
+}
+
+function SignalValue({ value }: { value: number | null }) {
+  if (value === null) {
+    return <span className={styles.readoutValue} style={{ color: '#5a5e52' }}>—</span>;
+  }
+  const color = value > 0 ? '#F5AF28' : value < 0 ? '#1ED2C3' : '#8a8e82';
+  return <span className={styles.readoutValue} style={{ color }}>{Math.round(value)}</span>;
+}
+
+function ChipReadout({ chipId }: { chipId: string }) {
+  const playpoint = useGameStore((s) => s.playpoint);
+  const cycleResults = useGameStore((s) => s.cycleResults);
+  const activeBoard = useGameStore((s) => s.activeBoard);
+
+  if (!activeBoard) return null;
+  const chip = activeBoard.chips.get(chipId);
+  if (!chip) return null;
+
+  const def = getChipDefinition(chip.type);
+  const socketCount = def ? def.sockets.length : chip.socketCount;
+  const plugCount = def ? def.plugs.length : chip.plugCount;
+
+  const inputValues: (number | null)[] = [];
+  for (let i = 0; i < socketCount; i++) {
+    const path = activeBoard.paths.find((p) => p.target.chipId === chipId && p.target.portIndex === i);
+    if (path && cycleResults) {
+      const vals = cycleResults.pathValues.get(path.id);
+      inputValues.push(vals ? vals[playpoint] : null);
+    } else {
+      inputValues.push(null);
+    }
+  }
+
+  const outputValues: (number | null)[] = [];
+  const chipOuts = cycleResults?.chipOutputs.get(chipId);
+  for (let i = 0; i < plugCount; i++) {
+    outputValues.push(chipOuts ? (chipOuts[playpoint]?.[i] ?? null) : null);
+  }
+
+  return (
+    <div className={styles.readout}>
+      <div className={styles.readoutHeader}>{getChipLabel(chip.type)}</div>
+      {socketCount > 0 && (
+        <>
+          <div className={styles.readoutGroup}>Inputs</div>
+          {Array.from({ length: socketCount }, (_, i) => (
+            <div key={`in-${i}`} className={styles.readoutRow}>
+              <span className={styles.readoutPortName}>{getPortName(chip.type, i, 'socket')}</span>
+              <SignalValue value={inputValues[i]} />
+            </div>
+          ))}
+        </>
+      )}
+      {plugCount > 0 && (
+        <>
+          <div className={styles.readoutGroup}>Outputs</div>
+          {Array.from({ length: plugCount }, (_, i) => (
+            <div key={`out-${i}`} className={styles.readoutRow}>
+              <span className={styles.readoutPortName}>{getPortName(chip.type, i, 'plug')}</span>
+              <SignalValue value={outputValues[i]} />
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PathReadout({ pathId }: { pathId: string }) {
+  const playpoint = useGameStore((s) => s.playpoint);
+  const cycleResults = useGameStore((s) => s.cycleResults);
+  const activeBoard = useGameStore((s) => s.activeBoard);
+
+  if (!activeBoard) return null;
+  const path = activeBoard.paths.find((p) => p.id === pathId);
+  if (!path) return null;
+
+  const sourceChip = activeBoard.chips.get(path.source.chipId);
+  const targetChip = activeBoard.chips.get(path.target.chipId);
+
+  const sourceName = sourceChip ? getChipLabel(sourceChip.type) : '?';
+  const targetName = targetChip ? getChipLabel(targetChip.type) : '?';
+  const sourcePort = sourceChip ? getPortName(sourceChip.type, path.source.portIndex, 'plug') : '?';
+  const targetPort = targetChip ? getPortName(targetChip.type, path.target.portIndex, 'socket') : '?';
+
+  const vals = cycleResults?.pathValues.get(pathId);
+  const value = vals ? vals[playpoint] : null;
+
+  return (
+    <div className={styles.readout}>
+      <div className={styles.readoutHeader}>Path</div>
+      <div className={styles.readoutRoute}>{sourceName}.{sourcePort} → {targetName}.{targetPort}</div>
+      <div className={styles.readoutRow}>
+        <span className={styles.readoutPortName}>Signal</span>
+        <SignalValue value={value} />
+      </div>
+    </div>
+  );
 }
 
 function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerProps) {
@@ -55,25 +173,34 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
   const readOnly = useGameStore((s) => s.activeBoardReadOnly);
 
   // Build menu items
-  let nodeType = '';
+  let chipType = '';
   let isCustomPuzzle = false;
-  if (target.type === 'node') {
+  let readoutH = 0;
+  if (target.type === 'chip') {
     const state = useGameStore.getState();
-    const node = state.activeBoard?.chips.get(target.chipId);
-    nodeType = node?.type ?? '';
-    if (nodeType.startsWith('puzzle:')) {
-      const puzzleId = nodeType.slice('puzzle:'.length);
+    const chip = state.activeBoard?.chips.get(target.chipId);
+    chipType = chip?.type ?? '';
+    if (chip) {
+      const def = getChipDefinition(chipType);
+      const sCount = def ? def.sockets.length : chip.socketCount;
+      const pCount = def ? def.plugs.length : chip.plugCount;
+      readoutH = 32 + (sCount > 0 ? 16 + sCount * 20 : 0) + (pCount > 0 ? 16 + pCount * 20 : 0) + 5;
+    }
+    if (chipType.startsWith('puzzle:')) {
+      const puzzleId = chipType.slice('puzzle:'.length);
       isCustomPuzzle = state.customPuzzles.has(puzzleId);
-    } else if (nodeType.startsWith('menu:custom-')) {
-      const puzzleId = nodeType.slice('menu:custom-'.length);
+    } else if (chipType.startsWith('menu:custom-')) {
+      const puzzleId = chipType.slice('menu:custom-'.length);
       isCustomPuzzle = state.customPuzzles.has(puzzleId);
     }
+  } else if (target.type === 'path') {
+    readoutH = 70;
   }
 
-  const menuTarget = target.type === 'node'
-    ? { type: 'node' as const, chipId: target.chipId, nodeType, isCustomPuzzle }
-    : target.type === 'wire'
-      ? { type: 'wire' as const, wireId: target.wireId }
+  const menuTarget = target.type === 'chip'
+    ? { type: 'chip' as const, chipId: target.chipId, chipType, isCustomPuzzle }
+    : target.type === 'path'
+      ? { type: 'path' as const, pathId: target.pathId }
       : null;
 
   const items = menuTarget ? buildContextMenuItems(menuTarget, readOnly) : [];
@@ -94,8 +221,8 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
   const containerTop = containerRect?.top ?? 0;
   let left = position.x - containerLeft;
   let top = position.y - containerTop;
-  const menuW = 180;
-  const menuH = items.length * 36 + 8;
+  const menuW = 220;
+  const menuH = items.length * 36 + 8 + readoutH + (readoutH > 0 && items.length > 0 ? 5 : 0);
   if (left + menuW > containerW) left = containerW - menuW - 4;
   if (top + menuH > containerH) top = containerH - menuH - 4;
   if (left < 0) left = 4;
@@ -106,31 +233,31 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
     closeOverlay();
 
     switch (item.action) {
-      case 'delete-node':
-        if (target.type === 'node') {
-          state.removeNode(target.chipId);
+      case 'delete-chip':
+        if (target.type === 'chip') {
+          state.removeChip(target.chipId);
         }
         break;
-      case 'delete-wire':
-        if (target.type === 'wire') {
-          state.removeWire(target.wireId);
+      case 'delete-path':
+        if (target.type === 'path') {
+          state.removePath(target.pathId);
         }
         break;
       case 'inspect':
-        if (target.type === 'node') {
+        if (target.type === 'chip') {
           captureAndStartZoomIn(state, target.chipId);
           state.zoomIntoNode(target.chipId);
         }
         break;
       case 'export':
-        if (target.type === 'node') {
-          const exportNode = state.activeBoard?.chips.get(target.chipId);
-          if (exportNode) {
+        if (target.type === 'chip') {
+          const exportChip = state.activeBoard?.chips.get(target.chipId);
+          if (exportChip) {
             let puzzleId: string | null = null;
-            if (exportNode.type.startsWith('puzzle:')) {
-              puzzleId = exportNode.type.slice('puzzle:'.length);
-            } else if (exportNode.type.startsWith('menu:custom-')) {
-              puzzleId = exportNode.type.slice('menu:custom-'.length);
+            if (exportChip.type.startsWith('puzzle:')) {
+              puzzleId = exportChip.type.slice('puzzle:'.length);
+            } else if (exportChip.type.startsWith('menu:custom-')) {
+              puzzleId = exportChip.type.slice('menu:custom-'.length);
             }
             if (puzzleId) {
               const puzzle = state.customPuzzles.get(puzzleId);
@@ -143,18 +270,18 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
         }
         break;
       case 'edit':
-        if (target.type === 'node') {
-          const node = state.activeBoard?.chips.get(target.chipId);
-          if (!node) break;
+        if (target.type === 'chip') {
+          const chip = state.activeBoard?.chips.get(target.chipId);
+          if (!chip) break;
 
-          if (node.type === 'custom-blank') {
+          if (chip.type === 'custom-blank') {
             const utilityId = generateId();
             const board = createUtilityGameboard(utilityId);
             captureAndStartZoomIn(state, target.chipId);
             state.startEditingUtility(utilityId, board, target.chipId);
-          } else if (node.type.startsWith('utility:')) {
-            const utilityId = node.type.slice('utility:'.length);
-            const entry = state.utilityNodes.get(utilityId);
+          } else if (chip.type.startsWith('utility:')) {
+            const utilityId = chip.type.slice('utility:'.length);
+            const entry = state.craftedUtilities.get(utilityId);
             if (entry) {
               captureAndStartZoomIn(state, target.chipId);
               state.startEditingUtility(utilityId, entry.board, target.chipId);
@@ -179,7 +306,8 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
     }
   }, [items.length]);
 
-  if (items.length === 0) {
+  const hasReadout = target.type === 'chip' || target.type === 'path';
+  if (items.length === 0 && !hasReadout) {
     closeOverlay();
     return null;
   }
@@ -195,6 +323,9 @@ function ContextMenuInner({ position, target, menuRef, focusIndexRef }: InnerPro
         onKeyDown={handleKeyDown}
         role="menu"
       >
+        {target.type === 'chip' && <ChipReadout chipId={target.chipId} />}
+        {target.type === 'path' && <PathReadout pathId={target.pathId} />}
+        {hasReadout && items.length > 0 && <div className={styles.divider} />}
         {items.map((item, i) => (
           <button
             key={item.id}

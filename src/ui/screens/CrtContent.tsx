@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { useTypewriter } from './useTypewriter.ts';
 import { SettingsTerminal } from './SettingsTerminal.tsx';
+import { PUZZLE_LEVELS } from '../../puzzle/levels/index.ts';
 import asciiArtRaw from '../../assets/ascii-wavelength.txt?raw';
 import retro from './retro-shared.module.css';
 
@@ -10,14 +11,17 @@ const ASCII_ART_LINES = asciiArtRaw
   .map((l) => l.trimEnd())
   .filter((l, i, a) => !(i === a.length - 1 && l === ''));
 
-const HOME_LINES = [
-  'Beta v0.1',
-  '[CRITICAL] Low signal!',
-  '',
-  '[WARNING] Use at your own risk. Side effects may',
-  'include corrupted memories, delusions of',
-  'insignificance, and dry mouth.',
-];
+function getHomeLines(signalFull: boolean): string[] {
+  return [
+    'Beta v0.1',
+    ...(signalFull ? [] : ['[CRITICAL] Low signal!']),
+    '',
+    '[WARNING] Use at your own risk. Side effects may include',
+    'corrupted memories, delusions of insignificance, and dry mouth.',
+    '',
+    'Best played fullscreen.',
+  ];
+}
 
 const ABOUT_LINES = [
   '> ABOUT WAVELENGTH',
@@ -44,22 +48,33 @@ const SETTINGS_HEADER_LINES = [
 export function CrtContent() {
   const activeScreen = useGameStore((s) => s.activeScreen);
   const generation = useGameStore((s) => s.tabSwitchGeneration);
+  const completedCount = useGameStore((s) => s.completedLevels.size);
 
+  const signalFull = completedCount >= PUZZLE_LEVELS.length;
   const instantLineCount = activeScreen === 'home' ? ASCII_ART_LINES.length : 0;
 
   const contentLines = useMemo(() => {
     switch (activeScreen) {
-      case 'home': return [...ASCII_ART_LINES, ...HOME_LINES];
+      case 'home': return [...ASCII_ART_LINES, ...getHomeLines(signalFull)];
       case 'about': return ABOUT_LINES;
       case 'settings': return SETTINGS_HEADER_LINES;
-      default: return [...ASCII_ART_LINES, ...HOME_LINES];
+      case 'thankyou': return [];
+      default: return [...ASCII_ART_LINES, ...getHomeLines(signalFull)];
     }
-  }, [activeScreen]);
+  }, [activeScreen, signalFull]);
 
   const { lines, cursorVisible, isTyping } = useTypewriter(contentLines, generation, instantLineCount);
 
   const asciiLines = instantLineCount > 0 ? lines.slice(0, instantLineCount) : [];
   const textLines = instantLineCount > 0 ? lines.slice(instantLineCount) : lines;
+
+  if (activeScreen === 'thankyou') {
+    return (
+      <div className={`${retro.screenText} ${retro.thankYouWrap}`}>
+        Thank you for playing!
+      </div>
+    );
+  }
 
   return (
     <div className={retro.screenText}>

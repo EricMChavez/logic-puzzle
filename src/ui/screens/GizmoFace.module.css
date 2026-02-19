@@ -3,22 +3,24 @@
 .gizmo {
   position: absolute;
   inset: 0;
-  background: #d4ccb8;
+  background: #d6ceb3;
   background-image:
     radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 40%, rgba(0, 0, 0, 0.04) 100%);
   font-family: 'IBM Plex Mono', monospace;
   display: grid;
   grid-template-columns: auto auto auto;
-  grid-template-rows: 1fr 76px auto;
+  grid-template-rows: 1fr 92px auto;
   grid-template-areas:
     "monitor  monitor  signal"
     "monitor  monitor  ."
     "bottom   bottom   bottom";
   justify-content: center;
-  gap: 12px;
+  row-gap: 20px;
+  column-gap: 41px;
   padding: 36px;
   overflow: hidden;
+  container-type: size;
 }
 
 /* Highlight sheen */
@@ -30,6 +32,16 @@
   right: 0;
   height: 40%;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Aged-plastic vignette — edges yellowed more than center */
+.gizmo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at center, transparent 30%, rgba(180, 165, 90, 0.12) 100%);
   pointer-events: none;
   z-index: 0;
 }
@@ -55,7 +67,6 @@
 .crtScreen {
   flex: 1;
   min-height: 0;
-  padding: 3.4cqi 3.1cqi;
 }
 
 /* ===== Signal Level (row 1, col 3) ===== */
@@ -63,7 +74,7 @@
   grid-area: signal;
   position: relative;
   z-index: 1;
-  width: 80px;
+  width: 100px;
 }
 
 /* ===== L-Shaped Play Button ===== */
@@ -76,6 +87,10 @@
   background: none;
   padding: 0;
   font: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-self: flex-end;
 }
 
 /* Arm: extends upward from the body */
@@ -83,9 +98,9 @@
   position: absolute;
   bottom: 100%;
   right: 0;
-  width: 80px;
+  width: 100px;
   z-index: 2;
-  height: calc(76px + 12px); /* arm height + grid gap to reach playArm row */
+  height: calc(92px + 20px); /* row 2 height + grid gap */
   cursor: pointer;
 }
 
@@ -107,7 +122,7 @@
   left: 0;
   right: -1px;
   top: 100%;
-  height: 13px; /* 12px grid gap + 1px overlap */
+  height: 21px; /* 20px grid gap + 1px overlap */
   background: #d46030;
   border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -137,8 +152,8 @@
   position: absolute;
   right: 0;
   bottom: calc(100% - 2px);
-  width: 80px;
-  height: calc(76px + 12px + 2px); /* arm height + grid gap + overlap */
+  width: 100px;
+  height: calc(92px + 20px + 2px); /* row 2 height + grid gap + overlap */
   border-radius: 12px 12px 0 0;
   background: linear-gradient(180deg, #c05224 0%, #ac491d 50%, #984016 100%);
 }
@@ -182,6 +197,10 @@
 }
 
 /* Active */
+.playButton:active .playArm {
+  transform: translateY(4px);
+}
+
 .playButton:active .playBody {
   transform: translateY(4px);
   box-shadow:
@@ -192,7 +211,7 @@
 }
 
 .playButton:active .playArmTop {
-  background: linear-gradient(180deg, #d46830 0%, #c85e28 50%, #c05624 100%);
+  background: linear-gradient(180deg, #d46830 0%, #c85e28 50%, #c85e28 100%);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
@@ -205,12 +224,52 @@
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
+/* ===== Tab Column (indicators + tab row) ===== */
+.tabColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ===== Indicator Channel (recessed groove) ===== */
+.indicatorChannel {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  background: #cdc5a8;
+  padding: 6px 0 4px;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.indicatorSlot {
+  flex: 1;
+  min-width: 140px;
+}
+
+.indicatorStrip {
+  height: 5px;
+  margin: 0 7px;
+  background: #3a3426;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: background 150ms, box-shadow 150ms;
+}
+
+.indicatorStripActive {
+  background: #33e8a0;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.1),
+    0 0 6px rgba(51, 232, 160, 0.6),
+    0 0 14px rgba(51, 232, 160, 0.25);
+}
+
 /* ===== Bottom Row (row 3, cols 1-3) ===== */
 .bottomRow {
   grid-area: bottom;
   display: flex;
   flex-direction: row;
-  gap: 12px;
+  gap: 8px;
   align-items: stretch;
   justify-content: flex-end;
   position: relative;
@@ -226,6 +285,7 @@
 }
 
 .tabRow > * {
+  flex: 1;
   min-width: 140px;
 }
 
@@ -237,6 +297,178 @@
 .cornerScrews > * {
   z-index: 2;
 }
+
+/* ===== Floppy Disk Slot ===== */
+.floppySlot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-right: auto;
+  align-self: flex-end;
+  padding-bottom: 8px;
+}
+
+/* Recessed bezel surround — sized to match tab button area */
+.floppyBezel {
+  width: 436px;
+  height: 56px;
+  background: linear-gradient(180deg, #c4bc9e 0%, #cbc3a6 40%, #d0c8ac 100%);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35),
+    inset 3px 0 4px rgba(0, 0, 0, 0.1),
+    inset -3px 0 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+}
+
+/* The dark horizontal slot */
+.floppyOpening {
+  width: 100%;
+  height: 8px;
+  background: #2a2418;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 3px 4px rgba(0, 0, 0, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.25);
+  position: relative;
+}
+
+/* Center guide notch inside the slot */
+.floppyGuide {
+  position: absolute;
+  left: 50%;
+  top: -1px;
+  transform: translateX(-50%);
+  width: 24px;
+  height: calc(100% + 2px);
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 1px solid rgba(0, 0, 0, 0.2);
+  border-right: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* Eject bar below the slot */
+.floppyEjectBar {
+  width: 52px;
+  height: 8px;
+  background: linear-gradient(180deg, #c0b89c 0%, #b5ad92 100%);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+  align-self: flex-end;
+  margin-right: 4px;
+}
+
+/* Activity LED below the drive */
+.floppyLed {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3a3426;
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.2);
+  margin-left: 12px;
+}
+
+/* ===== Ventilation Grilles ===== */
+.ventGrille {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 88%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ventGrilleLeft {
+  left: 1.04cqw;
+}
+
+.ventGrilleRight {
+  right: 1.04cqw;
+}
+
+/* Seam border — extends past viewport on outer edge, clipped to U shape */
+.ventSeam {
+  height: 100%;
+  padding: 1.46cqw;
+  position: relative;
+}
+
+.ventSeam::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.ventSeam::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Left grille: extend seam past left viewport edge */
+.ventGrilleLeft .ventSeam {
+  margin-left: -2.5cqw;
+  padding-left: 3.96cqw;
+}
+
+/* Right grille: extend seam past right viewport edge */
+.ventGrilleRight .ventSeam {
+  margin-right: -2.5cqw;
+  padding-right: 3.96cqw;
+}
+
+/* Recessed panel housing the slats */
+.ventPanel {
+  width: 5.73cqw;
+  height: 100%;
+  padding: 1.11cqh 0.52cqw;
+  background: linear-gradient(180deg, #bfb79a 0%, #c8c0a4 50%, #ccc4a8 100%);
+  border-radius: 0.31cqw;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 4px 8px rgba(0, 0, 0, 0.22),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.3),
+    inset 3px 0 5px rgba(0, 0, 0, 0.1),
+    inset -3px 0 5px rgba(0, 0, 0, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Individual vent slats — louver style */
+.ventSlat {
+  width: 100%;
+  height: 0.37cqh;
+  background: linear-gradient(
+    180deg,
+    #a8a086 0%,
+    #b5ad92 40%,
+    #bfb79c 100%
+  );
+  border-radius: 1px;
+  box-shadow:
+    inset 0 2px 2px rgba(0, 0, 0, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
 
 /* ===== Mobile ===== */
 @media (max-width: 767px) {
@@ -272,12 +504,25 @@
   .signalLevel {
     width: auto;
   }
+
+  .indicatorSlot {
+    min-width: 0;
+  }
+
+  .floppySlot,
+  .ventGrille {
+    display: none;
+  }
 }
 
 /* ===== Reduced Motion ===== */
 @media (prefers-reduced-motion: reduce) {
   .playArm,
   .playBody {
+    transition: none;
+  }
+
+  .indicatorStrip {
     transition: none;
   }
 }

@@ -2,8 +2,8 @@ import { useCallback, useState, useMemo, useRef, useEffect } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { slotToMeterInfo } from '../../store/slices/creative-slice.ts';
 import type { CustomPuzzle } from '../../store/slices/custom-puzzle-slice.ts';
-import type { AllowedNodes } from '../../puzzle/types.ts';
-import { nodeRegistry, getNodeLabel } from '../../engine/nodes/registry.ts';
+import type { AllowedChips } from '../../puzzle/types.ts';
+import { chipRegistry, getChipLabel } from '../../engine/nodes/registry.ts';
 import { isCreativeSlotNode, creativeSlotId, cpInputId, cpOutputId } from '../../puzzle/connection-point-nodes.ts';
 import styles from './SavePuzzleDialog.module.css';
 
@@ -30,10 +30,10 @@ function SavePuzzleDialogInner() {
   const setTutorialMessageDraft = useGameStore((s) => s.setTutorialMessageDraft);
 
   // Build list of all fundamental chip types (including "Custom" for user-created chips)
-  const allNodeTypes = useMemo(() => {
+  const allChipTypes = useMemo(() => {
     const types: Array<{ type: string; label: string }> = [];
-    for (const def of nodeRegistry.all) {
-      types.push({ type: def.type, label: getNodeLabel(def.type) });
+    for (const def of chipRegistry.all) {
+      types.push({ type: def.type, label: getChipLabel(def.type) });
     }
     types.push({ type: 'custom', label: 'Custom' });
     return types;
@@ -44,7 +44,7 @@ function SavePuzzleDialogInner() {
   const [error, setError] = useState('');
   // quantity: -1 = unlimited, 0+ = max count
   const [quantities, setQuantities] = useState<Record<string, number>>(() =>
-    Object.fromEntries(allNodeTypes.map((t) => [t.type, -1]))
+    Object.fromEntries(allChipTypes.map((t) => [t.type, -1]))
   );
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -102,7 +102,7 @@ function SavePuzzleDialogInner() {
     for (const [type, count] of startingNodeCounts) {
       const budget = quantities[type];
       if (budget !== undefined && budget !== -1 && budget < count) {
-        errors.push(`${getNodeLabel(type)}: budget ${budget} < ${count} starting chips`);
+        errors.push(`${getChipLabel(type)}: budget ${budget} < ${count} starting chips`);
       }
     }
     return errors;
@@ -135,14 +135,14 @@ function SavePuzzleDialogInner() {
       waveform: slot.direction === 'input' ? slot.waveform : undefined,
     }));
 
-    // Serialize starting nodes (all non-CP nodes from current board)
-    const initialNodes = startingNodes.map((node) => ({
+    // Serialize starting chips (all non-CP nodes from current board)
+    const initialChips = startingNodes.map((node) => ({
       id: node.id,
       type: node.type,
       position: { col: node.position.col, row: node.position.row },
       params: { ...node.params },
-      inputCount: node.inputCount,
-      outputCount: node.outputCount,
+      socketCount: node.socketCount,
+      plugCount: node.plugCount,
       rotation: node.rotation,
       locked: false,
     }));
@@ -164,7 +164,7 @@ function SavePuzzleDialogInner() {
 
     // Capture wires, remapping creative-slot CP IDs to standard CP IDs
     const startingNodeIds = new Set(startingNodes.map(n => n.id));
-    const initialWires: CustomPuzzle['initialWires'] = activeBoard.paths
+    const initialPaths: CustomPuzzle['initialPaths'] = activeBoard.paths
       .filter(w => {
         // Include wires where both endpoints are starting nodes or CP nodes
         const sourceOk = startingNodeIds.has(w.source.chipId) || creativeToLoadedId.has(w.source.chipId);
@@ -183,8 +183,8 @@ function SavePuzzleDialogInner() {
       }));
 
     // Compute allowedNodes: if all types are -1, use null (all unlimited)
-    const allUnlimited = allNodeTypes.every(t => quantities[t.type] === -1);
-    const computedAllowed: AllowedNodes = allUnlimited
+    const allUnlimited = allChipTypes.every(t => quantities[t.type] === -1);
+    const computedAllowed: AllowedChips = allUnlimited
       ? null
       : { ...quantities };
 
@@ -195,9 +195,9 @@ function SavePuzzleDialogInner() {
       createdAt: Date.now(),
       slots,
       targetSamples: recordedTargetSamples,
-      initialNodes,
-      initialWires,
-      allowedNodes: computedAllowed,
+      initialChips,
+      initialPaths,
+      allowedChips: computedAllowed,
       tutorialMessage: tutorialMessageDraft.trim() || undefined,
       tutorialTitle: tutorialTitleDraft.trim() || undefined,
     };
@@ -216,7 +216,7 @@ function SavePuzzleDialogInner() {
     cancelAuthoring,
     closeOverlay,
     quantities,
-    allNodeTypes,
+    allChipTypes,
     budgetErrors,
     tutorialTitleDraft,
     tutorialMessageDraft,
@@ -233,12 +233,12 @@ function SavePuzzleDialogInner() {
   }, [handleCancel, handleSave]);
 
   const setAllUnlimited = useCallback(() => {
-    setQuantities(Object.fromEntries(allNodeTypes.map((t) => [t.type, -1])));
-  }, [allNodeTypes]);
+    setQuantities(Object.fromEntries(allChipTypes.map((t) => [t.type, -1])));
+  }, [allChipTypes]);
 
   const setAllNone = useCallback(() => {
-    setQuantities(Object.fromEntries(allNodeTypes.map((t) => [t.type, 0])));
-  }, [allNodeTypes]);
+    setQuantities(Object.fromEntries(allChipTypes.map((t) => [t.type, 0])));
+  }, [allChipTypes]);
 
   return (
     <div className={styles.backdrop}>
@@ -366,7 +366,7 @@ function SavePuzzleDialogInner() {
               </button>
             </h3>
             <div>
-              {allNodeTypes.map((entry) => (
+              {allChipTypes.map((entry) => (
                 <div key={entry.type} className={styles.quantityRow}>
                   <span className={styles.quantityLabel}>{entry.label}</span>
                   <input

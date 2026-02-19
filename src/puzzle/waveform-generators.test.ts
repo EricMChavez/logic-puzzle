@@ -362,7 +362,7 @@ describe('generateFMSamples', () => {
   it('modRate=0 falls back to constant frequency', () => {
     const fm = generateFMSamples('triangle', 3, 0, 5.0, 80);
     // Should be equivalent to a plain 3-cycle triangle
-    const noMod = generateFMSamples('triangle', 3, 1, 0, 80);
+    generateFMSamples('triangle', 3, 1, 0, 80);
     // With modRate=0, there's no modulation, same as depth=0
     for (let i = 0; i < 256; i++) {
       const t = i / 256;

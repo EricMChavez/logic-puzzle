@@ -11,14 +11,14 @@
 
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import type { PaletteItem } from '../../ui/overlays/palette-items.ts';
-import type { PuzzleNodeEntry, UtilityNodeEntry } from '../../store/slices/palette-slice.ts';
+import type { CraftedPuzzleEntry, CraftedUtilityEntry } from '../../store/slices/palette-slice.ts';
 import type { RenderNodesState, KnobInfo } from './render-types.ts';
-import type { NodeState } from '../../shared/types/index.ts';
-import { CHIP_DRAWER } from '../../shared/constants/index.ts';
+import type { ChipState } from '../../shared/types/index.ts';
+import { CHIP_DRAWER, RETRO_PANEL } from '../../shared/constants/index.ts';
 import { GRID_ROWS } from '../../shared/grid/constants.ts';
 import { CARD_BODY_FONT } from '../../shared/fonts/font-ready.ts';
 import { isReducedMotion } from '../../shared/tokens/theme-manager.ts';
-import { getNodeDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
+import { getChipDefinition, getDefaultParams } from '../../engine/nodes/registry.ts';
 import { getKnobConfig } from '../../engine/nodes/framework.ts';
 import { drawSingleNode } from './render-nodes.ts';
 import { getNodeBodyPixelRect } from './port-positions.ts';
@@ -45,9 +45,9 @@ interface TooltipInfo {
 
 export interface ChipDrawerRenderState {
   paletteItems: ReadonlyArray<PaletteItem>;
-  isDraggingNode: boolean;
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>;
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>;
+  isDraggingChip: boolean;
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>;
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>;
 }
 
 // =============================================================================
@@ -64,10 +64,8 @@ let _tooltipHoverStartTime = 0;
 let _keyboardSelectedIndex: number | null = null;
 let _scrollOffset = 0; // vertical scroll in pixels
 let _keyboardNavigationActive = false;
+let _deleteMode = false; // true when drawer is open as a delete drop target during node drag
 
-// Cached palette items for hit testing (set each frame by draw)
-let _cachedPaletteItems: ReadonlyArray<PaletteItem> = [];
-let _cachedCellSize = 0;
 
 // =============================================================================
 // Getters / Setters
@@ -106,9 +104,12 @@ export function closeDrawer(): void {
   _keyboardSelectedIndex = null;
   _tooltipChipIndex = null;
   _scrollOffset = 0;
+  // _deleteMode persists during close animation so trash icon stays visible.
+  // Cleared in updateDrawerAnimation on completion, or immediately for reduced motion.
   if (isReducedMotion()) {
     _drawerState = 'closed';
     _drawerProgress = 0;
+    _deleteMode = false;
     return;
   }
   _drawerState = 'closing';
@@ -183,6 +184,14 @@ export function setScrollOffset(offset: number): void {
   _scrollOffset = Math.max(0, offset);
 }
 
+export function isDeleteMode(): boolean {
+  return _deleteMode;
+}
+
+export function setDeleteMode(active: boolean): void {
+  _deleteMode = active;
+}
+
 // =============================================================================
 // Easing Functions
 // =============================================================================
@@ -227,6 +236,7 @@ export function updateDrawerAnimation(timestamp: number): void {
     if (raw >= 1) {
       _drawerState = 'closed';
       _drawerProgress = 0;
+      _deleteMode = false;
     }
   }
 }
@@ -371,17 +381,45 @@ export function hitTestChipDrawer(
 }
 
 /**
- * Check if a point is over the drawer delete zone (handle area during drag).
- * Used when dragging a node to determine if it should be deleted.
- * Delete zone uses resting handle position (progress=0) since drawer is closed during drags.
+ * Check if a point is over the drawer delete trigger zone (handle area or below).
+ * Used during node drag to decide when to open the drawer in delete mode.
+ */
+export function hitTestDeleteTrigger(
+  x: number,
+  y: number,
+  cellSize: number,
+): boolean {
+  const handle = getHandleRect(cellSize, _drawerProgress);
+  const margin = cellSize;
+  const gridBottom = GRID_ROWS * cellSize;
+  // Trigger zone: handle area (at current progress) + everything below to canvas bottom
+  return x >= handle.left - margin && x <= handle.left + handle.width + margin &&
+         y >= handle.top - margin && y <= Math.max(gridBottom, handle.top + handle.height) + margin;
+}
+
+/**
+ * Check if a point is over the drawer delete zone during drag.
+ * When delete mode is active and the drawer is open, the entire tray + handle is a drop target.
+ * Otherwise falls back to the resting handle position for the initial drag hint.
  */
 export function hitTestDeleteZone(
   x: number,
   y: number,
   cellSize: number,
 ): boolean {
+  if (_deleteMode && _drawerProgress > 0) {
+    // Expanded zone: handle + full tray area
+    const handle = getHandleRect(cellSize, _drawerProgress);
+    const tray = getTrayRect(cellSize, _drawerProgress);
+    const margin = cellSize * 0.5;
+    const top = handle.top - margin;
+    const bottom = tray.top + tray.height + margin;
+    const left = Math.min(handle.left, tray.left) - margin;
+    const right = Math.max(handle.left + handle.width, tray.left + tray.width) + margin;
+    return x >= left && x <= right && y >= top && y <= bottom;
+  }
+  // Fallback: resting handle position (progress=0)
   const handle = getHandleRect(cellSize, 0);
-  // Expand handle area slightly for easier targeting
   const margin = cellSize;
   return x >= handle.left - margin && x <= handle.left + handle.width + margin &&
          y >= handle.top - margin && y <= handle.top + handle.height + margin;
@@ -391,10 +429,10 @@ export function hitTestDeleteZone(
 // Hardcoded Colors (Physical Device Aesthetic)
 // =============================================================================
 
-// Unified beige panel (handle + tray share the same palette)
-const PANEL_GRAD_TOP = '#ddd6c2';
-const PANEL_GRAD_MID = '#ccc4ae';
-const PANEL_GRAD_BOT = '#c0b8a0';
+// Unified beige panel (from shared retro-plastic constants)
+const PANEL_GRAD_TOP = RETRO_PANEL.GRAD_TOP;
+const PANEL_GRAD_MID = RETRO_PANEL.GRAD_MID;
+const PANEL_GRAD_BOT = RETRO_PANEL.GRAD_BOT;
 
 // Grip lines on handle
 const GRIP_COLOR = 'rgba(0,0,0,0.15)';
@@ -404,7 +442,6 @@ const GRIP_HIGHLIGHT = 'rgba(255,255,255,0.25)';
 const SLOT_BG = 'rgba(0,0,0,0.06)';
 const SLOT_HOVER_BG = 'rgba(0,0,0,0.10)';
 const SLOT_SELECTED_BORDER = '#5a9bf5';
-const SLOT_DEPLETED_OVERLAY = 'rgba(160,150,130,0.7)';
 
 // Tooltip
 const TOOLTIP_BG = 'rgba(20,20,28,0.95)';
@@ -434,9 +471,6 @@ export function drawChipDrawer(
   state: ChipDrawerRenderState,
   cellSize: number,
 ): void {
-  _cachedPaletteItems = state.paletteItems;
-  _cachedCellSize = cellSize;
-
   // Update tooltip timing
   const now = performance.now();
   const activeIndex = _keyboardNavigationActive ? _keyboardSelectedIndex : _hoveredChipIndex;
@@ -448,11 +482,15 @@ export function drawChipDrawer(
   // Draw tray first (if visible) so handle overlaps it
   let tooltipInfo: TooltipInfo | null = null;
   if (_drawerProgress > 0) {
-    tooltipInfo = drawTray(ctx, tokens, state, cellSize);
+    if (_deleteMode) {
+      drawDeleteTray(ctx, cellSize);
+    } else {
+      tooltipInfo = drawTray(ctx, tokens, state, cellSize);
+    }
   }
 
   // Draw handle on top at animated position
-  drawHandle(ctx, cellSize, state.isDraggingNode);
+  drawHandle(ctx, cellSize, state.isDraggingChip);
 
   // Draw tooltip last so it appears above the handle
   if (tooltipInfo) {
@@ -465,15 +503,15 @@ export function drawChipDrawer(
 function drawHandle(
   ctx: CanvasRenderingContext2D,
   cellSize: number,
-  isDraggingNode: boolean,
+  isDraggingChip: boolean,
 ): void {
   const handle = getHandleRect(cellSize, _drawerProgress);
   const cr = 6;
 
   ctx.save();
 
-  if (isDraggingNode) {
-    // Delete zone: red glow/tint
+  if (_deleteMode) {
+    // Delete mode: red-tinted handle (no text — trash icon is in the tray)
     ctx.fillStyle = DELETE_ZONE_BG;
     ctx.beginPath();
     ctx.roundRect(handle.left, handle.top, handle.width, handle.height, [cr, cr, 0, 0]);
@@ -484,10 +522,26 @@ function drawHandle(
     ctx.beginPath();
     ctx.roundRect(handle.left, handle.top, handle.width, handle.height, [cr, cr, 0, 0]);
     ctx.stroke();
+  } else if (isDraggingChip) {
+    // Dragging hint: beige handle with faint red border + dimmed "DROP TO DELETE" text
+    const grad = ctx.createLinearGradient(0, handle.top, 0, handle.top + handle.height);
+    grad.addColorStop(0, PANEL_GRAD_TOP);
+    grad.addColorStop(0.4, PANEL_GRAD_MID);
+    grad.addColorStop(1, PANEL_GRAD_BOT);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(handle.left, handle.top, handle.width, handle.height, [cr, cr, 0, 0]);
+    ctx.fill();
 
-    // "DROP TO DELETE" text
-    const fontSize = Math.round(cellSize * 0.4);
-    ctx.fillStyle = DELETE_ZONE_BORDER;
+    ctx.strokeStyle = 'rgba(224,56,56,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(handle.left, handle.top, handle.width, handle.height, [cr, cr, 0, 0]);
+    ctx.stroke();
+
+    // Dimmed "DROP TO DELETE" text
+    const fontSize = Math.round(cellSize * 0.35);
+    ctx.fillStyle = 'rgba(224,56,56,0.5)';
     ctx.font = `bold ${fontSize}px ${CARD_BODY_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -532,6 +586,139 @@ function drawHandle(
   ctx.restore();
 }
 
+// --- Delete Tray ---
+
+function drawDeleteTray(
+  ctx: CanvasRenderingContext2D,
+  cellSize: number,
+): void {
+  const tray = getTrayRect(cellSize, _drawerProgress);
+  if (tray.height <= 0) return;
+
+  ctx.save();
+
+  // Clip to tray visible bounds
+  ctx.beginPath();
+  ctx.rect(tray.left, tray.top, tray.width, tray.height);
+  ctx.clip();
+
+  // Beige gradient background with red wash
+  const grad = ctx.createLinearGradient(0, tray.top, 0, tray.top + tray.height);
+  grad.addColorStop(0, PANEL_GRAD_MID);
+  grad.addColorStop(0.3, PANEL_GRAD_MID);
+  grad.addColorStop(1, PANEL_GRAD_BOT);
+  ctx.fillStyle = grad;
+  ctx.fillRect(tray.left, tray.top, tray.width, tray.height);
+
+  // Red wash overlay
+  ctx.fillStyle = 'rgba(224,56,56,0.08)';
+  ctx.fillRect(tray.left, tray.top, tray.width, tray.height);
+
+  // Subtle inner shadow at top edge
+  const insetShadow = ctx.createLinearGradient(0, tray.top, 0, tray.top + 6);
+  insetShadow.addColorStop(0, 'rgba(0,0,0,0.12)');
+  insetShadow.addColorStop(1, 'transparent');
+  ctx.fillStyle = insetShadow;
+  ctx.fillRect(tray.left, tray.top, tray.width, 6);
+
+  // Trash can icon centered in the tray
+  drawTrashCanIcon(ctx, tray, cellSize);
+
+  ctx.restore();
+}
+
+function drawTrashCanIcon(
+  ctx: CanvasRenderingContext2D,
+  tray: { left: number; top: number; width: number; height: number },
+  cellSize: number,
+): void {
+  const scale = cellSize / 20; // base scale factor (20px reference cell)
+  const cx = tray.left + tray.width / 2;
+  const cy = tray.top + tray.height / 2;
+
+  // Icon dimensions (scaled)
+  const bodyW = 36 * scale;
+  const bodyH = 44 * scale;
+  const lidW = 42 * scale;
+  const lidH = 4 * scale;
+  const knobW = 12 * scale;
+  const knobH = 4 * scale;
+  const lidGap = 3 * scale;
+  const taper = 4 * scale; // body narrows at bottom
+  const cr = 3 * scale;
+
+  // Vertical layout: knob, lid, gap, body
+  const totalH = knobH + lidH + lidGap + bodyH;
+  const topY = cy - totalH / 2;
+
+  ctx.save();
+
+  // --- Knob (small rectangle on top of lid) ---
+  const knobX = cx - knobW / 2;
+  const knobY = topY;
+  ctx.fillStyle = DELETE_ZONE_BORDER;
+  ctx.beginPath();
+  ctx.roundRect(knobX, knobY, knobW, knobH, 2 * scale);
+  ctx.fill();
+
+  // --- Lid bar ---
+  const lidX = cx - lidW / 2;
+  const lidY = topY + knobH;
+  ctx.fillStyle = DELETE_ZONE_BORDER;
+  ctx.beginPath();
+  ctx.roundRect(lidX, lidY, lidW, lidH, 1.5 * scale);
+  ctx.fill();
+
+  // --- Body (tapered trapezoid) ---
+  const bodyTop = lidY + lidH + lidGap;
+  const bodyTopLeft = cx - bodyW / 2;
+  const bodyTopRight = cx + bodyW / 2;
+  const bodyBotLeft = cx - bodyW / 2 + taper;
+  const bodyBotRight = cx + bodyW / 2 - taper;
+  const bodyBot = bodyTop + bodyH;
+
+  // Semi-transparent fill
+  ctx.fillStyle = 'rgba(224,56,56,0.15)';
+  ctx.beginPath();
+  ctx.moveTo(bodyTopLeft + cr, bodyTop);
+  ctx.lineTo(bodyTopRight - cr, bodyTop);
+  ctx.quadraticCurveTo(bodyTopRight, bodyTop, bodyTopRight, bodyTop + cr);
+  ctx.lineTo(bodyBotRight, bodyBot - cr);
+  ctx.quadraticCurveTo(bodyBotRight, bodyBot, bodyBotRight - cr, bodyBot);
+  ctx.lineTo(bodyBotLeft + cr, bodyBot);
+  ctx.quadraticCurveTo(bodyBotLeft, bodyBot, bodyBotLeft, bodyBot - cr);
+  ctx.lineTo(bodyTopLeft, bodyTop + cr);
+  ctx.quadraticCurveTo(bodyTopLeft, bodyTop, bodyTopLeft + cr, bodyTop);
+  ctx.closePath();
+  ctx.fill();
+
+  // Outline
+  ctx.strokeStyle = DELETE_ZONE_BORDER;
+  ctx.lineWidth = 2 * scale;
+  ctx.stroke();
+
+  // --- 3 vertical slat lines ---
+  const slatInset = 6 * scale;
+  const slatTop = bodyTop + slatInset;
+  const slatBot = bodyBot - slatInset;
+  ctx.strokeStyle = DELETE_ZONE_BORDER;
+  ctx.lineWidth = 2 * scale;
+  ctx.lineCap = 'round';
+
+  for (let i = -1; i <= 1; i++) {
+    const sx = cx + i * (bodyW * 0.22);
+    // Adjust for taper: slats converge slightly at bottom
+    const topX = sx;
+    const botX = sx + i * (-taper * 0.3);
+    ctx.beginPath();
+    ctx.moveTo(topX, slatTop);
+    ctx.lineTo(botX, slatBot);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 // --- Tray ---
 
 function drawTray(
@@ -540,7 +727,7 @@ function drawTray(
   state: ChipDrawerRenderState,
   cellSize: number,
 ): TooltipInfo | null {
-  const { paletteItems, puzzleNodes, utilityNodes } = state;
+  const { paletteItems, craftedPuzzles, craftedUtilities } = state;
   const tray = getTrayRect(cellSize, _drawerProgress);
   if (tray.height <= 0) return null;
 
@@ -606,15 +793,7 @@ function drawTray(
     ctx.fill();
 
     // Draw chip using the real node renderer (same as board chips)
-    drawChipInSlot(ctx, tokens, item, slot, cellSize, puzzleNodes, utilityNodes);
-
-    // Depleted overlay
-    if (!item.canPlace) {
-      ctx.fillStyle = SLOT_DEPLETED_OVERLAY;
-      ctx.beginPath();
-      ctx.roundRect(slot.left, slot.top, slot.width, slot.height, 4);
-      ctx.fill();
-    }
+    drawChipInSlot(ctx, tokens, item, slot, cellSize, craftedPuzzles, craftedUtilities);
 
     // Remaining count badge
     if (item.remaining !== null && item.remaining >= 0) {
@@ -644,7 +823,7 @@ function drawTray(
 
 /**
  * Render a chip inside a drawer slot using the full drawSingleNode pipeline.
- * Follows the placement ghost pattern: builds a synthetic NodeState at origin,
+ * Follows the placement ghost pattern: builds a synthetic ChipState at origin,
  * probes its body rect, computes a miniCellSize to fit the slot, then
  * translates + draws.
  */
@@ -654,20 +833,20 @@ function drawChipInSlot(
   item: PaletteItem,
   slot: { left: number; top: number; width: number; height: number },
   cellSize: number,
-  puzzleNodes: ReadonlyMap<string, PuzzleNodeEntry>,
-  utilityNodes: ReadonlyMap<string, UtilityNodeEntry>,
+  craftedPuzzles: ReadonlyMap<string, CraftedPuzzleEntry>,
+  craftedUtilities: ReadonlyMap<string, CraftedUtilityEntry>,
 ): void {
-  const { inputCount, outputCount } = getPortCountsFromType(item.nodeType, puzzleNodes, utilityNodes);
-  const params = getDefaultParams(item.nodeType);
+  const { socketCount, plugCount } = getPortCountsFromType(item.chipType, craftedPuzzles, craftedUtilities);
+  const params = getDefaultParams(item.chipType);
 
-  // Build synthetic node at grid origin
-  const ghostNode: NodeState = {
+  // Build synthetic chip at grid origin
+  const ghostNode: ChipState = {
     id: '__drawer__',
-    type: item.nodeType,
+    type: item.chipType,
     position: { col: 0, row: 0 },
     params,
-    inputCount,
-    outputCount,
+    socketCount,
+    plugCount,
     rotation: 0,
   };
 
@@ -683,23 +862,24 @@ function drawChipInSlot(
 
   // Build minimal render state with no signals/connections
   const knobValues = new Map<string, KnobInfo>();
-  const knobCfg = getKnobConfig(getNodeDefinition(ghostNode.type));
+  const knobCfg = getKnobConfig(getChipDefinition(ghostNode.type));
   if (knobCfg) {
     const defaultValue = (ghostNode.params[knobCfg.paramKey] as number) ?? 0;
     knobValues.set('__drawer__', { value: defaultValue, isWired: false });
   }
 
   const renderState: RenderNodesState = {
-    puzzleNodes,
-    utilityNodes,
+    craftedPuzzles,
+    craftedUtilities,
     chips: new Map([['__drawer__', ghostNode]]),
-    selectedNodeId: null,
-    hoveredNodeId: null,
+    selectedChipId: null,
+    hoveredChipId: null,
     knobValues,
     portSignals: new Map(),
-    rejectedKnobNodeId: null,
-    connectedInputPorts: new Set(),
-    liveNodeIds: new Set(['__drawer__']),
+    rejectedKnobChipId: null,
+    connectedSocketPorts: new Set(),
+    connectedPlugPorts: new Set(),
+    liveChipIds: new Set(['__drawer__']),
   };
 
   ctx.save();
@@ -741,7 +921,7 @@ function drawBadge(
 
 function drawTooltip(
   ctx: CanvasRenderingContext2D,
-  tokens: ThemeTokens,
+  _tokens: ThemeTokens,
   item: PaletteItem,
   slot: { left: number; top: number; width: number; height: number } | undefined,
   cellSize: number,
@@ -750,7 +930,7 @@ function drawTooltip(
   if (!slot) return;
 
   // Get description from node definition or item
-  const def = getNodeDefinition(item.nodeType);
+  const def = getChipDefinition(item.chipType);
   const description = def?.description ?? '';
 
   const titleSize = Math.round(cellSize * 0.4);

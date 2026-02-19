@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ThemeTokens } from '../../shared/tokens/index.ts';
-import type { NodeState, Wire } from '../../shared/types/index.ts';
+import type { ChipState, Path } from '../../shared/types/index.ts';
 import type { KeyboardFocusTarget } from '../interaction/keyboard-focus.ts';
 import { drawKeyboardFocus } from './render-focus.ts';
 
@@ -36,11 +36,17 @@ function makeTokens(): ThemeTokens {
     animEasingBounce: '',
     animCeremonyBurstDuration: '',
     animCeremonyRevealDuration: '',
+    colorValidationMatch: '',
+    colorError: '',
+    meterBorder: '',
+    meterBorderMatch: '',
+    meterBorderMismatch: '',
+    boardBorder: '',
   } as ThemeTokens;
 }
 
-function makeNode(id: string, col: number, row: number, inputs = 1, outputs = 1): NodeState {
-  return { id, type: 'invert', position: { col, row }, params: {}, inputCount: inputs, outputCount: outputs };
+function makeNode(id: string, col: number, row: number, inputs = 1, outputs = 1): ChipState {
+  return { id, type: 'invert', position: { col, row }, params: {}, socketCount: inputs, plugCount: outputs };
 }
 
 function makeMockCtx() {
@@ -86,7 +92,7 @@ describe('drawKeyboardFocus', () => {
 
   it('draws roundRect for node focus', () => {
     const { ctx, calls } = makeMockCtx();
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 5, 3));
     const target: KeyboardFocusTarget = { type: 'node', chipId: 'n1' };
 
@@ -99,11 +105,11 @@ describe('drawKeyboardFocus', () => {
 
   it('draws arc for port focus', () => {
     const { ctx, calls } = makeMockCtx();
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 5, 3));
     const target: KeyboardFocusTarget = {
       type: 'port',
-      portRef: { chipId: 'n1', portIndex: 0, side: 'input' },
+      portRef: { chipId: 'n1', portIndex: 0, side: 'socket' },
     };
 
     drawKeyboardFocus(ctx, makeTokens(), target, true, nodes, [], 1280, 720, 40, null);
@@ -114,7 +120,7 @@ describe('drawKeyboardFocus', () => {
 
   it('draws arc for connection-point focus', () => {
     const { ctx, calls } = makeMockCtx();
-    const target: KeyboardFocusTarget = { type: 'connection-point', side: 'input', index: 0 };
+    const target: KeyboardFocusTarget = { type: 'connection-point', slotIndex: 0 };
 
     drawKeyboardFocus(ctx, makeTokens(), target, true, new Map(), [], 1280, 720, 40, null);
 
@@ -124,10 +130,10 @@ describe('drawKeyboardFocus', () => {
 
   it('draws wire path for wire focus', () => {
     const { ctx, calls } = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'n1', portIndex: 0, side: 'output' },
-      target: { chipId: 'n2', portIndex: 0, side: 'input' },
+      source: { chipId: 'n1', portIndex: 0, side: 'plug' },
+      target: { chipId: 'n2', portIndex: 0, side: 'socket' },
       route: [{ col: 5, row: 3 }, { col: 10, row: 3 }, { col: 10, row: 6 }],
     };
     const target: KeyboardFocusTarget = { type: 'wire', wireId: 'w1' };
@@ -141,10 +147,10 @@ describe('drawKeyboardFocus', () => {
 
   it('skips wire focus if wire has empty path', () => {
     const { ctx } = makeMockCtx();
-    const wire: Wire = {
+    const wire: Path = {
       id: 'w1',
-      source: { chipId: 'n1', portIndex: 0, side: 'output' },
-      target: { chipId: 'n2', portIndex: 0, side: 'input' },
+      source: { chipId: 'n1', portIndex: 0, side: 'plug' },
+      target: { chipId: 'n2', portIndex: 0, side: 'socket' },
       route: [],
     };
     const target: KeyboardFocusTarget = { type: 'wire', wireId: 'w1' };
@@ -156,14 +162,14 @@ describe('drawKeyboardFocus', () => {
 
   it('draws wiring target highlights when wiringState provided', () => {
     const { ctx } = makeMockCtx();
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 5, 3));
     nodes.set('n2', makeNode('n2', 10, 5));
 
-    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'output' } };
+    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'plug' } };
     const wiringState = {
-      fromPort: { chipId: 'n1', portIndex: 0, side: 'output' as const },
-      validTargets: [{ chipId: 'n2', portIndex: 0, side: 'input' as const }],
+      fromPort: { chipId: 'n1', portIndex: 0, side: 'plug' as const },
+      validTargets: [{ chipId: 'n2', portIndex: 0, side: 'socket' as const }],
       targetIndex: 0,
     };
 
@@ -175,16 +181,16 @@ describe('drawKeyboardFocus', () => {
 
   it('renders multiple targets with different alpha', () => {
     const { ctx } = makeMockCtx();
-    const nodes = new Map<string, NodeState>();
+    const nodes = new Map<string, ChipState>();
     nodes.set('n1', makeNode('n1', 5, 3));
     nodes.set('n2', makeNode('n2', 10, 5, 2, 1));
 
-    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'output' } };
+    const target: KeyboardFocusTarget = { type: 'port', portRef: { chipId: 'n1', portIndex: 0, side: 'plug' } };
     const wiringState = {
-      fromPort: { chipId: 'n1', portIndex: 0, side: 'output' as const },
+      fromPort: { chipId: 'n1', portIndex: 0, side: 'plug' as const },
       validTargets: [
-        { chipId: 'n2', portIndex: 0, side: 'input' as const },
-        { chipId: 'n2', portIndex: 1, side: 'input' as const },
+        { chipId: 'n2', portIndex: 0, side: 'socket' as const },
+        { chipId: 'n2', portIndex: 1, side: 'socket' as const },
       ],
       targetIndex: 0,
     };

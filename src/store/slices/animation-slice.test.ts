@@ -5,7 +5,6 @@ import { createInteractionSlice } from './interaction-slice.ts';
 import { createPlaypointSlice } from './playpoint-slice.ts';
 import { createPuzzleSlice } from './puzzle-slice.ts';
 import { createPaletteSlice } from './palette-slice.ts';
-import { createCeremonySlice } from './ceremony-slice.ts';
 import { createNavigationSlice } from './navigation-slice.ts';
 import { createProgressionSlice } from './progression-slice.ts';
 import { createHistorySlice } from './history-slice.ts';
@@ -26,7 +25,6 @@ function createTestStore() {
     ...createPlaypointSlice(...a),
     ...createPuzzleSlice(...a),
     ...createPaletteSlice(...a),
-    ...createCeremonySlice(...a),
     ...createNavigationSlice(...a),
     ...createProgressionSlice(...a),
     ...createHistorySlice(...a),

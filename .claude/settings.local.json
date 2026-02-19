@@ -57,7 +57,13 @@
       "WebFetch(domain:fonts.googleapis.com)",
       "Bash(gh repo rename:*)",
       "Bash(gh repo view:*)",
-      "Bash(start \"\" \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\mockups\\\\transition-mockup.html\")"
+      "Bash(start \"\" \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\mockups\\\\transition-mockup.html\")",
+      "Bash(git show:*)",
+      "Bash(start \"\" \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\mockups\\\\playback-controls-mockup.html\")",
+      "Bash(curl:*)",
+      "Bash(start \"\" \"C:\\\\Users\\\\emcha\\\\OneDrive\\\\Documents\\\\Code\\\\logic-puzzle\\\\mockups\\\\back-icon-mockup.html\")",
+      "Bash(ls:*)",
+      "Bash(printf:*)"
     ]
   }
 }

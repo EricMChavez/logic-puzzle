@@ -22,6 +22,7 @@ export interface CursorAnimation {
 
 export type AdvanceCondition =
   | { type: 'click-anywhere' }
+  | { type: 'next-button' }
   | { type: 'wire-created' }
   | { type: 'wire-removed' }
   | { type: 'node-placed'; nodeType: string }

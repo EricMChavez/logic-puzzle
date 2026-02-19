@@ -13,6 +13,8 @@ interface MeterChannel {
 
 /** Module-level state */
 let masterGain: GainNode | null = null;
+let transitionGain: GainNode | null = null;
+let pendingTransitionGain = 1;
 let running = false;
 const channels = new Map<number, MeterChannel>();
 
@@ -38,7 +40,10 @@ export function startMeterAudio(): void {
     }
     masterGain = ctx.createGain();
     masterGain.gain.value = isMuted() ? 0 : 1;
-    masterGain.connect(ctx.destination);
+    transitionGain = ctx.createGain();
+    transitionGain.gain.value = pendingTransitionGain;
+    masterGain.connect(transitionGain);
+    transitionGain.connect(ctx.destination);
   } catch {
     running = false;
   }
@@ -53,6 +58,11 @@ export function stopMeterAudio(): void {
     destroyChannel(channel);
   }
   channels.clear();
+
+  if (transitionGain) {
+    transitionGain.disconnect();
+    transitionGain = null;
+  }
 
   if (masterGain) {
     masterGain.disconnect();
@@ -73,10 +83,10 @@ function destroyChannel(channel: MeterChannel): void {
 
 /**
  * Compute the detune value for a meter slot.
- * Each slot gets a slight spread (±5 cents), and mismatched outputs get an extra -20 cents.
+ * Each slot gets a slight spread (±5 cents), and mismatched outputs get an extra -50 cents.
  */
 function computeDetune(slotIndex: number, isMismatched: boolean): number {
-  return (1 - (slotIndex % 3)) * 5 + (isMismatched ? -20 : 0);
+  return (1 - (slotIndex % 3)) * 5 + (isMismatched ? -50 : 0);
 }
 
 /**
@@ -159,6 +169,29 @@ export function setMeterAudioMuted(muted: boolean): void {
   try {
     const ctx = getAudioContext();
     masterGain.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.02);
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * Fade the transition gain node for zoom transitions.
+ * @param targetGain - Target gain value (0 = silent, 1 = full volume)
+ * @param rampMs - Duration of the ramp in milliseconds. 0 = snap immediately.
+ */
+export function setMeterTransitionGain(targetGain: number, rampMs: number): void {
+  pendingTransitionGain = targetGain;
+  if (!transitionGain) return;
+  try {
+    const ctx = getAudioContext();
+    const param = transitionGain.gain;
+    param.cancelScheduledValues(ctx.currentTime);
+    param.setValueAtTime(param.value, ctx.currentTime);
+    if (rampMs <= 0) {
+      param.setValueAtTime(targetGain, ctx.currentTime);
+    } else {
+      param.linearRampToValueAtTime(targetGain, ctx.currentTime + rampMs / 1000);
+    }
   } catch {
     // Ignore
   }

@@ -1,4 +1,4 @@
-import type { Wire, NodeState } from '../../shared/types/index.ts';
+import type { Path, ChipState } from '../../shared/types/index.ts';
 import type { ThemeTokens } from '../../shared/tokens/token-types.ts';
 import { getNodePortPosition, getConnectionPointPosition } from './port-positions.ts';
 import { isConnectionPointNode, isConnectionInputNode, getConnectionPointIndex, isCreativeSlotNode, getCreativeSlotIndex, isUtilitySlotNode, getUtilitySlotIndex, isBidirectionalCpNode, getBidirectionalCpIndex } from '../../puzzle/connection-point-nodes.ts';
@@ -105,11 +105,12 @@ export function getWireSignal(
  */
 function getPortPixelPosition(
   chipId: string,
-  side: 'input' | 'output',
+  side: 'socket' | 'plug',
   portIndex: number,
-  nodes: ReadonlyMap<string, NodeState>,
+  nodes: ReadonlyMap<string, ChipState>,
   cellSize: number,
 ): { x: number; y: number } | null {
+  const logicalSide = side === 'socket' ? 'input' : 'output';
   if (isConnectionPointNode(chipId)) {
     // All CP node types encode a slot index (0-5). Derive physical side and per-side index.
     const slotIndex = getCpSlotIndex(chipId, nodes);
@@ -119,7 +120,7 @@ function getPortPixelPosition(
   }
   const node = nodes.get(chipId);
   if (!node) return null;
-  return getNodePortPosition(node, side, portIndex, cellSize);
+  return getNodePortPosition(node, logicalSide, portIndex, cellSize);
 }
 
 /**
@@ -129,7 +130,7 @@ function getPortPixelPosition(
  */
 function getCpSlotIndex(
   chipId: string,
-  nodes: ReadonlyMap<string, NodeState>,
+  nodes: ReadonlyMap<string, ChipState>,
 ): number {
   if (isCreativeSlotNode(chipId)) return getCreativeSlotIndex(chipId);
   if (isUtilitySlotNode(chipId)) return getUtilitySlotIndex(chipId);
@@ -155,9 +156,9 @@ function getCpSlotIndex(
  * Shared by drawWires and drawWireBlips.
  */
 export function buildWirePixelPath(
-  wire: Wire,
+  wire: Path,
   cellSize: number,
-  nodes?: ReadonlyMap<string, NodeState>,
+  nodes?: ReadonlyMap<string, ChipState>,
 ): Array<{ x: number; y: number }> {
   // Allow wires with empty paths if we can resolve endpoints from nodes
   if (wire.route.length === 0 && !nodes) return [];
@@ -218,9 +219,9 @@ export function buildWirePixelPath(
 export function drawWires(
   ctx: CanvasRenderingContext2D,
   tokens: ThemeTokens,
-  wires: ReadonlyArray<Wire>,
+  wires: ReadonlyArray<Path>,
   cellSize: number,
-  nodes?: ReadonlyMap<string, NodeState>,
+  nodes?: ReadonlyMap<string, ChipState>,
   wireValues?: ReadonlyMap<string, number>,
   neutralOnly?: boolean,
   liveWireIds?: ReadonlySet<string>,

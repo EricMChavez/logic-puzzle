@@ -1,7 +1,7 @@
-import { defineNode } from '../framework';
-import type { NodeRuntimeState } from '../framework';
+import { defineChip } from '../framework';
+import type { ChipRuntimeState } from '../framework';
 
-export interface MemoryState extends NodeRuntimeState {
+export interface MemoryState extends ChipRuntimeState {
   previousValue: number;
 }
 
@@ -10,17 +10,17 @@ export function createMemoryState(): MemoryState {
 }
 
 /**
- * Memory node: 1-cycle delay.
+ * Memory chip: 1-cycle delay.
  * Outputs the previous cycle's input value.
  * On cycle 0, outputs 0 (initial state).
  */
-export const memoryNode = defineNode({
+export const memoryChip = defineChip({
   type: 'memory',
   category: 'timing',
   description: 'Outputs the previous cycle\'s input value',
 
-  inputs: [{ name: 'A', gridPosition: 0 }],
-  outputs: [{ name: 'Out', gridPosition: 0 }],
+  sockets: [{ name: 'A', gridPosition: 0 }],
+  plugs: [{ name: 'Out', gridPosition: 0 }],
 
   createState: createMemoryState,
 
