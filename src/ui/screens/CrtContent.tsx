@@ -24,21 +24,9 @@ function getHomeLines(signalFull: boolean): string[] {
   ];
 }
 
-const ABOUT_LINES = [
+const ABOUT_HEADER_LINES = [
   '> ABOUT WAVELENGTH',
   '',
-  'An idea years in the making. As an audio engineer, I always',
-  'wanted a puzzle game built around the tools I use every day:',
-  'waveforms, signal processing, and node-based thinking.',
-  '',
-  'I built WaveLength in under two weeks using agentic',
-  'development with Claude Code.',
-  '',
-  'What you\'re playing is a love letter to the audio world,',
-  'disguised as a puzzle game. If you\'ve patched a modular',
-  'synth, this will feel familiar. If not, welcome to waveforms.',
-  '',
-  'I hope you enjoy playing it as much as I enjoyed building it.',
 ];
 
 const SETTINGS_HEADER_LINES = [
@@ -57,7 +45,7 @@ export function CrtContent() {
   const contentLines = useMemo(() => {
     switch (activeScreen) {
       case 'home': return [...ASCII_ART_LINES, ...getHomeLines(signalFull)];
-      case 'about': return ABOUT_LINES;
+      case 'about': return ABOUT_HEADER_LINES;
       case 'settings': return SETTINGS_HEADER_LINES;
       case 'thankyou': return [];
       default: return [...ASCII_ART_LINES, ...getHomeLines(signalFull)];
