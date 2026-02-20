@@ -1,8 +1,6 @@
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useGameStore } from '../../store/index.ts';
 import { GizmoFace } from './GizmoFace.tsx';
-import { computeCellSize } from '../../shared/grid/viewport.ts';
-import { MIN_CELL_SIZE } from '../../shared/grid/constants.ts';
 import styles from './RetroPageHost.module.css';
 
 export function RetroPageHost() {
@@ -13,18 +11,6 @@ export function RetroPageHost() {
 
   const hostRef = useRef<HTMLDivElement>(null);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [tooSmall, setTooSmall] = useState(() => {
-    return computeCellSize(window.innerWidth, window.innerHeight) < MIN_CELL_SIZE;
-  });
-
-  useEffect(() => {
-    function handleResize() {
-      setTooSmall(computeCellSize(window.innerWidth, window.innerHeight) < MIN_CELL_SIZE);
-    }
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Capture-phase Escape handler — fires before gameboard's handler
   useEffect(() => {
@@ -106,30 +92,6 @@ export function RetroPageHost() {
 
   // Idle / powering-off — static position, CRT animation handled inside GizmoFace
   if (activeScreen) {
-    if (tooSmall) {
-      return (
-        <div className={styles.host} ref={hostRef}>
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'var(--token-surface-page-background)',
-              color: '#e0e0f0',
-              fontFamily: 'system-ui, sans-serif',
-              fontSize: '18px',
-              textAlign: 'center',
-              padding: '2rem',
-              zIndex: 10,
-            }}
-          >
-            Viewport too small. Please resize your window to at least 1024×576.
-          </div>
-        </div>
-      );
-    }
     return (
       <div className={styles.host} ref={hostRef}>
         <div className={`${styles.pageContainer} ${styles.idle}`}>

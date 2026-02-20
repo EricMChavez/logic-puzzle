@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { startRenderLoop } from './render-loop.ts';
 import { useGameStore } from '../../store/index.ts';
 import { hitTest, hitTestMeter, findNearestSnapTarget, WIRE_SNAP_RADIUS_CELLS } from './hit-testing.ts';
@@ -18,7 +18,6 @@ import { getDevOverrides } from '../../dev/index.ts';
 import {
   GRID_COLS,
   GRID_ROWS,
-  MIN_CELL_SIZE,
   computeCellSize,
   computeCenterOffset,
   pixelToGrid,
@@ -269,7 +268,7 @@ export function GameboardCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cellSizeRef = useRef(0);
   const offsetRef = useRef({ x: 0, y: 0 });
-  const [tooSmall, setTooSmall] = useState(false);
+
 
   // Hit test cache: skip hitTest when cursor stays in the same grid cell
   const hitCacheRef = useRef<{
@@ -318,9 +317,6 @@ export function GameboardCanvas() {
       cellSizeRef.current = cellSize;
       setGlobalCellSize(cellSize);
       canvas!.dataset.cellSize = String(cellSize);
-
-      // Check minimum cell size
-      setTooSmall(cellSize < MIN_CELL_SIZE);
 
       // Canvas covers full viewport so page streak extends into margins
       canvas!.width = viewportW * dpr;
@@ -1670,26 +1666,6 @@ export function GameboardCanvas() {
           outline: 'none',
         }}
       />
-      {tooSmall && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'var(--token-surface-page-background)',
-            color: '#e0e0f0',
-            fontFamily: 'system-ui, sans-serif',
-            fontSize: '18px',
-            textAlign: 'center',
-            padding: '2rem',
-            zIndex: 10,
-          }}
-        >
-          Viewport too small. Please resize your window to at least 1024×576.
-        </div>
-      )}
     </>
   );
 }
